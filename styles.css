@@ -4610,3 +4610,61 @@ body.staged .sheet > .sec.st-past { color: var(--muted); }
 :root[data-look="amp"] .title, :root[data-look="amp"] h1.title { font-family: var(--serif); font-weight: 400; letter-spacing: -0.01em; }
 :root[data-look="amp"] .title.script { font-family: var(--serif); font-weight: 400; font-style: normal; }
 :root[data-look="amp"][data-theme="light"] .ch-head { background: var(--plate); box-shadow: var(--plate-shadow); border: 1px solid #6d5326; } :root[data-look="amp"][data-theme="light"] .ch-head, :root[data-look="amp"][data-theme="light"] .ch-head small, :root[data-look="amp"][data-theme="light"] .ch-head h1 { color: #2a1d10; }
+
+/* Louie Lite 3.1.0: 2.49's sizes and quiet controls in place of version 4's chunky buttons.
+   Buttons 46 px (small ones 34), chips 28 px pills with a lamp, switches 28 px, rows 52 to 60 px,
+   settings tiles 30 px, header buttons 36 px round, the song bar a compact gold plate. */
+:root[data-look="amp"] body .btn { height: 46px; min-height: 0; padding: 0 16px; border-radius: 12px; font: 500 15px var(--sans); letter-spacing: 0; text-transform: none; background: var(--card); color: var(--fg-2); border: 1px solid var(--rim); box-shadow: none; }
+:root[data-look="amp"] body .btn::before, :root[data-look="amp"] body .btn::after { display: none; }
+:root[data-look="amp"] body .btn.primary, :root[data-look="amp"] body .btn.sm.primary { background: var(--copper); color: var(--copper-fg); border: 0; box-shadow: var(--copper-hi); font-weight: 600; }
+:root[data-look="amp"] body .btn.sm { height: 34px; padding: 0 12px; font-size: 14px; border-radius: 10px; flex: none; }
+:root[data-look="amp"] body .btn:active:not(:disabled) { transform: none; filter: brightness(.92); }
+:root[data-look="amp"] body .btn svg { width: 16px; height: 16px; }
+:root[data-look="amp"] body .chip, :root[data-look="amp"] body #chips .chip { height: 28px; min-height: 0; padding: 0 12px; border-radius: 14px; font: 500 13px var(--sans); border: 1px solid var(--rim); background: var(--card); color: var(--muted); box-shadow: none; }
+:root[data-look="amp"] body #chips .chip.on, :root[data-look="amp"] body .chip.on { color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft); box-shadow: none; }
+:root[data-look="amp"] body #chips .chip::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--lamp-off); box-shadow: 0 0 0 1px rgba(0,0,0,.5); vertical-align: 1px; }
+:root[data-look="amp"] body #chips .chip.on::before { background: var(--lamp-on); box-shadow: 0 0 0 1px rgba(0,0,0,.5), var(--lamp-glow); }
+:root[data-look="amp"] body #chips .chip:has(svg)::before { display: none; }
+:root[data-look="amp"] body .seg { min-height: 0; padding: 2px; border-radius: 9px; background: var(--card-2); border: 0; box-shadow: none; }
+:root[data-look="amp"] body .seg button { height: 28px; min-height: 0; border-radius: 7px; font: 500 14px var(--sans); color: var(--muted); background: none; box-shadow: none; border: 0; }
+:root[data-look="amp"] body .seg button.on, :root[data-look="amp"][data-theme="dark"] body .seg button.on { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
+:root[data-look="amp"] body .set { min-height: 52px; padding: 0 14px; gap: 14px; font: 400 16px var(--sans); }
+:root[data-look="amp"] body .set .tile { width: 30px; height: 30px; border-radius: 8px; background: var(--card-2); border: 1px solid var(--rim); color: var(--fg-2); box-shadow: none; }
+:root[data-look="amp"] body .set .tile svg { width: 17px; height: 17px; }
+:root[data-look="amp"] body .set .val { font: 400 15px var(--sans); color: var(--accent); }
+:root[data-look="amp"] body .set b, :root[data-look="amp"] body .set .name b { font-weight: 500; }
+:root[data-look="amp"] body .set-group, :root[data-look="amp"] body .list, :root[data-look="amp"] body .card { border-radius: 16px; box-shadow: inset 0 1px 0 var(--rim-hi); }
+:root[data-look="amp"] body .row { min-height: 60px; }
+:root[data-look="amp"] body .row .t { font: 500 16px var(--sans); }
+:root[data-look="amp"] body .row .k { font: 500 13px var(--mono, ui-monospace); color: var(--muted); background: none; border: 0; box-shadow: none; min-width: 30px; height: auto; }
+:root[data-look="amp"] body .head .btn, :root[data-look="amp"] body .ib { height: 36px; min-width: 36px; border-radius: 18px; padding: 0 10px; font-size: 14px; }
+:root[data-look="amp"] body input[type="text"], :root[data-look="amp"] body input[type="search"], :root[data-look="amp"] body input[type="password"], :root[data-look="amp"] body textarea { border-radius: 12px; border-width: 1px; box-shadow: none; font: 400 16px var(--sans); }
+/* the song bar: 2.49's compact gold plate */
+:root[data-look="amp"] .app.viewer .dock { border-radius: 18px; padding: 6px; }
+:root[data-look="amp"] .app.viewer .player .tl { width: 40px; height: 40px; border-radius: 11px; }
+:root[data-look="amp"] .app.viewer .player .tl.tools { width: auto; padding: 0 12px; font: 500 13px var(--sans); }
+:root[data-look="amp"] .app.viewer .player .play { height: 40px; min-width: 64px; border-radius: 11px; font: 600 15px var(--sans); box-shadow: var(--copper-hi); }
+:root[data-look="amp"] .dock.kb .cmd { height: 52px; border-radius: 16px; }
+:root[data-look="amp"] .dock.kb .add { width: 52px; height: 52px; border-radius: 16px; }
+:root[data-look="amp"] .dock.kb .add-in { width: 40px; height: 40px; border-radius: 11px; }
+/* 3.1.0 continued: the song bar is 2.49's small gold plate at the right, in thumb reach */
+:root[data-look="amp"] .app.viewer .dock { display: flex; justify-content: flex-end; background: none; box-shadow: none; border: 0; padding: 0; }
+:root[data-look="amp"] .app.viewer .dock .pw { width: auto; background: var(--plate); border: 1px solid #6d5326; box-shadow: var(--plate-shadow); border-radius: 16px; padding: 5px; -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-look="amp"] .app.viewer .player { gap: 6px; }
+:root[data-look="amp"] .app.viewer .player .tl { width: 38px; height: 38px; border-radius: 11px; }
+:root[data-look="amp"] .app.viewer .player .tl.tools { flex: none; width: auto; padding: 0 12px; flex-direction: row; gap: 6px; font: 500 13px var(--sans); }
+:root[data-look="amp"] .app.viewer .player .tl.tools .i { width: 16px; height: 16px; }
+:root[data-look="amp"] .app.viewer .player .play { height: 38px; width: 56px; min-width: 0; padding: 0; border-radius: 11px; }
+:root[data-look="amp"] .app.viewer .player .play .pl-w, :root[data-look="amp"] .app.viewer .player .play span:not(.i) { display: none; }
+/* chord shapes and the add tools at 2.49's size */
+:root[data-look="amp"] .app.viewer .strip .scard { width: 58px; min-height: 0; height: 72px; padding: 4px 0; border-radius: 10px; border: 1px solid var(--rim); background: var(--solid); box-shadow: none; }
+:root[data-look="amp"] body .sr-tool { height: 60px; min-height: 0; border-radius: 12px; font: 500 13px var(--sans); background: var(--card); border: 1px solid var(--rim); box-shadow: none; gap: 4px; }
+:root[data-look="amp"] body .sr-tool svg { width: 20px; height: 20px; }
+/* Rehearse and the other pages: no big bars */
+:root[data-look="amp"] body .rh-yc .btn.rh-ycall, :root[data-look="amp"] body .rh-lesson .rh-lgo { height: 46px; min-height: 0; font-size: 15px; }
+:root[data-look="amp"] body .rh-yc .btn.rh-ycd { height: 34px; min-height: 0; padding: 0 12px; font-size: 14px; border-radius: 10px; }
+:root[data-look="amp"] body h2, :root[data-look="amp"] body .rh-lesson h3, :root[data-look="amp"] body .rh h3 { font-weight: 600; }
+:root[data-look="amp"] body .pf-tile, :root[data-look="amp"] body .pf-badge { box-shadow: none; border: 1px solid var(--rim); background: var(--card); }
+:root[data-look="amp"] .app.viewer .dock .pw { flex: none; }
+:root[data-look="amp"] .app.viewer .player .play, :root[data-look="amp"] .app.viewer #play { flex: none; width: 56px; }
+:root[data-look="amp"] body .rh-yc .btn.rh-ycall, :root[data-look="amp"] body .rh-lesson .rh-lgo { flex: none; }
