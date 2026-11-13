@@ -25,7 +25,7 @@ for (const [name, hash] of [["Songbook", "#/library"], ["Settings", "#/settings"
     assert.equal(Math.round(r.plain), 56, "a plain button beside it matches");
     assert.equal(Math.round(r.row), 42, "row action is 42 tall");
     assert.ok(r.seg >= 48, "segmented track is at least 48");
-    assert.match(r.mainLip, /0px 5px 0px/, "main button sits on its lip");
+    assert.match(r.mainLip, /8px 22px/, "main button has the copper glow");
     assert.match(r.lip, /0px 4px 0px/, "plain button sits on its lip");
     assert.match(r.segOn, /0px 2px 0px/, "the chosen segment has a lip");
   });

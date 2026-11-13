@@ -4491,13 +4491,18 @@ body.staged .sheet > .sec.st-past { color: var(--muted); }
   --glass-tint: rgba(28,28,31,.72);
 }
 :root[data-look="amp"][data-theme="light"] {
-  --bg: #f4f1ea; --fg: #1c1b19; --fg-2: #4a463f; --muted: #6f6a62; --accent: #9c5631; --accent-ink: #7a3e22;
+  --bg: #f4f1ea; --fg: #1c1b19; --fg-2: #3a342c; --muted: #3e3933; --accent: #8a3f1c; --accent-ink: #6e3016;
+  --on-accent: #fff8f0; --good: #085c38; --good-ink: #085c38;
   --card: #fffdf8; --card-2: #fff; --rim: rgba(134,102,58,.35); --line: rgba(80,60,30,.12);
   --glass-tint: rgba(255,252,246,.82);
 }
 :root[data-look="amp"] body, :root[data-look="amp"] .app { background: var(--bg); color: var(--fg); font-family: var(--sans); }
 :root[data-look="amp"] .title, :root[data-look="amp"] h1.title, :root[data-look="amp"] .song-title { font-family: var(--serif); font-weight: 600; letter-spacing: .2px; }
-:root[data-look="amp"] .btn { min-height: 42px; border-radius: 16px; font-family: var(--sans); }
+:root[data-look="amp"] .btn, :root[data-look="amp"] .btn.primary, :root[data-look="amp"] .chip, :root[data-look="amp"] .stat, :root[data-look="amp"] .seg button { font-family: var(--sans); }
+:root[data-look="amp"] .pf-player { background: #8a3f1c; color: #fff8f0; box-shadow: 0 6px 0 #6e3a1e; }
+:root[data-look="amp"][data-theme="light"] .pf-player { background: #8a3f1c; color: #fff8f0; }
+:root[data-look="amp"] .pf-pc-who > small, :root[data-look="amp"] .pf-pc-venue, :root[data-look="amp"] .pf-pc-venue b, :root[data-look="amp"] .pf-pc-venue span { color: #fff8f0; }
+:root[data-look="amp"] .btn { min-height: 42px; border-radius: 16px; }
 :root[data-look="amp"] .btn.primary { min-height: 56px; background: var(--copper); color: var(--copper-fg); border: 1px solid #6e3a1e; box-shadow: var(--copper-hi), var(--copper-glow); }
 :root[data-look="amp"] .btn:not(.primary) { background: var(--chrome); color: #e9e9ec; border: 1px solid #3a3a40; }
 :root[data-look="amp"] .chip { height: 32px; border: 1px solid var(--bronze-line); background: var(--card); }
