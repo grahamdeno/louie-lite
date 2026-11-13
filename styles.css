@@ -568,7 +568,7 @@ body.writing .coach, body.writing .coach-dim { display: none; }
 body.searching .head, body.searching .weekly, body.searching .today, body.searching #chips, body.searching .lib-top, body.searching .bk, body.searching .dock-fade, body.searching .dock .add { display: none; }
 body.searching .qcancel { display: block; }
 body.searching .dock { top: calc(10px + var(--safe-t)); bottom: auto; transform: translateX(-50%) !important; animation: totop .28s cubic-bezier(.2,.8,.2,1); }
-body.searching #list { padding-top: 52px; }
+body.searching #list { padding-top: 96px; }
 body.searching #list > .label:first-child { margin-top: 8px; }
 @keyframes totop { from { opacity: 0; transform: translate(-50%, 24px); } }
 @media (prefers-reduced-motion: reduce) { body.searching .dock { animation: none; } }
