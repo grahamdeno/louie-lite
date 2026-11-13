@@ -1635,8 +1635,9 @@ function updateHeader(d) {
   const bar = $("chead");
   if (!bar) return;
   const y = window.scrollY;
-  const meta = $("meta");
-  const handoff = meta ? meta.offsetTop + meta.offsetHeight - 56 : 120; // full header gone above this
+  /* 3.1.2: the song header is taller now (cover, about, Mark as learning): hand off below whatever ends it */
+  const meta = $("meta") || $("stat") || document.querySelector(".app.viewer .sh-cover");
+  const handoff = meta ? meta.getBoundingClientRect().bottom + y - 56 : 120; // full header gone above this
   if (y < 60) fab.reveal = 1;
   else if (d < 0) fab.reveal = Math.min(1, fab.reveal - d / 40); /* 4.42.2: a short pull down shows it */
   else if (d > 0) fab.reveal = Math.max(0, fab.reveal - d / 60);
