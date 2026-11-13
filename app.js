@@ -1054,7 +1054,7 @@ function setBacking(song, mode, near, quiet) {
    is linked, else the song's letter on a palette colour; it and "about this song" open About this song.
    A dot on it when the recording doesn't match the sheet. */
 let curKeyDial = null;
-const TILE_HUES = ["#3D8BFF", "#FF3D7F", "#22B573", "#FFB020", "#8B5CF6", "#14B8C4"];
+const TILE_HUES = ["#9c5631", "#6e3a1e", "#4a3524", "#8a5a2b", "#3a3a40", "#2e2116"];
 const tileOf = song => ({ hue: TILE_HUES[[...(song.title || "?")].reduce((a, c) => a + c.charCodeAt(0), 0) % TILE_HUES.length],
   letter: esc(((song.title || "?").replace(/^(the|a)\s+/i, "").match(/[\p{L}\p{N}]/u) || ["?"])[0].toUpperCase()) });
 function coverBtn(song) {

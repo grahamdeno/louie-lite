@@ -4476,7 +4476,17 @@ body.staged .sheet > .sec.st-past { color: var(--muted); }
 /* Louie Lite: the amp look is the only theme. Dark is the default, Light keeps the same materials. */
 :root[data-look="amp"] {
   --bg: #0c0d0f; --fg: #f3f1ee; --fg-2: #c9c7c3; --muted: #8f8e8c; --accent: #eda27f; --accent-ink: #eda27f;
+  --accent-deep: #6e3a1e; --on-accent: #fff8f0; --accent-soft: rgba(237,162,127,.16); --accent-line: rgba(184,147,90,.5);
   --card: rgba(255,255,255,.045); --card-2: rgba(255,255,255,.08); --rim: rgba(184,147,90,.35); --line: rgba(255,255,255,.08);
+  --hair: rgba(255,255,255,.08); --bar: #17171a; --solid: #17171a; --head: #efe7da;
+  --good: #e7b56a; --good-soft: rgba(231,181,106,.16); --tune: #c8804f; --tn-lit: #ffb24a;
+  --strings: #b8935a; --strings-deep: #6e3a1e; --streak: #c8804f; --streak-deep: #6e3a1e;
+  --fans: #d9bd85; --fans-deep: #8a6a32; --fans-text: #d9bd85;
+  --banner: #b8935a; --banner-deep: #6e3a1e; --on-banner: #1c140c; --banner-sub: #f1e3c4;
+  --locked: #2a2a2e; --locked-deep: #161618; --locked-ic: #8f8e8c;
+  --recess: linear-gradient(180deg, #1f1910, #2e2517); --recess-shadow: inset 0 2px 4px rgba(0,0,0,.6), 0 1px 0 rgba(255,244,214,.5);
+  --recess-fg: #f1e3c4; --recess-dim: #a99b80; --recess-on: #ffc27a; --recess-edge: rgba(184,147,90,.45);
+  --chrome-fg: #e9e9ec; --chrome-edge: #8e8e94; --chrome-shadow: inset 0 1px 0 rgba(255,255,255,.22), 0 3px 8px rgba(0,0,0,.5);
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
   --serif: "New York", ui-serif, "Iowan Old Style", Charter, Georgia, serif;
   --display: "New York", ui-serif, "Iowan Old Style", Charter, Georgia, serif;
@@ -4492,8 +4502,11 @@ body.staged .sheet > .sec.st-past { color: var(--muted); }
 }
 :root[data-look="amp"][data-theme="light"] {
   --bg: #f4f1ea; --fg: #1c1b19; --fg-2: #3a342c; --muted: #3e3933; --accent: #8a3f1c; --accent-ink: #6e3016;
-  --on-accent: #fff8f0; --good: #085c38; --good-ink: #085c38;
+  --accent-deep: #6e3016; --on-accent: #fff8f0; --good: #085c38; --good-ink: #085c38;
   --card: #fffdf8; --card-2: #fff; --rim: rgba(134,102,58,.35); --line: rgba(80,60,30,.12);
+  --hair: rgba(80,60,30,.14); --bar: #fffdf8; --solid: #fffdf8;
+  --strings: #8a5a2b; --strings-deep: #6e3016; --streak: #8a3f1c; --streak-deep: #6e3016;
+  --recess: #efe6d6; --recess-fg: #1c1b19; --recess-dim: #5c5348; --recess-on: #6e3a1e;
   --glass-tint: rgba(255,252,246,.82);
 }
 :root[data-look="amp"] body, :root[data-look="amp"] .app { background: var(--bg); color: var(--fg); font-family: var(--sans); }
@@ -4517,5 +4530,26 @@ body.staged .sheet > .sec.st-past { color: var(--muted); }
 :root[data-look="amp"] .menu.tools, :root[data-look="amp"] .panel { background: var(--glass-tint); backdrop-filter: blur(18px); }
 :root[data-look="amp"][data-theme="light"] .btn:not(.primary) { background: #fff; color: var(--fg); border: 1px solid var(--bronze-line); }
 :root[data-look="amp"] .tuner2 { background: #121214; box-shadow: inset 0 0 0 1px rgba(184,147,90,.45); }
+/* Neon Midnight used to leak through wherever a variable was left unset: lime lips, an indigo panel, teal covers. */
+:root[data-look="amp"] #play,
+:root[data-look="amp"] body.fold .fp #play {
+  background: var(--copper); color: var(--copper-fg); border: 1px solid #6e3a1e; box-shadow: var(--copper-hi), var(--copper-glow);
+}
+:root[data-look="amp"] .cmd, :root[data-look="amp"] .float { border-color: var(--bronze-line); box-shadow: none; }
+:root[data-look="amp"] .set .tile, :root[data-look="amp"] .gs-ic, :root[data-look="amp"] .more-ic,
+:root[data-look="amp"] .menu.tools .mrow.tl .mi {
+  background: var(--card); color: var(--accent); border: 1px solid var(--bronze-line);
+}
+:root[data-look="amp"] .fp-band { background: var(--chrome); color: var(--chrome-fg); }
+:root[data-look="amp"] .row .a .st.learning { color: var(--accent); }
+:root[data-look="amp"] .ls-step.done .ls-n, :root[data-look="amp"] .rh-ycs .ls-n { background: #6e3a1e; color: #fff8f0; }
+:root[data-look="amp"] #chips .chip.on, :root[data-look="amp"] .seg button.on {
+  background-color: var(--accent); background-image: none; color: #fff8f0; box-shadow: 0 2px 0 #6e3a1e;
+}
+:root[data-look="amp"][data-theme="dark"] #chips .chip.on, :root[data-look="amp"][data-theme="dark"] .seg button.on,
+:root[data-look="amp"] .pk-fret.now {
+  background-color: #6e3a1e; background-image: none; color: #fff8f0;
+}
+:root[data-look="amp"] .ch-head, :root[data-look="amp"] .ch-head small, :root[data-look="amp"] .ch-head h1 { background: #6e3a1e; color: #fff8f0; }
 .sp-hero .louie { --lv-body: #0f0f11; --lv-shade: #0f0f11; --lv-hi: #b8935a; --lv-face: #d9bd85; --lv-face-sh: #b08b4f; --lv-grille: #2e2116; --lv-slat: #4a3524; --lv-pupil: #1a120d; --lv-cheek: #c8804f; --lv-tongue: #c8804f; --lv-lamp: #ffb24a; }
 .sp-hero .louie .lv-b { fill: url(#tolex); }
