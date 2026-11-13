@@ -1,8 +1,9 @@
 // The Road: the Songbook (search, filters, the song list, swipes) and the paste card. Split from app.js (4.15.1); app.js re-exports what other files use.
 import { coachTip, demoSearch, dismissCoach, markUsed, searchOpened, tick, tipDue, tipsSeen, used } from "./coach.js";
-import { Tabs, artistSortName, detectPaste, gigCountdown, guessKey, indexLetter, knownChords, lastPlayed, nextSet, parseSheet, pickNudge, playCount, playsThisWeek, searchSongs, sheetChords, sortSongs, untilLabel, weatherMood } from "./core.js";
+import { Tabs, artistSortName, detectPaste, gigCountdown, guessKey, indexLetter, knownChords, lastPlayed, nextSet, parseSheet, pickNudge, playCount, streakOf, heardMatch, playsThisWeek, searchSongs, sheetChords, sortSongs, untilLabel, weatherMood } from "./core.js";
 import { recentApple, searchApple } from "./listen.js";
 import { guitarIcon } from "./rock.js";
+import { louie } from "./louie.js";
 import { appleBlocksSearch, fullWhen, itunes, keyColor, newSet, playSet, setCover, setKeys, setLength, setSetCtx, setSongs, whenText } from "./sets.js";
 import { renderImport } from "./share.js";
 import { ago, backupNow, needsBackup } from "./store.js";
@@ -63,8 +64,40 @@ async function fetchWeather(p) {
 }
 /* 4.26.0: one 58px "Today" strip in place of the nudge card, Up next for you and the up next set. It pages
    sideways (swipe, or tap a dot), the streak song first when the streak is at risk. A single item has no dots. */
+/* 3.2.0: Louie in the header opens Your playing; the number is your days in a row (a flame once you've played today) */
+function youBtn() {
+  const st = streakOf(data.songs);
+  return `<button class="btn you-btn" id="libyou" aria-label="Your playing${st.days ? `: ${st.days} ${st.days === 1 ? "day" : "days"} in a row` : ""}">${louie("happy", { size: 30, label: "Louie" })}${st.days ? `<span class="you-n${st.today ? " lit" : ""}">${icon("flame")}${st.days}</span>` : ""}</button>`;
+}
+/* 3.2.0, after Louie's 3.24.0: the song you just heard in Apple Music sits first in the Today strip for 3 hours.
+   In your Songbook it opens to play along; otherwise Get the chords. Kept on this phone only. */
+const HEARD = "louielite-heard", HEARD_FOR = 3 * 36e5;
+const heardSaved = () => { try { return JSON.parse(localStorage.getItem(HEARD) || "null"); } catch { return null; } };
+const heardNow = () => { const h = heardSaved(); return h && !h.done && Date.now() - h.at < HEARD_FOR ? h : null; };
+let heardTimer = 0;
+function heardCheck() { /* a moment after the Songbook settles, so MusicKit never slows opening the app */
+  clearTimeout(heardTimer);
+  if (data.settings.appleMusic) heardTimer = setTimeout(() => { if (route().name === "library" && !searching) heardAsk(); }, 2500);
+}
+async function heardAsk() {
+  const top = (await recentApple())[0];
+  if (!top) return;
+  const k = `${top.title}|${top.artist}`.toLowerCase(), was = heardSaved();
+  if (was && was.k === k) return;
+  try { localStorage.setItem(HEARD, JSON.stringify({ k, at: Date.now(), title: top.title, artist: top.artist })); } catch { return; }
+  const el = $("today");
+  if (el && route().name === "library" && !searching) { el.outerHTML = todayHTMLOrSpot(); bindToday(); }
+}
+function heardItem() {
+  const h = filter === "all" && !searching ? heardNow() : null;
+  if (!h) return "";
+  const have = heardMatch(data.songs, h);
+  return `<button class="tdy-i heard-i" id="heard"${have ? ` data-id="${esc(have.id)}"` : ""}><span class="tdy-ic">${icon("note")}</span><span class="tdy-t"><small>JUST HEARD IT</small><b>${esc(h.title)}</b><em>${have ? "Play along now" : `${esc(h.artist)} · Get the chords`}</em></span></button>`;
+}
 function todayItems() {
   const items = [];
+  const heard = heardItem();
+  if (heard) items.push(heard);
   const up = filter === "all" ? nextSet(data.sets) : null;
   if (up && up.when) {
     const cd = gigCountdown(up.when);
@@ -96,6 +129,12 @@ function bindToday() {
   $("nudge")?.addEventListener("click", e => go("#/song/" + encodeURIComponent(e.currentTarget.dataset.song)));
   clearInterval(gigTimer);
   const strip = $("tdy"); if (!strip) return;
+  $("heard")?.addEventListener("click", e => {
+    const h = heardSaved(), id = e.currentTarget.dataset.id;
+    try { localStorage.setItem(HEARD, JSON.stringify({ ...h, done: true })); } catch {}
+    if (id) go("#/song/" + encodeURIComponent(id));
+    else findAI().then(m => m.chartLinkSheet({ title: h.title, artist: h.artist }));
+  });
   strip.querySelectorAll(".upn-c[data-id]").forEach(b => b.onclick = () => go("#/song/" + encodeURIComponent(b.dataset.id)));
   const up = $("upnext");
   if (up) {
@@ -130,8 +169,9 @@ export function renderLibrary() {
     <div class="head">
       <h1 class="title script">Library</h1>
       <div class="row-btns">
+        ${youBtn()}
         <button class="btn sets-btn${filter === "sets" ? " on" : ""}" id="setsbtn" aria-label="Sets">${icon("list")}Sets</button>
-        <button class="btn" id="libset" aria-label="Settings">${icon("gear")}Settings</button>
+        <button class="btn ib-sq" id="libset" aria-label="Settings">${icon("gear")}</button>
       </div>
     </div>
     ${todayHTMLOrSpot()}
@@ -155,6 +195,8 @@ export function renderLibrary() {
   bindToday();
   $("setsbtn").onclick = () => { filter = filter === "sets" ? "all" : "sets"; renderLibrary(); };
   $("libset").onclick = () => go("#/settings");
+  $("libyou").onclick = () => go("#/you");
+  heardCheck();
   $("bk-later")?.addEventListener("click", () => { data.settings.backupSnooze = Date.now() + 2 * 86400000; Tabs.save(data); $("bk").remove(); });
   $("bk-go")?.addEventListener("click", async () => { if (await backupNow()) { $("bk")?.remove(); toast("Backed up"); } });
   app.querySelectorAll("[data-f]").forEach(b => b.onclick = () => { filter = b.dataset.f; renderLibrary(); });

@@ -77,11 +77,13 @@ function catchAlerts() {
   window.alert.caught = true;
 }
 const step = (name, p) => { mkStep = name; return p; };
+/* 3.2.0: Louie Lite signs its own Apple Music token on its server; an address typed in Settings still wins */
+export const musicTokenUrl = () => data.settings.appleMusicToken || (/^https:/.test(location.origin) ? `${location.origin}/api/musickit/token` : "");
 function loadMusicKit() {
   if (musicKit) return musicKit;
   catchAlerts();
   musicKit = (async () => {
-    const url = data.settings.appleMusicToken || "";
+    const url = musicTokenUrl();
     if (!/^https:\/\//.test(url)) throw new Error("No Apple Music token address");
     const r = await step("token", fetch(url));
     if (!r.ok) throw new Error(`Apple Music token: ${r.status}`);
@@ -241,7 +243,7 @@ export async function timeLines(song, readLines) {
 const feelJobs = new Set(), feelFailed = new Set();
 async function previewBytes(url) {
   try { const r = await fetch(url, { mode: "cors" }); if (r.ok) return await r.arrayBuffer(); } catch { /* not readable directly */ }
-  const base = String(data.settings.appleMusicToken || "").replace(/\/token\/?$/, "");
+  const base = String(musicTokenUrl()).replace(/\/token\/?$/, "");
   if (!/^https:\/\//.test(base)) return null;
   const r = await fetch(`${base}/preview?u=${encodeURIComponent(url)}`);
   return r.ok ? r.arrayBuffer() : null;
@@ -274,7 +276,7 @@ export const onFeel = f => { feelArrived = f; };
    into the Music app), so the search screen asks MusicKit instead: [{ title, artist, year }], or null when
    Apple Music is off. A catalog search needs the developer token only, not a sign-in. */
 export async function searchApple(term, limit = 5) {
-  if (!data.settings.appleMusic || !data.settings.appleMusicToken) return null;
+  if (!data.settings.appleMusic || !musicTokenUrl()) return null;
   const music = await loadMusicKit();
   const r = await music.api.music(`/v1/catalog/${music.storefrontId || "us"}/search`, { term, types: "songs", limit });
   /* shaped like iTunes' results, so the same ranking works; 4.57.0 adds the link, length and cover */
@@ -295,7 +297,7 @@ export function attachRecording(song, rec) {
 /* What you played lately in Apple Music: [{ title, artist }], newest first. */
 let recentCache = null; /* { at, rows }: Tonight asks each time it opens; Apple is asked at most every 2 minutes */
 export async function recentApple() {
-  if (!data.settings.appleMusic || !data.settings.appleMusicToken) return [];
+  if (!data.settings.appleMusic || !musicTokenUrl()) return [];
   if (recentCache && Date.now() - recentCache.at < 120000) return recentCache.rows;
   const rows = await recentFetch();
   recentCache = { at: Date.now(), rows };

@@ -466,6 +466,26 @@ test("2.25.0 speed dial is a meter: the needle swings with the length, and whole
   assert.ok(after[1] < before[1], `faster points higher: ${before} then ${after}`);
 });
 
+test("3.2.0 Songbook header: Louie opens Your playing with your days in a row; Just heard it leads the Today strip", { skip: skip() }, async t => {
+  const now = Date.now();
+  const songs = LIB.songs.map((s, i) => i ? s : { ...s, plays: [now - 36e5, now - 864e5] });
+  const page = await phone(t, { ...LIB, songs });
+  await page.waitForSelector("#libyou");
+  assert.match(await page.getAttribute("#libyou", "aria-label"), /2 days in a row/);
+  const first = songs[0];
+  await page.evaluate(h => localStorage.setItem("louielite-heard", JSON.stringify(h)), { k: "x", at: now, title: first.title, artist: first.artist || "" });
+  await page.reload(); await page.waitForSelector("#heard");
+  assert.match(await page.textContent("#heard"), /JUST HEARD IT/);
+  assert.match(await page.textContent("#heard"), /Play along now/);
+  await settled(page); await page.click("#heard");
+  await page.waitForFunction(() => location.hash.startsWith("#/song/"));
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem("louielite-heard")).done === true);
+  await page.evaluate(() => { location.hash = "#/library"; }); await page.waitForSelector("#libyou");
+  assert.equal(await page.$("#heard"), null, "gone once opened");
+  await settled(page); await page.click("#libyou");
+  await page.waitForFunction(() => location.hash === "#/you");
+});
+
 test("3.1.0 filter chips: 2.49's pills, the selected one tinted in the accent with its lamp lit", { skip: skip() }, async t => {
   const page = await phone(t, { ...LIB, songs: LIB.songs.map((s, i) => ({ ...s, favorite: i === 0 })) });
   const tint = sel => page.evaluate(s => getComputedStyle(document.querySelector(s)).borderTopColor, sel);

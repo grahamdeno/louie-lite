@@ -8,6 +8,7 @@ Everything lives on the phone. Backups are the same data as one JSON file.
 |---|---|---|
 | IndexedDB `tabs-library` | store `copy`, key `lib` | **The library** (songs, sets, Recently deleted, settings) as `{ json, at }` |
 | localStorage | `tabs-v1` | A copy of the library, written with each save, plus `_savedAt`. Skipped if it no longer fits (about 5 MB) |
+| localStorage | `louielite-heard` | Just heard it (3.2.0): `{ k, at, title, artist, done }`, the newest song in Apple Music's recently played and when it was first seen. Phone only, not in backups |
 | localStorage | `tabs.apikey.v1` | Your Anthropic API key. Never in backups or share links |
 | localStorage | `tabs.errors.v1` | The last 20 problems (message, screen, version, time) for Settings > Copy diagnostics. Never sent anywhere, not in backups |
 | IndexedDB `tabs-covers` | store `covers`, key = set id | Set cover photos as `data:image/...` URLs |
@@ -160,7 +161,7 @@ A play counts only when auto-scroll carried the page most of the way (60% of the
 | Key | Values | Notes |
 |---|---|---|
 | `appleMusic` | boolean, off when missing | Plays a song's Apple Music link in the app with MusicKit |
-| `appleMusicToken` | https address | The token Worker it asks for a developer token; no MusicKit key or token is stored |
+| `appleMusicToken` | https address, optional | Your own token address; missing means Louie's server (`/api/musickit/token`). No MusicKit key or token is stored |
 
 ### Data beside the library
 

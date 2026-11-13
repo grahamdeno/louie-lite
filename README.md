@@ -9,7 +9,7 @@ This is version 3.0.0. It started from Louie 4.89.1 and left the game behind: no
 ## What you can do
 
 ### Library
-Home is the Library. The header has Sets and Settings. Under that: the Today strip, one row of filters (All, Can play, Learning, Favorites), a count line, the search bar and a music-note button that opens Search or add. There is no tab bar and no back button on home.
+Home is the Library. The header has Louie (opens Your playing and shows your days in a row), Sets and Settings. Under that: the Today strip (Just heard it first for 3 hours after a song plays in Apple Music), one row of filters (All, Can play, Learning, Favorites), a count line, the search bar and a music-note button that opens Search or add. There is no tab bar and no back button on home.
 
 ### A song
 The song page shows the sheet, the cover and About this song. The bar at the bottom is a gold plate with Back, Tools and Play. Play starts at the first sung line when you are not playing along with a recording. With a recording, it still waits through the intro.
@@ -26,6 +26,8 @@ Rehearse holds the lesson of the day, Your changes, All lessons and the tuner. T
 The tuner uses the guided headstocks. Acoustic is wood. Electric follows Louie's finish. The face around them is the amp: dark tolex, the channel menu and a pilot lamp.
 
 ### Progress
+Apple Music needs no setup in the app: Louie's server signs the MusicKit token (`api/musickit/token.js`, key in Vercel's MUSICKIT_KEY). An address typed in Settings > Apple Music still wins.
+
 Your playing shows XP, your level, badges and the chord passport. The weekly chart ranks plays, not battles. The Tour Map still lights a hexagon for each song you play through. Callouts still mark a new chord, a level, a badge and the lesson. Combos and fan callouts are gone.
 
 ### Look

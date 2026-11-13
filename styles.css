@@ -4680,3 +4680,26 @@ body.staged .sheet > .sec.st-past { color: var(--muted); }
 :root[data-look="amp"] body .fp-band { width: 46px; height: 46px; border-radius: 12px; }
 /* the compact song header: solid, so the big header never shows through it */
 :root[data-look="amp"] .chead::before { background: var(--bg); backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+/* 3.2.0: Louie in the Songbook header (opens Your playing, with your days in a row), Settings as a square icon */
+:root[data-look="amp"] body #libset.ib-sq { width: 46px; padding: 0; justify-content: center; }
+:root[data-look="amp"] body #libset.ib-sq .i { margin: 0; }
+:root[data-look="amp"] body .you-btn { padding: 0 10px 0 6px; gap: 4px; display: inline-flex; align-items: center; }
+.you-btn svg.louie, .you-btn > svg:first-child { width: 30px; height: 30px; flex: none; }
+.you-n { display: inline-flex; align-items: center; gap: 2px; font: 600 15px var(--sans); font-variant-numeric: tabular-nums; color: var(--muted); }
+.you-n .i { width: 15px; height: 15px; }
+.you-n.lit { color: var(--accent-ink, var(--copper)); }
+.you-n.lit .i { fill: currentColor; }
+.head .row-btns { gap: 8px; }
+/* Your playing: an odd last tile spans the row, so no empty slot where the fans tile was */
+.pf-tiles > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+.heard-i .tdy-ic { color: var(--copper); }
+/* the Today strip as a card like the rest of the Songbook, a little below the header */
+:root[data-look="amp"] body .today { margin: 12px 0 10px; }
+:root[data-look="amp"] body .today .tdy-i { background: var(--card); border: 1px solid var(--rim); color: var(--fg); border-radius: 12px; box-shadow: none; }
+:root[data-look="amp"] body .today .tdy-i small { color: var(--muted); }
+:root[data-look="amp"] body .today .tdy-i em { color: var(--fg-2, var(--muted)); }
+:root[data-look="amp"] body .today .tdy-ic, :root[data-look="amp"] body .today .tdy-i .ng-ic { background: var(--recess, rgba(0,0,0,.2)); color: var(--copper); }
+/* earned badges read on the amp's cards (their old bright fills are gone) */
+:root[data-look="amp"] body .pf-badge:not(.locked) { color: var(--fg); border-color: var(--copper); }
+:root[data-look="amp"] body .pf-badge:not(.locked) b { color: var(--accent-ink, var(--copper)); }

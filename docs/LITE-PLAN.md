@@ -167,3 +167,4 @@ Must fix before merging to main:
 2. Grok: on ko-fi.com/louieguitar turn off Shop and Commissions (Graham agreed); leave payouts alone. Graham confirms the account's location and decides PayPal or Stripe himself.
 3. Grok's lite-3 coding agent stopped when the credit ran out; check that nothing it had in progress was left half done (its last pushed commit was 4944fac; everything after is Claude's).
 4. Claude: read the CI run on main for the 3.0.0 merge and fix anything it flags.
+5. Grok: Apple Music on Louie Lite (3.2.0). Put the MusicKit private key (the .p8 text the old Cloudflare Worker's MUSICKIT_KEY holds, Key ID KABHU54QBS, Team 7MHDTK68M2; or a new MusicKit key from developer.apple.com) into Vercel project louie-lite as MUSICKIT_KEY (and MUSICKIT_KEY_ID if it's a new key), then redeploy. Check: GET https://louie-lite.tangomike.app/api/musickit/token from the site returns a token. Never paste the key in chat.

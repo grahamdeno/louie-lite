@@ -70,3 +70,18 @@ test("new tokens are limited per network address", async () => {
   for (let i = 0; i <= LIMITS.tokensPerIp; i++) last = await call(token, { headers: { "x-forwarded-for": "8.8.8.8" } });
   assert.equal(last.statusCode, 429);
 });
+
+test("3.2.0 Apple Music token: an ES256 token for Louie Lite's address only, and only Apple previews pass", async () => {
+  const crypto = await import("node:crypto");
+  const { privateKey, publicKey } = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+  const { signMusicToken, previewAllowed } = await import("../api/_music.js");
+  const { token, expires } = signMusicToken({ MUSICKIT_KEY: privateKey.export({ type: "pkcs8", format: "pem" }) }, 1000);
+  const [h, p, s] = token.split(".");
+  const body = JSON.parse(Buffer.from(p, "base64url"));
+  assert.deepEqual(body.origin, ["https://louie-lite.tangomike.app"]);
+  assert.equal(expires, 1000 + 30 * 86400);
+  assert.equal(JSON.parse(Buffer.from(h, "base64url")).alg, "ES256");
+  assert.ok(crypto.verify("sha256", Buffer.from(`${h}.${p}`), { key: publicKey, dsaEncoding: "ieee-p1363" }, Buffer.from(s, "base64url")), "the signature checks out");
+  assert.ok(previewAllowed("https://audio-ssl.itunes.apple.com/x.m4a"));
+  assert.ok(!previewAllowed("https://evil.example/x.m4a"));
+});

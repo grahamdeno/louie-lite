@@ -147,9 +147,9 @@ function renderSettings() {
         <button class="toggle ${s.appleMusic ? "on" : ""}" id="s-apple" role="switch" aria-checked="${!!s.appleMusic}" aria-label="Apple Music: play whole songs in Louie"></button>
       </div>
       ${s.appleMusic ? `<label class="fld fld-k"><span class="tile ftile">${icon("cloud")}</span>
-        <input id="s-appletoken" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Token address (https://…/token)" value="${esc(s.appleMusicToken || "")}" aria-label="Apple Music token address"></label>
+        <input id="s-appletoken" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Your own token address (optional)" value="${esc(s.appleMusicToken || "")}" aria-label="Apple Music token address"></label>
       <div class="key-row">
-        <span class="ai-status"><i class="dot ${s.appleMusicToken ? "on" : ""}"></i>${s.appleMusicToken ? "Ready" : "No token address"}</span>
+        <span class="ai-status"><i class="dot on"></i>${s.appleMusicToken ? "Your token address" : "Louie's server"}</span>
         <button class="btn sm primary" id="s-applesave">Save</button>
       </div>` : ""}
     </div>
@@ -204,7 +204,7 @@ function renderSettings() {
     </div>
     <div class="set-group glass s-gap">
       ${row("today", "flame", "Today", s.nudge === false ? "Off" : city ? esc(city) : "On")}
-      ${row("apple", "note", "Apple Music", s.appleMusic ? (s.appleMusicToken ? "On" : "On · no token") : "Off")}
+      ${row("apple", "note", "Apple Music", s.appleMusic ? "On" : "Off")}
       ${row("keys", "wand", "Keys", `<span class="s-keys">${dot(true)}AI ${dot(bpmKey())}Tempo</span>`, true)}
       ${row("lang", "chat", "Language practice", langChosen(data) ? LANGS[langOf(data)].name : "Not picked")}
     </div>
