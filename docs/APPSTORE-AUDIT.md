@@ -3,6 +3,14 @@
 Written 2026-11-13 against Louie Lite 3.2.0 (commit 53e786f). Run 2 (decisions A to F, backlog, roadmap) waits until
 Graham corrects this inventory. No code was changed for this report.
 
+## Graham's answers (2026-11-13)
+
+- 1 and 5: Louie Lite ships, as "Louie: Find and Play Guitar Songs" (33 characters; the App Store name limit is 30, so the
+  name and subtitle need a split; open).
+- 2: Keep stitching chords and words from what the user provides, including text pasted from chord sites. No license
+  for now. Open: what happens to the app's own LRCLIB lookups (see the reply of 2026-11-13).
+- 3 and 4: Everything stays free until closer to submitting. Run 2 still models costs, but nothing is built for payments.
+
 ## Decisions only Graham can make (answer these before run 2)
 
 1. **Which app ships?** Louie Lite alone, Louie: Learn Guitar (the gamified Road) alone, or one app with the game
