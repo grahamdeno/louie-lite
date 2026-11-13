@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
+<meta name="theme-color" content="#0c0d0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Louis V1">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Louis V1</title>
+<!-- Only this app's own files run. Network: the Anthropic API (your own key) and Apple's
+     song search; images: album art from Apple. Inline styles are allowed for layout. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://itunes.apple.com https://*.apple.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.mzstatic.com https://tile.openstreetmap.org; connect-src 'self' https://api.anthropic.com https://itunes.apple.com https://*.apple.com https://lrclib.net https://api.getsong.co https://api.open-meteo.com https://geocoding-api.open-meteo.com; media-src 'self' blob: https://*.apple.com https://*.mzstatic.com; object-src 'none'; base-uri 'none'; form-action 'none'">
+<link rel="modulepreload" href="core.js">
+<link rel="modulepreload" href="ui.js">
+<link rel="modulepreload" href="store.js">
+<link rel="modulepreload" href="sets.js">
+<link rel="modulepreload" href="coach.js">
+<link rel="modulepreload" href="app.js">
+<!-- VERSION (core.js) and CACHE (sw.js) are bumped automatically on push to main; see README, Releases. -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<!-- iPhone launch screens: the app's background and icon instead of a blank flash -->
+<link rel="apple-touch-startup-image" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/launch-1320x2868.png">
+<link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/launch-1290x2796.png">
+<link rel="apple-touch-startup-image" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/launch-1284x2778.png">
+<link rel="apple-touch-startup-image" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/launch-1206x2622.png">
+<link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/launch-1179x2556.png">
+<link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/launch-1170x2532.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/launch-1125x2436.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="icons/splash/launch-828x1792.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="icons/splash/launch-750x1334.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app" id="app"></div>
+<div id="layer"></div>
+<!-- The glow (2.1): one soft halo, used for values you glance at -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><filter id="glow-f" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs></svg>
+<div class="toast" id="toast" role="status"></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
