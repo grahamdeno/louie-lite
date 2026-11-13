@@ -3798,7 +3798,8 @@ body.staged .sheet > :is(.pr, .ly, .crow) .c { opacity: .92; }
 body.staged .sheet > :is(.st-now, .st-next) .c { opacity: 1; }
 body.staged .sheet > .st-past .c { opacity: .7; }
 body.staged .sheet > :is(.pr, .ly, .crow) .c:is(.st-got, .st-wait) { opacity: 1; }
-body.staged .sheet > .st-now::before { content: ""; position: absolute; z-index: -1; top: -6px; bottom: -2px; left: -50vw; right: -50vw; background: color-mix(in srgb, var(--gel) 16%, transparent); box-shadow: inset 0 2px 0 color-mix(in srgb, var(--gel) 45%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--gel) 45%, transparent); pointer-events: none; transition: background-color .4s; }
+body.staged .sheet > .st-now:is(.pr, .ly, .crow) { isolation: isolate; }
+body.staged .sheet > .st-now::before { content: ""; position: absolute; z-index: -1; top: -6px; bottom: -2px; left: -50vw; right: -50vw; background: color-mix(in srgb, var(--gel) 28%, transparent); box-shadow: inset 0 2px 0 color-mix(in srgb, var(--gel) 55%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--gel) 55%, transparent); pointer-events: none; transition: background-color .4s; }
 body.staged .sheet .c { color: var(--gel); }
 :root[data-theme="light"] body.staged .sheet .c, :root[data-look="festival"] body.staged .sheet .c { color: color-mix(in srgb, var(--gel) 72%, #14213D); }
 body.staged .sheet .c.st-rep { visibility: hidden; }
