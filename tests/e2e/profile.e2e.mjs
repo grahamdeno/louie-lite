@@ -12,7 +12,7 @@ test("Your playing: worked out from the songs you've played, with a passport, ch
   assert.match(await page.innerText(".pf-plate"), /SONGS PLAYED/i);
   assert.match(await page.innerText(".pf-card:has(h2:text('Chord passport'))"), /chords? stamped/);
   assert.match(await page.innerText(".pf-card:has(h2:text('Your changes'))"), /is the switch you make most/);
-  await page.waitForFunction(() => !!JSON.parse(localStorage.getItem("louisv1-v1")).journal); /* the journal is kept */
+  await page.waitForFunction(() => !!JSON.parse(localStorage.getItem("louiev1-v1")).journal); /* the journal is kept */
   await page.click(".pf-song >> nth=0");
   await page.waitForSelector("#sheet");
   assert.match(await page.evaluate(() => location.hash), /#\/song\//);
@@ -43,5 +43,5 @@ test("Streak moment: once a day after the first song played through; tap to clos
   await page.evaluate(() => { location.hash = "#/settings/playing"; }); await page.waitForSelector("#s-streak");
   assert.equal(await page.getAttribute("#s-streak", "aria-checked"), "true");
   await page.click("#s-streak");
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem("louisv1-v1")).settings.streakMoment === false);
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem("louiev1-v1")).settings.streakMoment === false);
 });

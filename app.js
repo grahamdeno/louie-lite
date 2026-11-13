@@ -72,7 +72,7 @@ const keyOf = s => s.format === "tab" ? "TAB" : (s.key || guessKey(s.body || "")
 // nudge that opens a song. The nudge waits on a gig day (Up next has the
 // floor) and goes once you've played today. Weather comes from Open-Meteo for
 // a city chosen in Settings, fetched once a day; no location access.
-const WX = "louisv1.wx.v1";
+const WX = "louiev1.wx.v1";
 const NUDGE_ICON = { change: "fretboard", streak: "flame", rain: "rain", cold: "snow", clear: "sun", hot: "sun", learn: "note", idle: "heart" };
 const todayKey = () => new Date().toDateString();
 function wxMood() {
@@ -486,10 +486,10 @@ function bindRows(list) {
 // No server: the key stays in this browser's storage and is sent only to
 // api.anthropic.com, using Anthropic's header for direct browser access.
 // Without a key the app works as usual and the AI options don't appear.
-const AI = { store: "louisv1.apikey.v1", fast: "claude-haiku-5-5", vision: "claude-sonnet-5-5" };
+const AI = { store: "louiev1.apikey.v1", fast: "claude-haiku-5-5", vision: "claude-sonnet-5-5" };
 function aiKey() { try { return localStorage.getItem(AI.store) || ""; } catch { return ""; } }
 /* The GetSongBPM key, stored the same way (read by Get the song and Settings). */
-const BPM_STORE = "louisv1.bpmkey.v1";
+const BPM_STORE = "louiev1.bpmkey.v1";
 function bpmKey() { try { return localStorage.getItem(BPM_STORE) || ""; } catch { return ""; } }
 
 // stream: the reply arrives as it's written. A long reply (German practice)

@@ -97,7 +97,7 @@ test("Strum it on the Sing it screen: play a line, and the chords you played go 
   page.on("console", m => { if (/Content Security Policy/i.test(m.text())) errors.push(m.text()); });
   if (process.env.DBG) { page.on("console", m => console.log("# con", m.text())); page.on("pageerror", e => console.log("# perr", String(e))); }
   await page.goto(base); await page.waitForTimeout(400);
-  await page.evaluate(d => localStorage.setItem("louisv1-v1", JSON.stringify(d)), LIB);
+  await page.evaluate(d => localStorage.setItem("louiev1-v1", JSON.stringify(d)), LIB);
   await page.reload(); await page.waitForTimeout(300);
   await page.click("#add"); await page.waitForTimeout(600);
   await page.click("#ed-sing"); await page.waitForTimeout(500);
@@ -119,10 +119,10 @@ test("Strum it on the Sing it screen: play a line, and the chords you played go 
   if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT + "/strum-2.png" });
   assert.match(row, /G[\s\S]*C/, "the played chords sit over the words");
   await page.click("#sk-done"); await page.waitForTimeout(1500);
-  const song = JSON.parse(await page.evaluate(() => localStorage.getItem("louisv1-v1"))).songs.find(s => s.sketch);
+  const song = JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).songs.find(s => s.sketch);
   assert.ok(song, "a new song was made");
   assert.match(song.body, /^G\s+C\s*\nLantern hung by the kitchen door$/);
-  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louisv1-v1"))).settings.sketchMode, "strum", "the choice is remembered");
+  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).settings.sketchMode, "strum", "the choice is remembered");
   assert.deepEqual(errors, []);
 });
 

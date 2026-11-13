@@ -32,5 +32,5 @@ fi
 IFS=. read -r MA MI PA <<<"$NOW"
 NEXT="$MA.$MI.$((PA + 1))"
 sed -i -E "s/^export const VERSION = \"$NOW\";/export const VERSION = \"$NEXT\";/" core.js
-sed -i -E "s/^const CACHE = \"louisv1-v[^\"]+\";/const CACHE = \"louisv1-v$NEXT\";/" sw.js
+sed -i -E "s/^const CACHE = \"louiev1-v[^\"]+\";/const CACHE = \"louiev1-v$NEXT\";/" sw.js
 echo "$NEXT"

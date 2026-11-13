@@ -33,7 +33,7 @@ test("German practice: translate once, pick a level, tap a word; nothing leaves 
     const body = ev("message_start", { message: {} }) + ev("content_block_start", { index: 0, content_block: { type: "text", text: "" } }) + parts.map(t => ev("content_block_delta", { index: 0, delta: { type: "text_delta", text: t } })).join("") + ev("message_stop", {});
     r.fulfill({ status: 200, contentType: "text/event-stream", headers: cors, body });
   });
-  await page.evaluate(() => localStorage.setItem("louisv1.apikey.v1", "sk-ant-test"));
+  await page.evaluate(() => localStorage.setItem("louiev1.apikey.v1", "sk-ant-test"));
   await page.goto(page.url().replace(/#.*$/, "") + "#/song/h"); await page.waitForTimeout(500);
   assert.match(await page.innerText("#dechip"), /DE\s*German/, "the chip is the way in");
   await page.click("#more"); assert.equal(await page.locator(".menu [data-m='de']").count(), 0, "not in the More menu"); await page.keyboard.press("Escape");
@@ -66,9 +66,9 @@ test("German practice: translate once, pick a level, tap a word; nothing leaves 
   const card = await page.innerText(".decard");
   assert.match(card, /die\s+Hafenmauer/); assert.match(card, /Hafen \(harbor\) \+ Mauer \(wall\)/); assert.match(card, /die Hafenmauern/);
   // Never in a backup or a shared song.
-  const saved = JSON.parse(await page.evaluate(() => localStorage.getItem("louisv1-v1"))).songs.find(s => s.id === "h");
+  const saved = JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).songs.find(s => s.id === "h");
   assert.ok(saved.de, "kept on the phone");
-  const out = await page.evaluate(async () => { const C = await import("./core.js"); const d = JSON.parse(localStorage.getItem("louisv1-v1")); return { backup: C.Tabs.export(d), share: JSON.stringify(C.shareable(d.songs.find(s => s.id === "h"))) }; });
+  const out = await page.evaluate(async () => { const C = await import("./core.js"); const d = JSON.parse(localStorage.getItem("louiev1-v1")); return { backup: C.Tabs.export(d), share: JSON.stringify(C.shareable(d.songs.find(s => s.id === "h"))) }; });
   assert.doesNotMatch(out.backup, /Hafenmauer/); assert.doesNotMatch(out.share, /Hafenmauer/);
 });
 
@@ -86,12 +86,12 @@ test("German practice in the background: batches land as they come; a dropped co
     if (!first) await new Promise(ok => setTimeout(ok, 600));
     r.fulfill({ status: 200, contentType: "text/event-stream", headers: { "access-control-allow-origin": "*" }, body: sse(reply(r.request())) });
   });
-  await page.evaluate(() => localStorage.setItem("louisv1.apikey.v1", "sk-ant-test"));
+  await page.evaluate(() => localStorage.setItem("louiev1.apikey.v1", "sk-ant-test"));
   await page.goto(page.url().replace(/#.*$/, "") + "#/song/l"); await page.waitForTimeout(500);
   await page.click("#dechip"); await page.click("#de-go");
   await page.waitForFunction(() => /German stopped at 6 of 8/.test(document.getElementById("toast")?.textContent || ""), null, { timeout: 8000 });
   assert.equal((await page.innerText(".sheet")).match(/Hafen/g)?.length, 6, "the first six lines are German already");
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem("louisv1-v1")).songs.find(s => s.id === "l").de?.lines?.filter(Boolean).length === 6, null, { timeout: 5000 });  /* and kept */
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem("louiev1-v1")).songs.find(s => s.id === "l").de?.lines?.filter(Boolean).length === 6, null, { timeout: 5000 });  /* and kept */
   // Resume from the sheet, then leave the song while it finishes.
   fail = false;
   await page.click("#dechip"); await page.waitForTimeout(200);
@@ -102,12 +102,12 @@ test("German practice in the background: batches land as they come; a dropped co
   await page.click("#toast button"); await page.waitForTimeout(400);
   assert.match(await page.evaluate(() => location.hash), /#\/song\/l/, "Open goes to the song");
   assert.equal((await page.innerText(".sheet")).match(/Hafen/g)?.length, 8, "every line");
-  await page.waitForFunction(() => { const d = JSON.parse(localStorage.getItem("louisv1-v1")).songs.find(s => s.id === "l").de; return d && !d.partial && d.lines.every(Boolean); }, null, { timeout: 5000 });
+  await page.waitForFunction(() => { const d = JSON.parse(localStorage.getItem("louiev1-v1")).songs.find(s => s.id === "l").de; return d && !d.partial && d.lines.every(Boolean); }, null, { timeout: 5000 });
 });
 
 test("German in More, seven fit in the ring in a set, and sheets close with a swipe down", { skip: skip() }, async t => {
   const page = await phone(t, { ...LIB, sets: [{ id: "s", name: "Gig", songIds: ["a", "b"] }], settings: { ...LIB.settings, controls: "ring", follow: "corner" } }, { isMobile: true });
-  await page.evaluate(() => localStorage.setItem("louisv1.apikey.v1", "sk-ant-test"));
+  await page.evaluate(() => localStorage.setItem("louiev1.apikey.v1", "sk-ant-test"));
   const ring = async () => {
     const c = await page.evaluate(() => { const r = document.getElementById("play").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
     await page.mouse.move(c.x, c.y); await page.mouse.down(); await page.waitForTimeout(650);

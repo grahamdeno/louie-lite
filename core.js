@@ -4,7 +4,7 @@
 // Release version: MAJOR.MINOR.PATCH. Must match the service worker cache name.
 export const VERSION = "2.49.2";
 
-const STORAGE_KEY = "louisv1-v1";
+const STORAGE_KEY = "louiev1-v1";
 const DAY = 86400000;
 export const TRASH_DAYS = 30;
 

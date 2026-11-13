@@ -5,9 +5,9 @@
 // the browser checks sw.js for changes on every launch. When it finds a new
 // version, install saves the whole app shell fresh from the server in one go,
 // so a release is never half old and half new. The page then offers a reload.
-const CACHE = "louisv1-v2.49.2";
-const ART = "louisv1-art";          // album art for covers, kept across releases
-const VENDOR = "louisv1-vendor";    // libraries loaded on first use (vendor/), kept across releases
+const CACHE = "louiev1-v2.49.2";
+const ART = "louiev1-art";          // album art for covers, kept across releases
+const VENDOR = "louiev1-vendor";    // libraries loaded on first use (vendor/), kept across releases
 const SHELL = ["./", "index.html", "styles.css", "app.js", "core.js", "ui.js", "store.js", "sets.js", "settings.js", "editor.js", "coach.js", "tuner.js", "findai.js", "german.js", "aitools.js", "crop.js", "sketch.js", "heads.js", "dial.js", "ring.js", "strum.js", "share.js", "listen.js", "profile.js", "playmap.js", "manifest.webmanifest", "icons/icon-192.png", "icons/apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
@@ -17,7 +17,7 @@ self.addEventListener("install", e => {
   // address. If core.js isn't this release's (its VERSION differs), the install
   // fails and the phone tries again later, instead of keeping a mix of two
   // releases under one name (the library showed 2.5 parts with 2.6 styles).
-  const v = CACHE.slice("louisv1-v".length);
+  const v = CACHE.slice("louiev1-v".length);
   e.waitUntil(caches.open(CACHE).then(cache => Promise.all(SHELL.map(async u => {
     const res = await fetch(new Request(`${u}${u.includes("?") ? "&" : "?"}fresh=${v}`, { cache: "reload" }));
     if (!res.ok) throw new Error(`${u}: ${res.status}`);
@@ -34,7 +34,7 @@ const newer = (a, b) => { const x = ver(a), y = ver(b); for (let i = 0; i < 3; i
 self.addEventListener("activate", e => {
   e.waitUntil(
     caches.keys().then(ks => {
-      const old = ks.filter(k => k.startsWith("louisv1-v") && k !== CACHE).sort(newer);
+      const old = ks.filter(k => k.startsWith("louiev1-v") && k !== CACHE).sort(newer);
       const keep = old.filter(k => newer(k, CACHE) < 0).slice(-1);
       return Promise.all(ks.filter(k => k !== CACHE && k !== ART && k !== VENDOR && !keep.includes(k)).map(k => caches.delete(k)));
     }).then(() => self.clients.claim())
@@ -47,7 +47,7 @@ self.addEventListener("activate", e => {
 function releaseOf(req, url) {
   let v = url.searchParams.get("v");
   if (!v && req.referrer) { try { v = new URL(req.referrer).searchParams.get("v"); } catch { /* no referrer */ } }
-  return v && /^[\d.]+$/.test(v) ? "louisv1-v" + v : null;
+  return v && /^[\d.]+$/.test(v) ? "louiev1-v" + v : null;
 }
 
 self.addEventListener("fetch", e => {

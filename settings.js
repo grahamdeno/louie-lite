@@ -250,7 +250,7 @@ function renderSettings() {
   $("s-length")?.addEventListener("change", e => { s.startLength = +e.target.value; Tabs.save(data); renderSettings(); });
   $("s-mode").onchange = e => { s.speedMode = e.target.value; Tabs.save(data); renderSettings(); };
   $("s-count").onclick = () => { s.countIn = s.countIn === false; Tabs.save(data); renderSettings(); };
-  $("s-playmap").onclick = () => { if (s.playMap) { s.playMap = false; delete s.playSeen; Tabs.save(data); try { localStorage.removeItem("louisv1.spot.v1"); } catch {} renderSettings(); } else go("#/playmap"); }; /* turning it on goes through the explanation */
+  $("s-playmap").onclick = () => { if (s.playMap) { s.playMap = false; delete s.playSeen; Tabs.save(data); try { localStorage.removeItem("louiev1.spot.v1"); } catch {} renderSettings(); } else go("#/playmap"); }; /* turning it on goes through the explanation */
   $("s-streak").onclick = () => { s.streakMoment = s.streakMoment === false; Tabs.save(data); renderSettings(); };
   $("s-metro").onclick = () => { s.metronome = !s.metronome; Tabs.save(data); renderSettings(); };
   /* The volume saves as it moves; letting go plays a bar's opening beat at that level. */

@@ -12,9 +12,9 @@ import { aiKey, data } from "./app.js";
 // write may not finish if the phone closes the app right then).
 // At start the newer readable one is used (pickLibrary in core.js); a library
 // from an older Tabs moves across once. Without IndexedDB, localStorage is used.
-const STORE_KEY = "louisv1-v1";
+const STORE_KEY = "louiev1-v1";
 const libDB = () => new Promise((ok, bad) => {
-  const r = indexedDB.open("louisv1-library", 1);
+  const r = indexedDB.open("louiev1-library", 1);
   r.onupgradeneeded = () => r.result.createObjectStore("copy");
   r.onsuccess = () => ok(r.result); r.onerror = () => bad(r.error);
 });
@@ -67,7 +67,7 @@ async function loadLibrary() {
 // Errors are kept on this phone (the last 20) so Settings > Help > Copy diagnostics
 // can report them. The first one in a session shows a short note with a way to
 // copy the details; nothing is ever sent anywhere.
-const ERR_KEY = "louisv1.errors.v1";
+const ERR_KEY = "louiev1.errors.v1";
 const problems = (() => { try { return JSON.parse(localStorage.getItem(ERR_KEY)) || []; } catch { return []; } })();
 let problemNoted = false;
 function noteError(e, { quiet = false, where = "" } = {}) {

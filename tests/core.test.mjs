@@ -28,7 +28,7 @@ test("version is MAJOR.MINOR.PATCH", () => {
 });
 
 test("version matches the service worker cache name", () => {
-  const m = read("sw.js").match(/const CACHE = "louisv1-v([^"]+)"/);
+  const m = read("sw.js").match(/const CACHE = "louiev1-v([^"]+)"/);
   assert.ok(m, "CACHE constant not found in sw.js");
   assert.equal(m[1], C.VERSION);
 });
@@ -506,11 +506,11 @@ test("at start, the newer readable library wins between the database and its cop
 });
 
 test("loading says whether the save was there and readable", () => {
-  const store = globalThis.localStorage, keep = store.getItem("louisv1-v1");
-  store.removeItem("louisv1-v1"); C.Tabs.load(); assert.equal(C.Tabs.loaded, "empty");
-  store.setItem("louisv1-v1", "{not json"); C.Tabs.load(); assert.equal(C.Tabs.loaded, "broken");
-  store.setItem("louisv1-v1", JSON.stringify(fresh())); C.Tabs.load(); assert.equal(C.Tabs.loaded, "ok");
-  if (keep === null) store.removeItem("louisv1-v1"); else store.setItem("louisv1-v1", keep);
+  const store = globalThis.localStorage, keep = store.getItem("louiev1-v1");
+  store.removeItem("louiev1-v1"); C.Tabs.load(); assert.equal(C.Tabs.loaded, "empty");
+  store.setItem("louiev1-v1", "{not json"); C.Tabs.load(); assert.equal(C.Tabs.loaded, "broken");
+  store.setItem("louiev1-v1", JSON.stringify(fresh())); C.Tabs.load(); assert.equal(C.Tabs.loaded, "ok");
+  if (keep === null) store.removeItem("louiev1-v1"); else store.setItem("louiev1-v1", keep);
 });
 
 test("importing a backup: a real export comes back the same", () => {

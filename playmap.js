@@ -14,7 +14,7 @@ import { Tabs, territory, hexSpiral, hexCentre, mercator, fitZoom, lifetimePlays
 import { app, esc, icon, toast } from "./ui.js";
 import { data, go } from "./app.js";
 
-const SPOT = "louisv1.spot.v1";
+const SPOT = "louiev1.spot.v1";
 export function getSpot() { try { return coarseSpot(...Object.values(JSON.parse(localStorage.getItem(SPOT) || "null") || {})); } catch { return null; } }
 function setSpot(spot) { try { spot ? localStorage.setItem(SPOT, JSON.stringify(spot)) : localStorage.removeItem(SPOT); } catch {} }
 export function forgetSpot() { setSpot(null); }

@@ -34,7 +34,7 @@ test("Play together: share a start time, and the friend's phone joins and starts
   if (process.env.SHOT) await friend.screenshot({ path: process.env.SHOT + "/duet-join.png" });
   await friend.click("#dj-yes"); await friend.waitForTimeout(600);
   assert.match(await friend.evaluate(() => location.hash), /#\/song\//);
-  assert.equal(JSON.parse(await friend.evaluate(() => localStorage.getItem("louisv1-v1"))).songs.length, 1, "the song was added");
+  assert.equal(JSON.parse(await friend.evaluate(() => localStorage.getItem("louiev1-v1"))).songs.length, 1, "the song was added");
   assert.equal(await friend.locator(".duet-wait").count(), 1);
   assert.equal(await friend.evaluate(() => document.body.classList.contains("playing")), false, "not before the start");
   /* Starts at the start time (waited for, not slept on, so a busy test machine doesn't flake). */

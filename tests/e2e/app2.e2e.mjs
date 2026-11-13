@@ -72,7 +72,7 @@ test("sketch: sing two lines, add their words, get chords in the melody's key", 
   const errors = []; page.on("pageerror", e => errors.push(String(e)));
   page.on("console", m => { if (/Content Security Policy/i.test(m.text())) errors.push(m.text()); });
   await page.goto(base); await page.waitForTimeout(400);
-  await page.evaluate(d => localStorage.setItem("louisv1-v1", JSON.stringify(d)), LIB);
+  await page.evaluate(d => localStorage.setItem("louiev1-v1", JSON.stringify(d)), LIB);
   await page.reload(); await page.waitForTimeout(300);
   // From Add: an empty new song offers Sing it.
   await page.click("#add"); await page.waitForTimeout(600);
@@ -104,7 +104,7 @@ test("sketch: sing two lines, add their words, get chords in the melody's key", 
   assert.equal(await page.locator(".sknb-row").count(), 2);
   assert.deepEqual(await page.$$eval(".skfam-c", b => b.map(x => x.textContent)), ["G", "C", "D", "Em", "Am", "Bm"], "the key's chords, ready to hear");
   await page.click("#sk-done"); await page.waitForTimeout(1200);
-  const song = JSON.parse(await page.evaluate(() => localStorage.getItem("louisv1-v1"))).songs.find(s => s.sketch);
+  const song = JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).songs.find(s => s.sketch);
   assert.ok(song, "a new song was made");
   assert.equal(song.key, "G");
   assert.match(song.body, /^G\s+C\nPorch light burning past the second shift\nD\s+G\nHome to you a little more$/);
@@ -116,7 +116,7 @@ test("sketch: sing two lines, add their words, get chords in the melody's key", 
   await page.click("#ce-done"); await page.waitForTimeout(900);
   await page.waitForSelector("#sk-hear:not([hidden])", { timeout: 4000 });
   await page.click("[data-st='rich']"); await page.waitForTimeout(400);
-  const body = async () => JSON.parse(await page.evaluate(() => localStorage.getItem("louisv1-v1"))).songs.find(s => s.sketch).body;
+  const body = async () => JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).songs.find(s => s.sketch).body;
   assert.match(await body(), /\nD7\s+G\nHome to you/, "Rich: the V chord becomes D7");
   await page.click("#toast .tact"); await page.waitForTimeout(400);
   assert.match(await body(), /\nD\s+G\nHome to you/, "Undo");
@@ -153,7 +153,7 @@ test("a set's Album art cover finds art for its songs on Apple Music", { skip: s
   await page.goto(base + "#/set/s"); await page.waitForTimeout(400);
   await page.click("#s-cover"); await page.waitForTimeout(200);
   await page.click('[data-cv="art"]'); await page.waitForTimeout(800);
-  const songs = JSON.parse(await page.evaluate(() => localStorage.getItem("louisv1-v1"))).songs;
+  const songs = JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).songs;
   assert.match(songs.find(s => s.id === "a").listen.art, /river\/600x600bb/);
   assert.match(songs.find(s => s.id === "b").art, /harbor\/600x600bb/);
   assert.match(await page.innerText("#toast"), /Album art for every song/);
@@ -183,7 +183,7 @@ test("sketch: a quiet voice is still heard; silence says so and is logged; the p
   await ctx.addInitScript(FAKE_MIC);
   const page = await ctx.newPage();
   await page.goto(base); await page.waitForTimeout(400);
-  await page.evaluate(d => localStorage.setItem("louisv1-v1", JSON.stringify(d)), LIB);
+  await page.evaluate(d => localStorage.setItem("louiev1-v1", JSON.stringify(d)), LIB);
   await page.goto(base + "#/sketch"); await page.waitForTimeout(500);
   const pad = await page.locator("#sk-pad").boundingBox(), px = pad.x + pad.width / 2, py = pad.y + pad.height - 60;
   const hold = async (hzs, gain) => {
@@ -202,7 +202,7 @@ test("sketch: a quiet voice is still heard; silence says so and is logged; the p
   // Silence: a clear message, and the details go to the problems log.
   await hold([196, 247, 294], 0);
   assert.match(await page.innerText("#toast"), /only silence/);
-  assert.match(await page.evaluate(() => localStorage.getItem("louisv1.errors.v1")), /Sketch heard no notes: .* peak level 0\.0000/);
+  assert.match(await page.evaluate(() => localStorage.getItem("louiev1.errors.v1")), /Sketch heard no notes: .* peak level 0\.0000/);
 });
 
 test("while playing, the focus line skips section names to the section's first line", { skip: skip() }, async t => {
@@ -244,7 +244,7 @@ test("Listen searches Apple Music in the app: change the words, hear a preview, 
   assert.equal(terms.at(-1), "Harbor Lights live");
   assert.match(await page.innerText(".ls-row"), /Harbor Lights \(Live\)/);
   await page.click(".ls-row"); await page.waitForTimeout(400);
-  const song = JSON.parse(await page.evaluate(() => localStorage.getItem("louisv1-v1"))).songs.find(s => s.id === "b");
+  const song = JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).songs.find(s => s.id === "b");
   assert.match(song.listen.url, /i=222/);
   assert.match(song.listen.art, /222\/600x600bb/);
   assert.equal(await page.locator("#ls-panel").count(), 0, "the sheet closes");
@@ -269,7 +269,7 @@ test("Listen still finds songs when Safari blocks Apple's reply, and offers a wa
   down = true;
   await page.fill("#ls-q", "Harbor"); await page.press("#ls-q", "Enter"); await page.waitForTimeout(1500);
   assert.match(await page.innerText("#ls-res"), /Couldn't reach/);
-  const log = await page.evaluate(() => localStorage.getItem("louisv1.errors.v1"));
+  const log = await page.evaluate(() => localStorage.getItem("louiev1.errors.v1"));
   assert.match(log, /Apple catalog search/, "the reason is kept for diagnostics");
   let opened = "";
   await page.context().route("https://music.apple.com/**", r => { opened = r.request().url(); r.fulfill({ status: 200, body: "" }); });
@@ -301,7 +301,7 @@ test("iPhone: Listen opens Apple Music's search, and Paste on return saves the l
   await page.evaluate(() => { Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true }); document.dispatchEvent(new Event("visibilitychange")); });
   await page.waitForTimeout(200);
   await page.click("#bp-go"); await page.waitForTimeout(400);
-  const song = JSON.parse(await page.evaluate(() => localStorage.getItem("louisv1-v1"))).songs.find(s => s.id === "b");
+  const song = JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).songs.find(s => s.id === "b");
   assert.match(song.listen.url, /i=777/);
   assert.equal(await page.locator(".bp-listen").count(), 0, "the offer goes away");
 });
@@ -348,7 +348,7 @@ test("2.1 speed dial: hold the time and sweep the corner; the length follows and
   const after = await page.innerText("#dialbtn");
   assert.notEqual(after.trim(), before.trim(), "the length changed");
   assert.equal(after.trim(), shown.trim(), "the bar shows what the dial showed");
-  assert.ok(JSON.parse(await page.evaluate(() => localStorage.getItem("louisv1-v1"))).songs.find(s => s.id === "a").durationSet, "saved");
+  assert.ok(JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).songs.find(s => s.id === "a").durationSet, "saved");
   /* A tap opens it to sweep anywhere; a tap off it closes it. */
   await page.click("#dialbtn"); await page.waitForTimeout(200);
   assert.equal(await page.locator(".dial").count(), 1);
@@ -447,7 +447,7 @@ test("2.2 ring: Play rests in the corner, rises with a touch, settles when still
   c = await center();
   await page.mouse.move(c.x, c.y); await page.mouse.down(); await page.waitForTimeout(600); await page.mouse.up(); await page.waitForTimeout(200);
   await page.click(".ri[data-r='metro']"); await page.waitForTimeout(200);
-  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louisv1-v1"))).settings.metronome, true, "metronome on from the ring");
+  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).settings.metronome, true, "metronome on from the ring");
   c = await center();
   await page.mouse.move(c.x, c.y); await page.mouse.down(); await page.waitForTimeout(600); await page.mouse.up(); await page.waitForTimeout(200);
   assert.equal(await page.getAttribute(".ri[data-r='metro']", "aria-pressed"), "true");
@@ -477,7 +477,7 @@ test("2.16.5 speed dial: a tap that slips a little near the corner closes it wit
   await page.mouse.up(); await page.waitForTimeout(300);
   assert.equal(await page.locator(".dial").count(), 0, "the tap closed it");
   assert.equal((await page.innerText("#dialbtn")).trim(), before, "the time didn't change");
-  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louisv1-v1"))).songs.find(s => s.id === "a").duration, 200, "nothing saved");
+  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).songs.find(s => s.id === "a").duration, 200, "nothing saved");
 });
 
 test("2.25.0 speed dial is a meter: the needle swings with the length, and whole minutes are marked", { skip: skip() }, async t => {

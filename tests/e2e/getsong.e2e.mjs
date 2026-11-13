@@ -14,7 +14,7 @@ const cors = { "access-control-allow-origin": "*", "access-control-expose-header
 
 async function setup(t, { bpm = true } = {}) {
   const page = await phone(t, { ...LIB, settings: { ...LIB.settings, countIn: false } });
-  await page.evaluate(k => { localStorage.setItem("louisv1.apikey.v1", "sk-ant-test"); if (k) localStorage.setItem("louisv1.bpmkey.v1", "bpm-test"); }, bpm);
+  await page.evaluate(k => { localStorage.setItem("louiev1.apikey.v1", "sk-ant-test"); if (k) localStorage.setItem("louiev1.bpmkey.v1", "bpm-test"); }, bpm);
   const calls = { lrc: 0, bpm: [], ai: 0 };
   await page.route(/api\.anthropic\.com/, async r => { calls.ai++; if (process.env.SHOT) await new Promise(ok => setTimeout(ok, 2500)); r.fulfill({ status: 200, contentType: "application/json", headers: cors, body: JSON.stringify({ content: [{ type: "text", text: JSON.stringify(CHART) }], stop_reason: "end_turn" }) }); });
   await page.route(/lrclib\.net\/api\/search/, r => { calls.lrc++; calls.lrc === 1 ? r.fulfill({ status: 429, headers: { ...cors, "retry-after": "0.2" }, body: "{}" }) : r.fulfill({ status: 200, contentType: "application/json", headers: cors, body: JSON.stringify(VERSIONS) }); });
@@ -52,7 +52,7 @@ test("Get the song: one tap gathers chords, words and tempo, and saves a playabl
   assert.match(await page.innerText("#gs-pick"), /Live at the Pier · 4:20/);
   await page.click("#gs-add");
   await page.waitForTimeout(500);
-  const s = JSON.parse(await page.evaluate(() => localStorage.getItem("louisv1-v1"))).songs.find(x => x.title === "Harbor Lights");
+  const s = JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).songs.find(x => x.title === "Harbor Lights");
   assert.equal(s.bpm, 92); assert.equal(s.beats, 3); assert.equal(s.duration, 260); assert.deepEqual(s.words, { src: "lrclib", id: 2 }); assert.equal(s.key, "G");
   assert.match(s.body, /\[Verse\]\nG\s+D\s*\npier words one/);
   assert.match(await page.evaluate(() => location.hash), /#\/song\//);
@@ -70,7 +70,7 @@ test("Get the song: no GetSongBPM key and no words still adds the chords", { ski
   assert.match(await page.innerText(".cs-meta"), /90 BPM/, "the chart's tempo");
   assert.match(await page.innerText("#gs-edit"), /Paste the words/);
   await page.click("#gs-add"); await page.waitForTimeout(400);
-  const s = JSON.parse(await page.evaluate(() => localStorage.getItem("louisv1-v1"))).songs.find(x => x.title === "Harbor Lights");
+  const s = JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).songs.find(x => x.title === "Harbor Lights");
   assert.equal(s.bpm, 90); assert.equal(s.words, undefined); assert.equal(s.beats, undefined);
 });
 
@@ -89,5 +89,5 @@ test("Get the song: pick how hard (Easy, My level, As recorded); the pick is kep
   assert.equal(await page.getAttribute("#gs-level [data-lv='rec']", "aria-pressed"), "true");
   assert.match(asked.at(-1).system, /Level: as recorded/);
   assert.doesNotMatch(asked.at(-1).messages[0].content, /Chords I play/);
-  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louisv1-v1"))).settings.chartLevel, "rec", "kept for next time");
+  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).settings.chartLevel, "rec", "kept for next time");
 });
