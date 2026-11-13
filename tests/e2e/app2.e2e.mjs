@@ -317,10 +317,7 @@ test("2.0 one hand: on a phone held upright the controls sit at the bottom; iPad
   const box = async sel => page.evaluate(sel => { const r = document.querySelector(sel)?.getBoundingClientRect(); return r && r.width ? { top: r.top, bottom: r.bottom, right: r.right, left: r.left } : null; }, sel);
   const H = 844;
   assert.ok((await box("#chips")).top < H * 0.3, "filters at the top (2.6: moved back)");
-  assert.ok((await box("#tunerbtn")).top < 100, "tuner in the header (2.6: moved back)");
-  assert.ok(await page.evaluate(() => { const b = document.querySelector("#tunerbtn"), r = b.getBoundingClientRect(), i = b.querySelector("svg").getBoundingClientRect(); return Math.abs((i.top + i.bottom) / 2 - (r.top + r.bottom) / 2) < 2 && Math.abs((i.left + i.right) / 2 - (r.left + r.right) / 2) < 2; }), "the tuner icon is centered");
-  const dot = await page.evaluate(() => { const d = document.querySelector("#tunerbtn .dotmark"); return d && getComputedStyle(d).position; });
-  if (dot) assert.equal(dot, "absolute", "the not-tuned dot sits in the corner");
+  assert.ok((await box("#libset")).top < 120, "Settings is in the header");
   await page.goto(base + "#/song/a"); await page.waitForSelector('.metarow');
   /* 4.2.0: one song screen. Back, the title and the heart at the top; Tools and a big Play at the bottom. */
   assert.ok((await box(".shead .sh-back")).top < 100 && (await box(".shead .fav")).top < 100, "back and the heart beside the title");
@@ -339,8 +336,8 @@ test("2.0 one hand: on a phone held upright the controls sit at the bottom; iPad
   const pad = await phone(t, LIB, { viewport: { width: 1180, height: 820 } });
   await pad.goto(base + "#/song/a"); await pad.waitForSelector(".shead [data-go]");
   assert.ok(await pad.evaluate(() => document.querySelector(".shead [data-go]").getBoundingClientRect().top < 100), "iPad: back at the top");
-  await pad.goto(base + "#/library"); await pad.waitForSelector("#tunerbtn");
-  assert.ok(await pad.evaluate(() => document.querySelector("#tunerbtn").getBoundingClientRect().top < 100), "iPad: tuner at the top");
+  await pad.goto(base + "#/library"); await pad.waitForSelector("#libset");
+  assert.ok(await pad.evaluate(() => document.querySelector("#libset").getBoundingClientRect().top < 120), "iPad: Settings at the top");
 });
 
 test("2.1, 2.6.5 speed dial (4.2.0: Tools, then Speed): a wobble changes nothing; a sweep sets the length, saves, and Undo puts it back", { skip: skip() }, async t => {
@@ -490,7 +487,7 @@ test("4.20.1 Songbook filters: one row that fits, Sets in the header, Tabs in th
   assert.ok(r.scroll <= 0, "nothing scrolls sideways");
   assert.equal(await page.locator("#chips [data-f='sets'], #chips [data-f='tab']").count(), 0, "Sets and Tabs are not in the row");
   await page.click("#setsbtn"); await page.waitForSelector("#newset");
-  await page.click("#libback"); await page.waitForSelector("#chips [data-f='all'].on");
+  await page.click("#setsbtn"); await page.waitForSelector("#chips [data-f='all'].on");
   assert.equal(await page.locator("#newset").count(), 0, "Back from Sets goes to All, not out of the Songbook");
   await page.selectOption("#sort", "tabs");
   await page.waitForFunction(() => document.querySelector("#sort")?.value === "tabs");

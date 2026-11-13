@@ -22,7 +22,7 @@ const SCREENS = [
   ["menu", "#/song/a", p => p.click("#more")],
   ["editor", "#/song/a", async p => { await tool(p, "edit"); }],
   ["question", "#/trash", p => p.click("[data-forget]")],
-  ["tuner", "#/library", p => p.click("#tunerbtn")],
+  ["tuner", "#/settings", async p => { await p.click("#s-tuner"); await p.waitForSelector("#tn-say, .tn-mic"); }],
   ["sketch", "#/sketch"],
   ["playing", "#/you"],
   ["rehearse", "#/practice"],

@@ -8,7 +8,7 @@ import { renderImport } from "./share.js";
 import { ago, backupNow, needsBackup } from "./store.js";
 import { $, I, app, esc, followKeyboard, icon, layer, onLeave, toast } from "./ui.js";
 import { aiError, aiKey, busy, cleanSheet, readPhoto } from "./aihelp.js";
-import { bindFind, data, findAI, findCard, go, keyOf, lastOpened, newSong, nextSongs, openTuner, route, tunedRecently } from "./app.js";
+import { bindFind, data, findAI, findCard, go, keyOf, lastOpened, newSong, nextSongs, route } from "./app.js";
 
 export let query = "";
 export let filter = "all";
@@ -126,13 +126,12 @@ export const refreshLibrary = () => route().name === "road" ? homeHooks.refresh?
 
 export function renderLibrary() {
   chipsHTML(); /* settles a filter that no longer has songs */
-  const tunerBtn = cls => `<button class="${cls}" id="tunerbtn" aria-label="${tunedRecently() ? "Tuner" : "Tuner. Not tuned in the last few hours"}">${icon("fork")}${tunedRecently() ? "" : '<i class="dotmark"></i>'}</button>`;
   app.innerHTML = `
     <div class="head">
-      <div class="head-l"><button class="sh-btn" id="libback" aria-label="Back to the Road">${icon("back")}</button><h1 class="title script">Songbook</h1></div>
+      <h1 class="title script">Library</h1>
       <div class="row-btns">
         <button class="btn sets-btn${filter === "sets" ? " on" : ""}" id="setsbtn" aria-label="Sets">${icon("list")}Sets</button>
-        ${tunerBtn("ib chunky-tune")}
+        <button class="btn" id="libset" aria-label="Settings">${icon("gear")}Settings</button>
       </div>
     </div>
     ${todayHTMLOrSpot()}
@@ -149,14 +148,13 @@ export function renderLibrary() {
         ${icon("search")}
         <input id="q" type="text" inputmode="search" enterkeyhint="go" placeholder="Search or add a song" value="${esc(query)}" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Search or add a song">
         <button class="clear" id="clear" aria-label="Clear search" ${query ? "" : "hidden"}>${icon("x")}</button>
-        <button class="cmd-add" id="add" aria-label="Add a song">${icon("plus")}</button>
+        <button class="cmd-add" id="add" aria-label="Add a song">${icon("note")}</button>
       </label>
       <button class="qcancel" id="qcancel">Cancel</button>
     </div>`;
   bindToday();
-  $("libback").onclick = () => { if (filter === "sets") { filter = "all"; renderLibrary(); } else go("#/"); };
   $("setsbtn").onclick = () => { filter = filter === "sets" ? "all" : "sets"; renderLibrary(); };
-  $("tunerbtn").onclick = () => openTuner("standard", () => route().name === "library" && renderLibrary());
+  $("libset").onclick = () => go("#/settings");
   $("bk-later")?.addEventListener("click", () => { data.settings.backupSnooze = Date.now() + 2 * 86400000; Tabs.save(data); $("bk").remove(); });
   $("bk-go")?.addEventListener("click", async () => { if (await backupNow()) { $("bk")?.remove(); toast("Backed up"); } });
   app.querySelectorAll("[data-f]").forEach(b => b.onclick = () => { filter = b.dataset.f; renderLibrary(); });
