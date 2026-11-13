@@ -2651,8 +2651,15 @@ test("4.85.0 your guitarist: cleanMe keeps good fields, drops bad ones, and a ba
   assert.equal(bad.patches.length, C.ME_PATCHES, "at most five patches");
   assert.equal(C.ME_STARTERS.length, 8);
   assert.ok(C.ME_STARTERS.every(s => C.cleanMe(s).hair === s.hair && s.extra === "none" && !("name" in s)), "starters are valid, hat-free and nameless");
-  const back = C.cleanImport(JSON.parse(JSON.stringify({ songs: [], sets: [], trash: [], settings: {}, me })));
-  assert.deepEqual(back.data.me, me, "an import keeps data.me");
+  const back = C.cleanImport(JSON.parse(JSON.stringify({ songs: [{ id: "s", title: "Keep", body: "G", listen: { url: "https://music.apple.com/us/album/x/1?i=9" }, syncs: [[0.1, 1]] }], sets: [{ id: "set", name: "Friday", songs: ["s"] }], trash: [], settings: { theme: "headliner" }, me, gig: { shows: 4 }, band: { seen: ["lola"] }, opening: { step: 3 } })));
+  assert.equal(back.data.songs[0].title, "Keep");
+  assert.equal(back.data.songs[0].listen.url.includes("i=9"), true, "the recording comes across");
+  assert.equal(back.data.sets[0].name, "Friday");
+  assert.equal(back.data.me, undefined, "the guitarist is a game field");
+  assert.equal(back.data.gig, undefined);
+  assert.equal(back.data.band, undefined);
+  assert.equal(back.data.opening, undefined);
+  assert.equal(back.data.settings.theme, "auto", "a Louie look becomes Auto");
   assert.equal(C.cleanImport({ songs: [], sets: [], trash: [], settings: {} }).data.me, undefined, "no me, none made up");
 });
 
