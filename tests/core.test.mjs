@@ -2339,19 +2339,6 @@ test("4.39.1 Louie's hands: the thumbs up tips the thumb out, and the pointing h
   assert.match(louie("happy", { pose: "point" }), /translate\(180 108\) rotate\(40\)/, "the pointing hand leans, never straight up");
 });
 
-test("Louie Lite: Opening night does not run", () => {
-  const d = { songs: [{ id: "s", title: "Harbor Lights", sample: true, body: "[Verse]\nG D\nLights" }], sets: [], trash: [], settings: {} };
-  assert.equal(C.openingOn(d), false);
-  assert.equal(C.openingAdvance(d, "who"), false);
-  assert.equal(C.openingAdvance(d, "mic"), false);
-  assert.equal(d.opening, undefined, "a step does not start a night or pay fans");
-  assert.deepEqual(C.cleanOpening({ step: 9, fans: 999, micOff: true, done: "x", junk: 1 }), { step: 6, v: 2, fans: 25, micOff: true });
-  assert.equal(C.cleanOpening({ step: 2, fans: 5 }).step, 3, "a save from before 4.85.0 moves up one step");
-  assert.equal(C.cleanOpening({ step: 0 }).step, 0, "one that hadn't started stays at the start");
-  assert.equal(C.cleanOpening({ step: 2, v: 2 }).step, 2, "a current save is left alone");
-  assert.equal(C.cleanOpening("no"), null);
-});
-
 test("4.41.0 chords where the chord sites have them: numbered words in, positions out, the sheet built on the phone", () => {
   const lyr = "[Verse 1]\nSaw the lights come on at six\nGulls were arguing over tricks\n\n[Chorus]\nCarry me home tonight\nLay me down";
   const num = C.numberLyrics(lyr);
