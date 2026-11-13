@@ -4526,6 +4526,11 @@ body.staged .sheet > .sec.st-past { color: var(--muted); }
 :root[data-look="amp"] .chip.on::before { background: var(--lamp-on); box-shadow: 0 0 0 1.5px rgba(0,0,0,.45), var(--lamp-glow); }
 :root[data-look="amp"] .set-group, :root[data-look="amp"] .panel, :root[data-look="amp"] .card, :root[data-look="amp"] .endcard { border: 1px solid var(--bronze-line); }
 :root[data-look="amp"] .app.viewer .dock { background: var(--plate); box-shadow: var(--plate-shadow); border: 1px solid #6d5326; border-radius: 22px; padding: 8px; }
+:root[data-look="amp"] .app.viewer .pw, :root[data-look="amp"] .app.viewer .player { background: none; border: 0; box-shadow: none; }
+:root[data-look="amp"] .app.viewer .player .tl { width: 52px; height: 52px; border: 0; border-radius: 14px; background: var(--recess); color: var(--recess-fg); box-shadow: var(--recess-shadow); }
+:root[data-look="amp"] .app.viewer .player .tl.tools { width: auto; flex: 1; display: flex; gap: 8px; }
+:root[data-look="amp"] .app.viewer .player .play { height: 52px; border-radius: 14px; background: var(--copper); color: var(--copper-fg); border: 1px solid #6e3a1e; box-shadow: var(--copper-hi); font: 600 16px var(--sans); letter-spacing: 0; text-transform: none; }
+:root[data-look="amp"] .app.viewer .player .play::before { display: none; }
 :root[data-look="amp"] .dock.kb { background: none; box-shadow: none; border: 0; padding: 0; gap: 10px; }
 :root[data-look="amp"] .dock.kb .cmd { height: 52px; border-radius: 16px; background: var(--glass-tint); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); border: 1px solid var(--bronze-line); box-shadow: none; color: var(--fg); }
 :root[data-look="amp"] .dock.kb .cmd input { color: var(--fg); }

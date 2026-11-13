@@ -67,7 +67,7 @@ const gigsOn = song => canGig(song);
 /* 4.20.0: the face says what plays with you: the recording or the band (nothing when neither will) */
 const playWith = song => !song ? "" : usesMusic(song) ? "ALONG WITH THE RECORDING" : beatMode() === "kick" ? "WITH THE BASS DRUM" : beatMode() === "click" ? "WITH THE METRONOME" : "";
 /* 4.52.0: a show you paused is held on the song page; Play picks it up again */
-const playFace = (on, song) => `${icon(on ? "pause" : "play")}<span>${on ? "PAUSE" : gigHooks.held ? "RESUME" : "PLAY"}${!on && !gigHooks.held && playWith(song) ? `<small class="pw-with">${playWith(song)}</small>` : ""}</span>`;
+const playFace = (on, song) => `${icon(on ? "pause" : "play")}<span>${on ? "Pause" : gigHooks.held ? "Resume" : "Play"}${!on && !gigHooks.held && playWith(song) ? `<small class="pw-with">${playWith(song)}</small>` : ""}</span>`;
 const playLabel = (song, on) => on ? "Pause auto-scroll" : gigHooks.held ? "Resume the show" : gigsOn(song) ? "Play as a gig" : "Start auto-scroll";
 /* Play's label, after Practice changes */
 function refreshPlay(song) {
@@ -178,6 +178,7 @@ function renderViewer(id) {
       <div class="pw glass float">
       <div class="looprow" id="looprow"></div>
       <div class="player">
+        <button class="tl dockback" data-go="${back.to}" aria-label="${esc(back.label)}">${icon("back")}</button>
         <button class="tl more tools" id="more" aria-label="Tools" aria-haspopup="dialog">${icon("sliders")}<span class="tl-w">Tools</span>${menuHasNew() ? '<i class="newdot"></i>' : ""}</button>
         ${(() => { const x = setCtx && data.sets.find(z => z.id === setCtx.id); const list = x ? setSongs(x) : [];
           return x && list[setCtx.idx]?.id === song.id ? `<button class="tl dialbtn setdial" id="setdial" aria-label="${esc(x.name)}, song ${setCtx.idx + 1} of ${list.length}. Hold and sweep to pick a song">${icon("listplus")}<span>${setCtx.idx + 1} of ${list.length}</span></button>` : ""; })()}
