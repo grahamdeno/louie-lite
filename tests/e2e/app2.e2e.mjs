@@ -466,16 +466,15 @@ test("2.25.0 speed dial is a meter: the needle swings with the length, and whole
   assert.ok(after[1] < before[1], `faster points higher: ${before} then ${after}`);
 });
 
-test("2.25.0 filter chips: the selected one is filled in the accent colour (4.20.0: flat pills, no lamps)", { skip: skip() }, async t => {
+test("3.1.0 filter chips: 2.49's pills, the selected one tinted in the accent with its lamp lit", { skip: skip() }, async t => {
   const page = await phone(t, { ...LIB, songs: LIB.songs.map((s, i) => ({ ...s, favorite: i === 0 })) });
-  const fill = sel => page.evaluate(s => getComputedStyle(document.querySelector(s)).backgroundColor, sel);
-  const lamp = sel => page.evaluate(s => getComputedStyle(document.querySelector(s), "::before").display, sel);
-  const go = await page.evaluate(() => { const d = document.createElement("i"); d.style.color = "var(--accent)"; document.body.appendChild(d); const c = getComputedStyle(d).color; d.remove(); return c; });
-  assert.equal(await fill("#chips [data-f='all']"), go);
-  assert.notEqual(await fill("#chips [data-f='fav']"), go);
-  assert.equal(await lamp("#chips [data-f='all']"), "none", "no lamp dot");
-  await page.click("#chips [data-f='fav']"); await until(async () => (await fill("#chips [data-f='fav']")) === go);
-  assert.notEqual(await fill("#chips [data-f='all']"), go);
+  const tint = sel => page.evaluate(s => getComputedStyle(document.querySelector(s)).borderTopColor, sel);
+  const lamp = sel => page.evaluate(s => getComputedStyle(document.querySelector(s), "::before").backgroundImage, sel);
+  const allOn = await tint("#chips [data-f='all']");
+  assert.notEqual(allOn, await tint("#chips [data-f='learn']"), "the selected chip is tinted");
+  assert.notEqual(await lamp("#chips [data-f='all']"), await lamp("#chips [data-f='learn']"), "its lamp is lit");
+  await page.click("#chips [data-f='fav']"); await until(async () => (await tint("#chips [data-f='fav']")) === allOn);
+  assert.notEqual(await tint("#chips [data-f='all']"), allOn);
 });
 
 test("4.20.1 Songbook filters: one row that fits, Sets in the header, Tabs in the sort menu", { skip: skip() }, async t => {

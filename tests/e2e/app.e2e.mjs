@@ -262,8 +262,7 @@ test("an Apple Music link sets the song's length; tapping sets the tempo", { ski
 
   await tool(page, "edit");
   await page.waitForSelector('#ed-tap');
-  const box = await page.locator("#ed-tap").boundingBox();
-  for (let i = 0; i < 5; i++) { await page.mouse.click(box.x + 10, box.y + 10); await page.waitForTimeout(500); /* real timer */ }
+  for (let i = 0; i < 5; i++) { await page.click('#ed-tap'); await page.waitForTimeout(500); /* real timer */ }
   await page.waitForTimeout(1800); /* real timer */
   const bpm = await page.evaluate(() => JSON.parse(localStorage.getItem("louielite-v1")).songs.find(s => s.id === "b").bpm);
   assert.ok(bpm >= 105 && bpm <= 122, `about 120 BPM, got ${bpm}`);

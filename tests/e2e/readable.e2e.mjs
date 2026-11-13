@@ -33,6 +33,8 @@ function scan() {
   for (const el of document.querySelectorAll("body *")) {
     if (![...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim().length > 1)) continue;
     if (el.closest("[aria-hidden=true],[hidden],svg,script,style,template,.sr-only,.leaflet-control-attribution")) continue;
+    /* 3.1.1: while playing, lines away from the one you're on fade back on purpose (2.49's Focus current line) */
+    if (el.closest("body.staged .sheet > :not(.st-now):not(.st-next)")) continue;
     const s = getComputedStyle(el), r = el.getBoundingClientRect();
     if (r.width < 2 || r.height < 2 || s.visibility === "hidden" || s.display === "none") continue;
     let op = 1, img = false, bg = [0, 0, 0, 0];
