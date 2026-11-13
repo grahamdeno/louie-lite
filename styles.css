@@ -674,6 +674,21 @@ body.playing .smap:not(.active) { opacity: .45; }
 .tappause { position: fixed; left: 50%; top: 40%; z-index: 60; width: 84px; height: 84px; margin: -42px 0 0 -42px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--solid) 85%, transparent); border: 1px solid var(--rim); color: var(--fg); pointer-events: none; animation: tp .7s ease-out forwards; }
 .tappause svg { width: 34px; height: 34px; fill: currentColor; stroke: none; }
 @keyframes tp { 0% { opacity: 0; transform: scale(.85); } 20% { opacity: 1; transform: scale(1); } 70% { opacity: 1; } 100% { opacity: 0; } }
+.endcard { margin: 22px 8px 88px; padding: 18px 14px 16px; border-radius: 22px; background: var(--card); text-align: center; }
+.endcard h2 { margin: 4px 0 8px; font-size: 32px; }
+.endcard .ec-k { margin: 8px 0 0; letter-spacing: .14em; font-size: 12px; font-weight: 700; color: var(--accent-ink); }
+.endcard .ec-say { margin: 0 0 14px; font-style: italic; color: var(--muted); }
+.endcard .ec-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.endcard .ec-stats div { background: var(--bg); border-radius: 14px; padding: 10px 4px; }
+.endcard .ec-stats b { display: block; font-size: 22px; color: var(--accent-ink); }
+.endcard .ec-stats small { color: var(--muted); font-size: 12px; letter-spacing: .08em; }
+.endcard .ec-secs { list-style: none; margin: 14px 0; padding: 0; text-align: left; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.endcard .ec-secs li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border-top: 1px solid var(--line); }
+.endcard .ec-secs li:first-child { border-top: 0; }
+.endcard .ec-secs em { font-style: normal; color: var(--accent-ink); }
+.endcard .ec-foot { color: var(--muted); font-size: 13px; }
+.endcard .ec-acts { display: flex; gap: 10px; margin-top: 12px; }
+.endcard .ec-acts .btn { flex: 1; }
 .endnote { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 28px 0 8px; font-size: 14px; color: var(--muted); animation: endin .9s ease-out both; }
 .endnote svg { width: 16px; height: 16px; color: var(--accent-ink); }
 @keyframes endin { from { opacity: 0; transform: translateY(6px); } }

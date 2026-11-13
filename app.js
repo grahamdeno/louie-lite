@@ -1,5 +1,5 @@
 // Tabs app: screens and interaction. core.js holds the logic that has unit tests.
-import { achSettle, profileOf, MAX_LENGTH, spotTimes, liningDue, practicing, practiceRate, keyGap, journalPractice, addSync, mergeSyncs, syncSeconds, syncWhere, playCredited, playSongs, soundOffset, germanBlocks, sungText, deSource, DE_LEVELS, Tabs, SPEEDS, playsThisWeek, playCount, sortSongs, TUNINGS, detectTuning, parseBlocks, wrapTab, guessKey, transposeKey, prefersFlats, detectPaste, parseSheet, sheetChords, chordShape, appleTrackId, VERSION, restyle, firstLyric, bodyCapo, journalTime, journalGot, streakMoment, knownChords, merchWorn, LANGS, langOf, langChosen, deLangOk, looksOwned, strumDetector, tempoStep } from "./core.js";
+import { achSettle, profileOf, MAX_LENGTH, spotTimes, liningDue, practicing, practiceRate, keyGap, journalPractice, addSync, mergeSyncs, syncSeconds, syncWhere, playCredited, playSongs, soundOffset, germanBlocks, sungText, deSource, DE_LEVELS, Tabs, SPEEDS, playsThisWeek, sortSongs, TUNINGS, detectTuning, parseBlocks, wrapTab, guessKey, transposeKey, prefersFlats, detectPaste, parseSheet, sheetChords, chordShape, appleTrackId, VERSION, restyle, firstLyric, bodyCapo, journalTime, journalGot, streakMoment, knownChords, merchWorn, LANGS, langOf, langChosen, deLangOk, looksOwned, strumDetector, tempoStep, streakOf, levelOf, XP } from "./core.js";
 import { openDial } from "./dial.js";
 import { setupFold, teardownFold } from "./fold.js";
 import { $, app, esc, getMic, icon, layer, leaveHooks, oneHandMQ, onLeave, onScroll, toast, sound } from "./ui.js";
@@ -7,6 +7,7 @@ import { addToSet, coverCache, coverDel, coverLoadAll, nextLine, nextUp, renderS
 import { copyDiagnostics, loadLibrary, noteError } from "./store.js";
 import { chordTapped, coach, coachTip, demoLine, demoMap, demoPause, demoTap, markSeen, markUsed, renderGestures, songCoach, takeDemo, tick, tipDue, tipsSeen, used } from "./coach.js";
 import { duetSheet, moreBtn, renderImport, shareSet, shareSong } from "./share.js";
+import { louie } from "./louie.js";
 import { appleSearchURL, hasMusic, musicLead, onFeel, aboutSheet, timeLines, listenSheet, musicClock, openLink, pauseMusic, prepareMusic, rateWorks, recordingLength, seekMusic, setMusicRate, startMusic } from "./listen.js";
 import { STATUS, bindShelf, chipsHTML, filter, homeHooks, leaveSearch, query, refreshLibrary, renderLibrary, renderList, searching, setFilter, setSearchFrom, setsShelf, showPasteCard, todayKey } from "./library.js";
 import { AI, BPM_STORE, aiError, aiKey, aiLastStop, askClaude, bpmKey, busy, cleanSheet, parseJSON, readPhoto } from "./aihelp.js";
@@ -1746,16 +1747,51 @@ function wakeControls() {
 }
 ["touchstart", "pointerdown", "wheel", "keydown"].forEach(ev => window.addEventListener(ev, () => { if (scroll.on) wakeControls(); }, { passive: true, capture: true }));
 
-// A quiet note at the end of the sheet when a song is played through. No badges or streaks.
-const nth = n => n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th");
-function endMoment(song) {
-  document.querySelector(".endnote")?.remove();
-  const total = playCount(song), week = playsThisWeek(song);
-  const when = total === 1 ? "for the first time" : week === 1 ? "· first time this week" : `· ${nth(week)} time this week`;
-  const el = document.createElement("div");
-  el.className = "endnote";
-  el.innerHTML = `${icon("check")}<span>Played through ${when}</span>`;
+// The end card: what you played, the time, the sections, the XP, a line from Louie. No chord count.
+const LOUIE_LINES = [
+  "That chorus is getting easy for you.",
+  "Nice. Play it once more while it's in your hands.",
+  "The changes sat well tonight.",
+  "Leave it there and it sticks.",
+  "That's a real play."
+];
+function songSections() {
+  const out = [];
+  let cur = null;
+  for (const b of diag.blocks || []) {
+    const el = b.el;
+    if (!el?.isConnected) continue;
+    if (el.classList.contains("sec")) { cur = { name: el.textContent.trim() || "Section", chords: [] }; out.push(cur); continue; }
+    if (!cur) { cur = { name: "Song", chords: [] }; out.push(cur); }
+    el.querySelectorAll("[data-ch]").forEach(c => { const n = c.dataset.ch; if (n && cur.chords[cur.chords.length - 1] !== n) cur.chords.push(n); });
+  }
+  return out.filter(s => s.name);
+}
+function endMoment(song, ms = 0) {
+  document.querySelector(".endcard")?.remove();
+  const sections = songSections();
+  const line = LOUIE_LINES[(song.title || "").length % LOUIE_LINES.length];
+  const played = mmss(Math.max(1, Math.round((ms || 0) / 1000)));
+  const st = streakOf(playSongs(data));
+  const lv = levelOf(data);
+  const el = document.createElement("section");
+  el.className = "endcard";
+  el.setAttribute("aria-label", "Song played through");
+  el.innerHTML = `<div class="ec-lou">${louie("cheer", { pose: "hornsUp", size: 120 })}</div>
+    <p class="ec-k">Song played through</p>
+    <h2>${esc(song.title || "Song")}</h2>
+    <p class="ec-say">"${esc(line)}"</p>
+    <div class="ec-stats">
+      <div><b>${played}</b><small>Played</small></div>
+      <div><b>${sections.length}</b><small>Sections</small></div>
+      <div><b>+${XP.play}</b><small>XP</small></div>
+    </div>
+    <ol class="ec-secs">${sections.map(s => `<li><span>${esc(s.name)}</span><em>${esc(s.chords.join(" ") || "")}</em></li>`).join("")}</ol>
+    <p class="ec-foot">Streak ${st.days} day${st.days === 1 ? "" : "s"} · Level ${lv.level}, ${lv.need - lv.into} XP to go</p>
+    <div class="ec-acts"><button class="btn" id="ec-share">${icon("share")}Share</button><button class="btn primary" id="ec-encore">Encore</button></div>`;
   $("sheet")?.after(el);
+  $("ec-share")?.addEventListener("click", () => shareSong(song, $("ec-share")));
+  $("ec-encore")?.addEventListener("click", () => { el.remove(); startScroll(song); });
 }
 
 /* The streak moment: once a day, after the first song played to its end.
@@ -1882,7 +1918,7 @@ async function startScroll(song, opts = {}) {
         const span = Math.max(0, end - (scroll.leadPx || 0));
         const expectedMs = (span < 40 ? songLength(song) : span / (pxPerSecond(song) * loopFactor(song))) * 1000;
         if (!scroll.logged && playCredited({ end, cover: scroll.cover, ms: scroll.runMs, expectedMs })) {
-          scroll.logged = true; scroll.credited = true; const had = chordsHad(); Tabs.logPlay(data, song); if (data.settings.place) lazy("tuneup.js").then(m => m.notePlayAir()); /* 4.72.0 */ curPaintStat?.(); endMoment(song); streakSoon(song); gigHooks.credited?.(song); celebrate(had); if (setRun && setCtx?.id === setRun.id) setRun.played.add(song.id); if (setCtx) nextUp();
+          scroll.logged = true; scroll.credited = true; const had = chordsHad(); Tabs.logPlay(data, song); if (data.settings.place) lazy("tuneup.js").then(m => m.notePlayAir()); /* 4.72.0 */ curPaintStat?.(); endMoment(song, scroll.runMs); streakSoon(song); gigHooks.credited?.(song); celebrate(had); if (setRun && setCtx?.id === setRun.id) setRun.played.add(song.id); if (setCtx) nextUp();
         }
         /* A sheet that fits the screen has only the clock to go by, so it plays on until it counts. */
         if (scroll.logged || end >= 40) {
