@@ -1,8 +1,8 @@
 // Tabs app: screens and interaction. core.js holds the logic that has unit tests.
-import { achSettle, profileOf, MAX_LENGTH, spotTimes, liningDue, practicing, practiceRate, keyGap, journalPractice, addSync, mergeSyncs, syncSeconds, syncWhere, playCredited, playSongs, soundOffset, germanBlocks, sungText, deSource, DE_LEVELS, Tabs, SPEEDS, playsThisWeek, playCount, sortSongs, TUNINGS, detectTuning, parseBlocks, wrapTab, guessKey, transposeKey, prefersFlats, detectPaste, parseSheet, sheetChords, chordShape, appleTrackId, VERSION, restyle, firstLyric, bodyCapo, journalTime, journalGot, streakMoment, knownChords, merchWorn, LANGS, langOf, langChosen, deLangOk, looksOwned } from "./core.js";
+import { achSettle, profileOf, MAX_LENGTH, spotTimes, liningDue, practicing, practiceRate, keyGap, journalPractice, addSync, mergeSyncs, syncSeconds, syncWhere, playCredited, playSongs, soundOffset, germanBlocks, sungText, deSource, DE_LEVELS, Tabs, SPEEDS, playsThisWeek, playCount, sortSongs, TUNINGS, detectTuning, parseBlocks, wrapTab, guessKey, transposeKey, prefersFlats, detectPaste, parseSheet, sheetChords, chordShape, appleTrackId, VERSION, restyle, firstLyric, bodyCapo, journalTime, journalGot, streakMoment, knownChords, merchWorn, LANGS, langOf, langChosen, deLangOk, looksOwned, strumDetector, tempoStep } from "./core.js";
 import { openDial } from "./dial.js";
 import { setupFold, teardownFold } from "./fold.js";
-import { $, app, esc, icon, layer, leaveHooks, oneHandMQ, onLeave, onScroll, toast, sound } from "./ui.js";
+import { $, app, esc, getMic, icon, layer, leaveHooks, oneHandMQ, onLeave, onScroll, toast, sound } from "./ui.js";
 import { addToSet, coverCache, coverDel, coverLoadAll, nextLine, nextUp, renderSet, setCtx, setRun, setSongs, setSetCtx } from "./sets.js";
 import { copyDiagnostics, loadLibrary, noteError } from "./store.js";
 import { chordTapped, coach, coachTip, demoLine, demoMap, demoPause, demoTap, markSeen, markUsed, renderGestures, songCoach, takeDemo, tick, tipDue, tipsSeen, used } from "./coach.js";
@@ -1009,6 +1009,35 @@ const waitOn = () => false; /* Louie Lite: no Wait for me. The page does not hol
    on for a song you are learning; not with a recording, which keeps its own tempo. `follow.k` is the pace now. */
 const followOn = song => !!song && !usesMusic(song) && (song.followTempo ?? song.status === "learning");
 export const follow = { k: 1 };
+/* Follow my tempo listens for strums (when you play, not which chord) and eases the page toward that pace. */
+let followEar = null;
+function stopFollowEar() {
+  followEar?.stop?.();
+  followEar = null;
+}
+function startFollowEar(song) {
+  stopFollowEar();
+  if (!followOn(song) || usesMusic(song)) return;
+  getMic().then(stream => {
+    if (!scroll.on || viewing !== song) { stream.getTracks().forEach(t => t.stop()); return; }
+    const ctx = sound();
+    if (!ctx) { stream.getTracks().forEach(t => t.stop()); return; }
+    const an = ctx.createAnalyser(); an.fftSize = 1024;
+    const src = ctx.createMediaStreamSource(stream); src.connect(an);
+    const buf = new Float32Array(an.fftSize), hear = strumDetector();
+    let last = 0;
+    const timer = setInterval(() => {
+      if (!scroll.on || !followOn(song)) return stopFollowEar();
+      an.getFloatTimeDomainData(buf);
+      let rms = 0; for (const v of buf) rms += v * v; rms = Math.sqrt(rms / buf.length);
+      const now = ctx.currentTime;
+      if (!hear(rms, now)) return;
+      if (last) follow.k = tempoStep(follow.k, beatSecs(song), now - last);
+      last = now;
+    }, 12);
+    followEar = { stop() { clearInterval(timer); stream.getTracks().forEach(t => t.stop()); try { src.disconnect(); } catch { /* already */ } } };
+  }).catch(() => {});
+}
 /* hold the page and the band on the chord being waited for (or let them go on) */
 function holdScroll(on, song) {
   if (!scroll.on || !!scroll.wait === on) return;
@@ -1818,6 +1847,7 @@ async function startScroll(song, opts = {}) {
   const music = () => { early = true; startMusic(song, playFromSec(song), recRate(song)); };
   if (counts && !(await countIn(song, usesMusic(song) ? music : null, musicLead()))) { clearTimeout(scroll.preTimer); if (early) pauseMusic(); return; }
   if (usesMusic(song)) { if (!early) music(); } else startMetronome(song);
+  startFollowEar(song);
   const tick = t => {
     if (!scroll.on) return;
     trail.push([performance.now(), scrollY]); while (trail.length > 2 && trail[0][0] < performance.now() - 2000) trail.shift();
@@ -1898,6 +1928,7 @@ function stopScroll() {
   stopMetronome();
   if (was) pauseMusic();
   clearTimeout(scroll.countTimer); clearTimeout(scroll.preTimer);
+  stopFollowEar();
   document.querySelectorAll(".countin").forEach(el => el.remove());
   document.body.classList.remove("playing");
   stageStop();
