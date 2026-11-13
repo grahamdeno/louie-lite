@@ -153,7 +153,7 @@ function renderSettings() {
         <button class="btn sm primary" id="s-applesave">Save</button>
       </div>` : ""}
     </div>
-    <details class="foot s-why"><summary>What it's used for</summary>The recording plays here instead of opening Apple Music, and the page follows it. Songs also get their genre, year and composer, the search screen shows what you played lately, and each line is timed from LRCLIB's synced lyrics (only the times are kept). Off, nothing is loaded and nothing is sent. On, Louie loads Apple's MusicKit, asks your token address for a developer token (see worker/README.md), and Apple asks you to sign in once.</details>`],
+    <details class="foot s-why"><summary>What it's used for</summary>The recording plays here instead of opening Apple Music, and the page follows it. Songs also get their genre, year and composer, the search screen shows what you played lately, and each line is timed from LRCLIB's synced lyrics (only the times are kept). Off, nothing is loaded and nothing is sent. On, Louie loads Apple's MusicKit, gets a developer token from Louie's server, and Apple asks you to sign in once.</details>`],
     library: ["Songbook and backups", `
     <div class="set-group glass">
       <button class="set" id="s-export"><span class="tile">${icon("cloud")}</span><span class="name">Back up now</span><span class="val muted">${ago(s.lastBackup)}</span>${icon("chev", "chev")}</button>

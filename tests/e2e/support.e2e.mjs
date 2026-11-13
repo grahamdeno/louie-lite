@@ -1,4 +1,4 @@
-// Support The Road (4.39.0): from More, a thank-you page with the Ko-fi link; nothing in the app changes.
+// Support Louie (4.39.0): from Settings, a thank-you page with the Ko-fi link; Tell a friend shares Louie Lite (3.3.0).
 import test from "node:test";
 import assert from "node:assert/strict";
 import { skip, LIB, phone, settled, useBrowser } from "./harness.mjs";
@@ -13,5 +13,5 @@ test("Support opens from Settings, the Ko-fi link opens outside the app, Tell a 
   assert.equal(await page.getAttribute("#sp-kofi", "target"), "_blank", "opens outside the app");
   assert.match(await page.innerText(".sp"), /Everything stays free/);
   await page.evaluate(() => { navigator.share = undefined; });
-  await page.click("#sp-share"); await page.waitForFunction(() => /grahamdeno\.github\.io\/tabs/.test(document.querySelector(".ask input, .ask textarea")?.value || ""));
+  await page.click("#sp-share"); await page.waitForFunction(() => /louie-lite\.tangomike\.app/.test(document.querySelector(".ask input, .ask textarea")?.value || ""));
 });

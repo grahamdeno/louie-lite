@@ -61,7 +61,7 @@ onLeave(() => stopPreview());
 // Apple Music (optional, off unless turned on in Settings > Keys): a subscriber
 // hears the whole linked recording here. Nothing below runs while it's off.
 // MusicKit loads on first use; its developer token comes from the token
-// address (the Worker in worker/, which holds the MusicKit key).
+// address (Louie's server, api/musickit/token.js, which holds the MusicKit key).
 const MUSICKIT = "https://js-cdn.music.apple.com/musickit/v3/musickit.js";
 let musicKit = null, inst = null, playingId = "", mkStep = "";
 /* Apple's player may raise its own alert ("The operation was aborted."). Catch it, keep the stack that
@@ -238,7 +238,7 @@ export async function timeLines(song, readLines) {
 }
 /* Listening to the preview (3.18.0). Apple's 30-second preview of the linked track is read once and
    measured: tempo, swing and key, kept as song.listen.feel. Preview files may not allow a web page to
-   read them, so it tries directly and then through the token Worker's /preview route (worker/README.md);
+   read them, so it tries directly and then through the server's /preview route (api/musickit/preview.js);
    if neither works it tries again next time the app opens. A song with no tempo takes the measured one. */
 const feelJobs = new Set(), feelFailed = new Set();
 async function previewBytes(url) {

@@ -1,4 +1,4 @@
-// Support The Road (4.39.0, #/support, from More): a thank-you from Louie and a way to chip in on Ko-fi.
+// Support Louie (4.39.0, #/support, from Settings): a thank-you from Louie and a way to chip in on Ko-fi.
 // Nothing in the app depends on it: everything stays free and nothing unlocks. Payments happen on Ko-fi,
 // never in the app. At App Store launch the Ko-fi link gives way to an in-app tip jar (Apple asks for
 // in-app purchase for tips), so the link lives in one place: SUPPORT_URL.
@@ -7,7 +7,7 @@ import { go } from "./app.js";
 import { louie } from "./louie.js";
 
 export const SUPPORT_URL = "https://ko-fi.com/louieguitar";
-const APP_URL = "https://grahamdeno.github.io/tabs/";
+const APP_URL = "https://louie-lite.tangomike.app/"; /* 3.3.0: was the Road's address */
 
 export function renderSupport() {
   app.innerHTML = `<div class="sp">
@@ -25,7 +25,7 @@ export function renderSupport() {
   document.getElementById("back").onclick = () => history.length > 1 ? history.back() : go("#/");
   document.getElementById("sp-kofi").addEventListener("click", () => toast("Thank you. Louie says so too."));
   document.getElementById("sp-share").onclick = async () => {
-    const msg = { title: "Louie: Learn Guitar", text: "A guitar app for chord sheets, playing along and practice.", url: APP_URL };
+    const msg = { title: "Louie: Play Guitar Songs", text: "Your songbook that plays along with you: chords and words, at your tempo or with the recording.", url: APP_URL };
     try { if (navigator.share) return await navigator.share(msg); } catch (e) { if (e?.name === "AbortError") return; }
     showToCopy("Share Louie", APP_URL);
   };

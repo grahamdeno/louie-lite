@@ -1,14 +1,14 @@
 # Working on Louie Lite
 
-Louie Lite (version 3.0.0) is the song app: chord sheets, playing along and practice. The listed name is Louie. The full title is Louie: Learn Guitar. Louie is a cartoon amp, never an assistant.
+Louie Lite (version 3.x) is the song app: chord sheets, playing along and practice. The home screen name is Louie. The App Store name will be Louie: Play Guitar Songs. Louie is a cartoon amp, never an assistant.
 
 It is plain ES modules, no build step. Songs stay on the phone under storage keys that start with `louielite` (`louielite-v1`, `louielite.apikey.v1`). Louie's own app uses `tabs`. Never read or write those.
 
 The Library is home. Routes `""` and `"road"` open the Library. There is no tab bar, no Opening night and no scored show. `canGig` stays false. `openingOn()` stays false.
 
-This release is built on branch `lite-3`. Push only to `lite-3`. Do not push to `main`, and do not merge into `main` unless Graham says ship. Do not commit or push on `lite-3-ai`.
+`main` is the live branch: Vercel deploys it to louie-lite.tangomike.app. Work on a branch and merge into `main` only when Graham says ship. He prefers one big release over several small ones.
 
-The README is the map of what the app does now. `docs/LITE-PLAN.md` is the build plan, including Surprises. `docs/DATA.md` describes stored fields. `docs/lite-mockups` holds the approved screens (pictures and `mockups.html` with the exact colours).
+The README is the map of what the app does now. `docs/PRE-IOS-PLAN.md` is the current plan, including Surprises; `docs/APPSTORE-AUDIT.md` is the review board's report; `docs/LITE-PLAN.md` is the original build plan. `docs/DATA.md` describes stored fields. `docs/lite-mockups` holds the approved screens (pictures and `mockups.html` with the exact colours).
 
 ## Standing rules
 
@@ -40,6 +40,7 @@ Louie's finishes are all free. Amp is the default: black tolex, gold face, coppe
 | AI request, errors, own key or server | `aihelp.js` |
 | Search, paste, Get the song | `findai.js` |
 | AI server (token, limits, proxy) | `api/token.js`, `api/_lib.js`, `api/ai.js` |
+| Apple Music token and previews | `api/musickit/token.js`, `api/musickit/preview.js`, `api/_music.js` |
 | Share links, Play together | `share.js` |
 | Recordings and previews | `listen.js` |
 | Bar folding into Play | `fold.js` |
@@ -66,7 +67,7 @@ Louie's finishes are all free. Amp is the default: black tolex, gold face, coppe
 - The AI server: `node --test tests/api.test.mjs`.
 - Browser tests use `phone()` from `tests/e2e/harness.mjs`. Wait for the next thing the test checks. A sleep that tests a real timer stays, marked `/* real timer */`.
 - After a screen change, `settled(page)` before a tap. Saves land after the screen changes: wait on the saved value itself.
-- `quick.mjs` compares the diff with `origin/main`, so on `lite-3` it runs essentially every browser test that still exists.
+- `quick.mjs` runs the unit tests and the browser tests that cover the files changed since `origin/main`.
 - Delete tests for a screen you remove.
 - ESLint is `eslint.config.mjs`. Tests and `sw.js` are ignored by it.
 
@@ -74,7 +75,7 @@ Louie's finishes are all free. Amp is the default: black tolex, gold face, coppe
 
 `api/ai.js` proxies Messages. `api/token.js` issues a device token. `api/_lib.js` holds `LIMITS` and the Upstash counters. `aiFetch` in `aihelp.js` sends a personal key straight to Anthropic, and everything else to `/api/ai` with the device token.
 
-Someone else sets, on Vercel: `ANTHROPIC_API_KEY`, `DEVICE_SECRET`, and the Upstash `KV_REST_API_URL` and `KV_REST_API_TOKEN`. Do not put those values in the repo. Do not rewrite the server to work around a missing variable.
+Someone else sets, on Vercel: `ANTHROPIC_API_KEY`, `DEVICE_SECRET`, the Upstash `KV_REST_API_URL` and `KV_REST_API_TOKEN`, and for Apple Music `MUSICKIT_KEY`, `MUSICKIT_KEY_ID` and `APPLE_TEAM_ID` (`api/musickit/`). Do not put those values in the repo. Do not rewrite the server to work around a missing variable.
 
 ## Not in this app
 

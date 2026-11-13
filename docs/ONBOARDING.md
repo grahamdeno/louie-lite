@@ -1,5 +1,9 @@
 # Onboarding: hidden features and how people find them
 
+**Louie Lite note (3.3.0):** most of this file describes the Road (Opening night, the stat bar, venues). Lite has none of
+those. It is kept for the hidden-feature rows that still apply; Lite's own first run and the page-by-page list are
+rewritten with steps 9 and 10 of docs/PRE-IOS-PLAN.md.
+
 Started 2026-10-22 (4.39.1) as an audit for Graham; a fresh-install walkthrough was added the same
 evening. Keep it current: a release that adds, moves or removes something with no visible button (a tap
 on a plain-looking thing, a hold, a swipe, a drag, a setting that changes a screen) updates its row here,
