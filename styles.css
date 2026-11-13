@@ -4525,7 +4525,17 @@ body.staged .sheet > .sec.st-past { color: var(--muted); }
 :root[data-look="amp"] .chip::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--lamp-off); box-shadow: 0 0 0 1.5px rgba(0,0,0,.45); flex: none; }
 :root[data-look="amp"] .chip.on::before { background: var(--lamp-on); box-shadow: 0 0 0 1.5px rgba(0,0,0,.45), var(--lamp-glow); }
 :root[data-look="amp"] .set-group, :root[data-look="amp"] .panel, :root[data-look="amp"] .card, :root[data-look="amp"] .endcard { border: 1px solid var(--bronze-line); }
-:root[data-look="amp"] .dock { background: var(--plate); box-shadow: var(--plate-shadow); border: 1px solid #6d5326; border-radius: 22px; padding: 8px; }
+:root[data-look="amp"] .app.viewer .dock { background: var(--plate); box-shadow: var(--plate-shadow); border: 1px solid #6d5326; border-radius: 22px; padding: 8px; }
+:root[data-look="amp"] .dock.kb { background: none; box-shadow: none; border: 0; padding: 0; gap: 10px; }
+:root[data-look="amp"] .dock.kb .cmd { height: 52px; border-radius: 16px; background: var(--glass-tint); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); border: 1px solid var(--bronze-line); box-shadow: none; color: var(--fg); }
+:root[data-look="amp"] .dock.kb .cmd input { color: var(--fg); }
+:root[data-look="amp"] .dock.kb .cmd input::placeholder { color: #c9c7c3; }
+:root[data-look="amp"][data-theme="light"] .dock.kb .cmd input::placeholder { color: #3e3933; }
+:root[data-look="amp"] .qcancel { color: #f3f1ee; }
+:root[data-look="amp"][data-theme="light"] .qcancel { color: #1c1b19; }
+:root[data-look="amp"] .dock.kb .add { width: 56px; height: 56px; border-radius: 16px; background: var(--plate); color: #fff3e6; border: 1px solid #6d5326; box-shadow: var(--plate-shadow); padding: 0; }
+:root[data-look="amp"] .dock.kb .add-in { width: 44px; height: 44px; border-radius: 11px; background: var(--copper); box-shadow: var(--copper-hi); display: grid; place-items: center; }
+:root[data-look="amp"] .dock.kb .add-in .i { width: 22px; height: 22px; color: #fff3e6; }
 :root[data-look="amp"] .dock .play { background: var(--copper); color: var(--copper-fg); border: 1px solid #6e3a1e; }
 :root[data-look="amp"] .menu.tools, :root[data-look="amp"] .panel { background: var(--glass-tint); backdrop-filter: blur(18px); }
 :root[data-look="amp"][data-theme="light"] .btn:not(.primary) { background: #fff; color: var(--fg); border: 1px solid var(--bronze-line); }

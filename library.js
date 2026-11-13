@@ -148,8 +148,8 @@ export function renderLibrary() {
         ${icon("search")}
         <input id="q" type="text" inputmode="search" enterkeyhint="go" placeholder="Search or add a song" value="${esc(query)}" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Search or add a song">
         <button class="clear" id="clear" aria-label="Clear search" ${query ? "" : "hidden"}>${icon("x")}</button>
-        <button class="cmd-add" id="add" aria-label="Add a song">${icon("note")}</button>
       </label>
+      <button class="add" id="add" aria-label="Add a song"><span class="add-in">${icon("note")}</span></button>
       <button class="qcancel" id="qcancel">Cancel</button>
     </div>`;
   bindToday();
