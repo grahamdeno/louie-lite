@@ -1092,6 +1092,7 @@ export const MERCH = [
   { id: "rain", kind: "gear", name: "Rain check", line: "Covers a night you miss", price: 200, max: 2 },
   { id: "double", kind: "gear", name: "Double set", line: "2x XP on your next 3 gigs", price: 150, max: 9, adds: 3 },
   { id: "take", kind: "gear", name: "Second take", line: "Another go at today's rival", price: 100, max: 3 },
+  { id: "amp", kind: "louie", name: "Amp", price: 0, line: "Black tolex, copper and gold. Louie Lite's own finish." },
   { id: "stock", kind: "louie", name: "Stock", price: 0, line: "Louie as he comes, in the colours of your look." },
   { id: "tweed", kind: "louie", name: "Tweed", price: 600, line: "A fifties cabinet with a cream grille." },
   { id: "pink", kind: "louie", name: "Pink", price: 0, line: "Hot pink, free to wear." },
@@ -1220,7 +1221,11 @@ export function merchState(data, now = Date.now()) {
 /* what's on, without working out fans (cheap enough for every screen) */
 export function merchWorn(data, kind = "louie") {
   const m = data.merch || {};
-  return (m.has || []).includes(m[kind]) || MERCH.some(x => x.id === m[kind] && x.kind === kind && freeItem(x)) ? m[kind] : kind === "louie" ? "stock" : "basement";
+  if (kind === "louie") {
+    const id = m.louie;
+    return MERCH.some(x => x.id === id && x.kind === "louie") ? id : "amp";
+  }
+  return (m.has || []).includes(m[kind]) || MERCH.some(x => x.id === m[kind] && x.kind === kind && freeItem(x)) ? m[kind] : "basement";
 }
 /* buy one: { ok } or { why: "fans" | "max" | "have" } */
 export function merchBuy(data, id, now = Date.now()) {
@@ -1237,6 +1242,7 @@ export function merchBuy(data, id, now = Date.now()) {
 }
 export function merchWear(data, id) {
   const it = merchItem(id), st = merchState(data);
+  if (it?.kind === "louie") { (data.merch || (data.merch = {})).louie = id; return true; }
   if (!it || it.kind === "gear" || !st.has.has(id)) return false;
   if (it.kind === "look") { data.settings.theme = it.theme; return true; }
   if (it.kind === "wear") { data.me = { ...meOf(data), extra: id.slice(5) }; return true; }

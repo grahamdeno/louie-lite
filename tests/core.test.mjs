@@ -2182,7 +2182,8 @@ test("Merch table (4.14.0; 4.70.0 tips): spending tips, gear, finishes and the R
   assert.equal(C.fansOf(data, now), f0, "fans are never spent");
   assert.equal(C.merchState(data, now).louie, "tweed", "worn once bought");
   assert.deepEqual(C.merchBuy(data, "tweed", now), { why: "have" });
-  assert.equal(C.merchWear(data, "stock"), true); assert.equal(C.merchWear(data, "black"), false, "not bought");
+  assert.equal(C.merchWear(data, "stock"), true); assert.equal(C.merchWear(data, "black"), true, "every Louie finish is free");
+  assert.equal(C.merchWorn({ songs: [], sets: [], trash: [], settings: {} }), "amp", "Amp is the default finish");
   /* Rain checks: the 19th and 20th were missed; two checks cover both and the streak holds */
   assert.equal(C.streakOf(C.playSongs(data), now).days, 0);
   data.merch.own = { rain: 1 };

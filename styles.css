@@ -2681,6 +2681,8 @@ body.gigging .ask { z-index: 66; }
 .fin-black .louie, body[data-wear="black"] .louie:not(.fin .louie) { --lv-body: #2A2B33; --lv-shade: #16171C; --lv-hi: #474956; --lv-face: #D5D8E0; --lv-face-sh: #A9AEBB; --lv-grille: #14151A; --lv-slat: #3A3D48; --lv-pupil: #14151A; --lv-cheek: #FF3D7F; --lv-lamp: #3A86FF; --lv-tongue: #FF3D7F; --lv-shadow: #000; }
 .fin-mint .louie, body[data-wear="mint"] .louie:not(.fin .louie) { --lv-body: #6FD3B8; --lv-shade: #45B394; --lv-hi: #A6E8D6; --lv-face: #FFF4E2; --lv-face-sh: #F0DDBD; --lv-grille: #1E3A34; --lv-slat: #33584F; --lv-pupil: #1E3A34; --lv-cheek: #FF7A9C; --lv-lamp: #FF3D7F; --lv-tongue: #FF7A9C; --lv-shadow: #1E3A34; }
 .fin-gold .louie, body[data-wear="gold"] .louie:not(.fin .louie) { --lv-body: #E8B828; --lv-shade: #C2961A; --lv-hi: #F6D96A; --lv-face: #FFF3C4; --lv-face-sh: #F2DD8C; --lv-grille: #3A2A10; --lv-slat: #5C4420; --lv-pupil: #3A2A10; --lv-cheek: #FF3D7F; --lv-lamp: #FF3D7F; --lv-tongue: #FF3D7F; --lv-shadow: #3A2A10; }
+body[data-wear="amp"] .louie .lv-b { fill: url(#tolex); }
+body[data-wear="amp"] .louie { --lv-body: #0f0f11; --lv-shade: #0f0f11; --lv-hi: #b8935a; --lv-face: #d9bd85; --lv-face-sh: #b08b4f; --lv-grille: #2e2116; --lv-slat: #4a3524; --lv-pupil: #1a120d; --lv-cheek: #c8804f; --lv-tongue: #c8804f; --lv-lamp: #ffb24a; --lv-shadow: #0f0f11; }
 .fin { display: inline-block; line-height: 0; }
 .mc-tk { fill: var(--fans); } .mc-tkd { fill: var(--fans-deep); }
 .mc { padding-bottom: calc(var(--tabs) + 24px); }

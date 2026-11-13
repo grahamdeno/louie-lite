@@ -1,5 +1,5 @@
 // Tabs Settings and Recently deleted screens.
-import { LANGS, SPEEDS, TRASH_DAYS, Tabs, VERSION, html, langChosen, langOf, looksOwned, raw } from "./core.js";
+import { LANGS, SPEEDS, TRASH_DAYS, Tabs, VERSION, html, langChosen, langOf, looksOwned, merchWear, merchWorn, raw } from "./core.js";
 import { $, app, ask, esc, icon, toast } from "./ui.js";
 import { coverPut } from "./sets.js";
 import { ago, backupNow, copyDiagnostics, problems, storageKept, where } from "./store.js";
@@ -69,7 +69,14 @@ function renderSettings() {
             : `<button data-t="${k}" class="locked" aria-label="${n}, at the Merch table">${icon("lock")}${n}</button>`).join(""); })()}</div>
       </div>
     </div>
-    <p class="foot">Light is Festival Poster and Dark is Neon Midnight. Green Room is at the Merch table for tips, and Headliner, black and gold under a blacklight, is yours once you headline a show. Auto follows your phone between Light and Dark.</p>
+    <div class="label">Louie's finish</div>
+    <div class="set-group glass">
+      <div class="set"><span class="tile">${icon("amp")}</span><span class="name">Finish</span>
+        <div class="seg mini" id="s-fin" role="group" aria-label="Louie's finish">${[["amp", "Amp"], ["stock", "Stock blue"], ["pink", "Pink"], ["teal", "Teal"], ["tweed", "Tweed"], ["black", "Black"], ["mint", "Mint"], ["gold", "Gold"]].map(([k, n]) => `<button data-fin="${k}" class="${merchWorn(data) === k ? "on" : ""}" aria-pressed="${merchWorn(data) === k}">${n}</button>`).join("")}</div>
+      </div>
+    </div>
+    <p class="foot">Every finish is free. Amp is black tolex with copper and gold, and it's on unless you pick another.</p>
+    <p class="foot">Light is Festival Poster and Dark is Neon Midnight. Auto follows your phone between Light and Dark.</p>
     <p class="foot">On a phone held upright, the whole bar shows while a song is paused. Press Play and it folds into Play's corner; pause and it comes back. At the top of a paused song, pull down to go back.</p>`],
     newsongs: ["New songs", `
     <div class="set-group glass">
@@ -273,6 +280,9 @@ function renderSettings() {
     /* 4.78.0: a look you don't have opens it on the Merch table */
     if (b.classList.contains("locked")) { toast("That look isn't available"); return; }
     s.theme = b.dataset.t; Tabs.save(data); applyTheme(); renderSettings(); });
+  app.querySelectorAll("#s-fin [data-fin]").forEach(b => b.onclick = () => {
+    merchWear(data, b.dataset.fin); Tabs.save(data); applyTheme(); renderSettings();
+  });
   $("s-savekey").onclick = () => {
     const k = $("s-key").value.trim();
     if (!k) { toast("Paste a key first"); return; }
