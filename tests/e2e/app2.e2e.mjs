@@ -480,6 +480,27 @@ for (const scheme of ["light", "dark"]) test(`3.2.0 focus while playing (${schem
   await page.click("#fp .play, #play").catch(() => {});
 });
 
+test("3.3.0 first run: a fresh Songbook says how to begin, Play opens Amazing Grace, and the card doesn't come back", { skip: skip() }, async t => {
+  const page = await phone(t, { songs: [], sets: [], trash: [], settings: { v: 5 } });
+  await page.waitForSelector("#welcome"); await settled(page);
+  assert.match(await page.textContent("#wl-go"), /Play Amazing Grace/);
+  assert.equal(await page.$("#bk"), null, "no backup reminder for the starter songs");
+  await page.click("#wl-go");
+  await page.waitForFunction(() => location.hash.startsWith("#/song/"));
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem("louielite-v1")).settings.welcomed === true);
+  await page.evaluate(() => { location.hash = "#/library"; }); await page.waitForSelector("#libyou");
+  assert.equal(await page.$("#welcome"), null);
+});
+
+test("3.3.0 left hand: Settings moves the song bar to the left", { skip: skip() }, async t => {
+  const page = await phone(t);
+  await page.evaluate(() => { location.hash = "#/settings/playing"; }); await page.waitForSelector("#s-lefty"); await settled(page);
+  await page.click("#s-lefty"); await page.waitForFunction(() => document.body.classList.contains("lefty"));
+  await page.evaluate(() => { location.hash = "#/song/a"; }); await page.waitForSelector("#play"); await settled(page);
+  const x = await page.evaluate(() => document.querySelector(".app.viewer .dock .pw").getBoundingClientRect().left);
+  assert.ok(x < 40, `the bar starts at the left (${x})`);
+});
+
 test("3.2.0 Songbook header: Louie opens Your playing with your days in a row; Just heard it leads the Today strip", { skip: skip() }, async t => {
   const now = Date.now();
   const songs = LIB.songs.map((s, i) => i ? s : { ...s, plays: [now - 36e5, now - 864e5] });

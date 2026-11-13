@@ -34,6 +34,10 @@ function renderSettings() {
         </select>
       </div>
       <div class="set">
+        <span class="tile">${icon("pick")}</span><span class="name">Left hand<small class="sub">Play and the song bar sit on the left</small></span>
+        <button class="toggle ${s.leftHand ? "on" : ""}" id="s-lefty" role="switch" aria-checked="${!!s.leftHand}" aria-label="Left hand: Play and the song bar on the left"></button>
+      </div>
+      <div class="set">
         <span class="tile">${icon("metro")}</span><span class="name">Count-in</span>
         <button class="toggle ${s.countIn !== false ? "on" : ""}" id="s-count" role="switch" aria-checked="${s.countIn !== false}" aria-label="Count-in"></button>
       </div>
@@ -240,6 +244,7 @@ function renderSettings() {
   $("s-speed")?.addEventListener("change", e => { s.startSpeed = +e.target.value; Tabs.save(data); renderSettings(); });
   $("s-length")?.addEventListener("change", e => { s.startLength = +e.target.value; Tabs.save(data); renderSettings(); });
   $("s-mode").onchange = e => { s.speedMode = e.target.value; Tabs.save(data); renderSettings(); };
+  $("s-lefty")?.addEventListener("click", () => { s.leftHand = !s.leftHand; Tabs.save(data); applyTheme(); renderSettings(); });
   $("s-count").onclick = () => { s.countIn = s.countIn === false; Tabs.save(data); renderSettings(); };
   $("s-streak").onclick = () => { s.streakMoment = s.streakMoment === false; Tabs.save(data); renderSettings(); };
   app.querySelectorAll("#s-beat [data-m]").forEach(b => b.onclick = () => { const m = b.dataset.m; s.metronome = m !== "off"; if (m !== "off") s.metroSound = m === "click" ? "click" : "kick"; Tabs.save(data); renderSettings(); if (m !== "off") metroPreview(); });

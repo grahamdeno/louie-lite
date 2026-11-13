@@ -13,6 +13,8 @@ While a song plays, the line you're on is full strength; lines further from it a
 
 A fresh install starts with the sample song and eight public-domain starter songs (Amazing Grace, Oh! Susanna, Red River Valley, Home on the Range, When the Saints, Down in the Valley, Clementine, Swing Low).
 
+A fresh Songbook shows a card on how to begin (Play Amazing Grace, or Add my own) until you choose or close it. Settings > Playing has Left hand, which puts Play and the song bar on the left.
+
 Home is the Library. The header has Louie (opens Your playing and shows your days in a row), Sets and Settings. Under that: the Today strip (Just heard it first for 3 hours after a song plays in Apple Music), one row of filters (All, Can play, Learning, Favorites), a count line, the search bar and a music-note button that opens Search or add. There is no tab bar and no back button on home.
 
 ### A song

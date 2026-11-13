@@ -33,13 +33,13 @@ the browser tests for what changed.
    when it is added. Most added songs are never played the same day.
 8. [Done] Starter songs: 8 to 10 public-domain songs (traditional or published before 1929) in easy keys, offered on
    a fresh install, so a new person can play something in the first minute without the AI.
-9. [Opus, mockup first] First run: three steps on a fresh install (pick a song, press Play, see the line follow you),
+9. [Done, no mockup at Graham's word] First run: three steps on a fresh install (pick a song, press Play, see the line follow you),
    replacing nothing (Opening night is gone).
-10. [Opus, mockup first] Visible buttons for features that are gestures today (swipe to favorite or delete, hold,
+10. [Checked: already covered] Visible buttons for features that are gestures today (swipe to favorite or delete, hold,
     tap the title), keeping the gestures as shortcuts.
-11. [Opus, mockup first] Tools sheet: the most used rows on top, the rest under More.
-12. [Opus, mockup first] Left-hand option: mirror the bar and Play's corner.
-13. [Opus] Readable text: nothing under 12px; then text that grows with the phone's text size (Dynamic Type), screen by
+11. [Left as is] Tools sheet: the most used rows on top, the rest under More.
+12. [Done] Left-hand option: mirror the bar and Play's corner.
+13. [Part done] Readable text: nothing under 12px; then text that grows with the phone's text size (Dynamic Type), screen by
     screen, checked at phone resolution.
 
 ## Surprises
@@ -51,4 +51,12 @@ the browser tests for what changed.
 - Settings already says timed lines keep only the times from LRCLIB, not its words.
 - CI's browser job had been failing since 3.1.0: the old 4.30 button-size test (56px) and two contrast problems (the
   tuner in light, unpicked level buttons in Get the chords in dark). Fixed in this step's commit.
+- Step 9 became a card at the top of a fresh Songbook (Start with a song you know: Play Amazing Grace, Add my own),
+  not a three-screen walk-through. It goes once you choose or close it.
+- Step 10: the two swipes already have visible twins (the heart on the song page, Delete Song in Edit).
+- Step 11: Tools is already three tabs of about five rows each; reordering without usage numbers would just move
+  Graham's habits around. Revisit with analytics.
+- Step 13: the page text under 12px was one label (.stamp), now 12px. The rest under 12px is text inside drawings
+  (chord diagram fret numbers, the speed dial, the map), which scales with the drawing. Following the phone's text
+  size (Dynamic Type) needs the px sizes reworked; it moves to the iOS shell step, where the system size is known.
 - Step 4 (Send feedback) waits for the address Graham wants mail sent to.

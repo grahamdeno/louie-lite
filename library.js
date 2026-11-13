@@ -64,6 +64,25 @@ async function fetchWeather(p) {
 }
 /* 4.26.0: one 58px "Today" strip in place of the nudge card, Up next for you and the up next set. It pages
    sideways (swipe, or tap a dot), the streak song first when the streak is at risk. A single item has no dots. */
+/* 3.3.0: the first run. On a fresh install (only the sample and starter songs, nothing played yet) a card says
+   how to begin: open a song and press Play, or add your own. It goes once you choose, or close it. */
+function welcomeHTML() {
+  if (data.settings.welcomed || searching || data.songs.some(x => !x.sample) || data.songs.some(x => playCount(x) > 0)) return "";
+  const first = data.songs.find(x => x.title === "Amazing Grace") || data.songs[0];
+  if (!first) return "";
+  return `<div class="welcome glass" id="welcome">
+    <button class="wl-x" id="wl-x" aria-label="Close">${icon("x")}</button>
+    <span class="wl-louie">${louie("happy", { size: 54, label: "Louie" })}</span>
+    <div class="wl-t"><b>Start with a song you know</b><span>Open one and press Play. The page moves with you, one line at a time. Your own songs come in with the music-note button: search, paste or take a photo.</span></div>
+    <div class="wl-b"><button class="btn sm" id="wl-add">Add my own</button><button class="btn sm primary" id="wl-go" data-id="${esc(first.id)}">Play ${esc(first.title)}</button></div>
+  </div>`;
+}
+function bindWelcome() {
+  const done = () => { data.settings.welcomed = true; Tabs.save(data); };
+  $("wl-x")?.addEventListener("click", () => { done(); $("welcome")?.remove(); });
+  $("wl-go")?.addEventListener("click", e => { done(); go("#/song/" + encodeURIComponent(e.currentTarget.dataset.id)); });
+  $("wl-add")?.addEventListener("click", () => { done(); $("welcome")?.remove(); $("add")?.click(); });
+}
 /* 3.2.0: Louie in the header opens Your playing; the number is your days in a row (a flame once you've played today) */
 function youBtn() {
   const st = streakOf(data.songs);
@@ -174,6 +193,7 @@ export function renderLibrary() {
         <button class="btn ib-sq" id="libset" aria-label="Settings">${icon("gear")}</button>
       </div>
     </div>
+    ${welcomeHTML()}
     ${todayHTMLOrSpot()}
     ${chipsHTML()}
     ${needsBackup() ? `<div class="bk glass" id="bk">
@@ -193,6 +213,7 @@ export function renderLibrary() {
       <button class="qcancel" id="qcancel">Cancel</button>
     </div>`;
   bindToday();
+  bindWelcome();
   $("setsbtn").onclick = () => { filter = filter === "sets" ? "all" : "sets"; renderLibrary(); };
   $("libset").onclick = () => go("#/settings");
   $("libyou").onclick = () => go("#/you");

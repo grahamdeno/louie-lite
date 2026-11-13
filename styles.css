@@ -4731,3 +4731,20 @@ body.covered .st-fade, body.cedit .st-fade { display: none; }
   --plate-bg: #17171a; --glass-tint: rgba(255,255,255,.04); --tolex-card: #1b1b1e; }
 /* the choices you haven't picked in a segmented control read at AA on a dark card */
 :root[data-look="amp"] .seg button:not(.on) { color: var(--fg-2); }
+/* 3.3.0: the first-run card in the Songbook */
+.welcome { position: relative; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center; margin: 12px 0 10px; padding: 14px 14px 12px; border-radius: 12px; }
+.welcome .wl-louie { grid-row: 1; display: grid; place-items: center; }
+.welcome .wl-t { display: flex; flex-direction: column; gap: 4px; padding-right: 24px; }
+.welcome .wl-t b { font: 600 16px var(--sans); color: var(--fg); }
+.welcome .wl-t span { font: 400 14px/1.4 var(--sans); color: var(--fg-2); }
+.welcome .wl-b { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.welcome .wl-x { position: absolute; top: 6px; right: 6px; width: 34px; height: 34px; border: 0; background: none; color: var(--muted); display: grid; place-items: center; border-radius: 10px; }
+.welcome .wl-x .i { width: 16px; height: 16px; }
+:root[data-look="amp"] body .welcome { background: var(--card); border: 1px solid var(--rim); box-shadow: none; }
+/* 3.3.0: left hand. Play, the band button and the song bar sit on the left */
+body.lefty.fold .fp #play { right: auto; left: 18px; }
+body.lefty .fp-nav { right: auto; left: 80px; }
+body.lefty .fp-band { right: auto; left: 22px; }
+:root[data-look="amp"] body.lefty:not(.cedit):not(.fold) .app.viewer .dock { justify-content: flex-start; }
+:root[data-look="amp"] body.lefty.fold .app.viewer .dock .pw:has(.looprow.on) { margin-right: 0; margin-left: 58px; }
+.stamp { font-size: 12px; } /* 3.3.0: nothing under 12px in the page text */

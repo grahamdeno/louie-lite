@@ -161,6 +161,8 @@ A play counts only when auto-scroll carried the page most of the way (60% of the
 
 | Key | Values | Notes |
 |---|---|---|
+| `welcomed` | boolean, missing until chosen | The first-run card has been used or closed (3.3.0) |
+| `leftHand` | boolean, off when missing | Play, the band button and the song bar sit on the left (3.3.0) |
 | `appleMusic` | boolean, off when missing | Plays a song's Apple Music link in the app with MusicKit |
 | `appleMusicToken` | https address, optional | Your own token address; missing means Louie's server (`/api/musickit/token`). No MusicKit key or token is stored |
 

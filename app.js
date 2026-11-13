@@ -52,6 +52,7 @@ function applyTheme() {
   const wear = merchWorn(data);
   if (wear === "stock") delete document.body.dataset.wear; else document.body.dataset.wear = wear;
   document.querySelector('meta[name="theme-color"]').content = light ? "#f4f1ea" : "#0c0d0f";
+  document.body.classList.toggle("lefty", !!data.settings.leftHand); /* 3.3.0: Play and the song bar on the left */
 }
 
 
