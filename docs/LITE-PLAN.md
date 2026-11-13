@@ -1,6 +1,6 @@
 # Louie Lite plan: Louie's features in the amp look, without the game
 
-Status: approved by Graham 2026-11-13, pending 59. Nothing here is built yet. One release at the end, shipped when Graham says ship.
+Status: approved by Graham 2026-11-13. Nothing here is built yet. One release at the end, shipped when Graham says ship.
 
 ## Ground rules for whoever builds this
 
@@ -46,7 +46,7 @@ Status: approved by Graham 2026-11-13, pending 59. Nothing here is built yet. On
 - 48 Drag to sync: drag the page to where the song is, it remembers each fix and keeps learning; reset in About this song.
 - 49 Line and chord timing from LRCLIB synced lyrics.
 - 50 Count-in that lands on the recording (measures the phone's delay).
-- 59 Recording speed per song, half to full (found in the field check; Graham to confirm).
+- 59 Recording speed per song, half to full (Graham: in).
 
 ### Tuner and practice
 - 29 Guided headstock tuner: string ticks, chimes, the finish, "your low E drifts most". Lite's amp tuner face stays as the look; the headstocks follow Louie's finish.
@@ -110,5 +110,3 @@ Status: approved by Graham 2026-11-13, pending 59. Nothing here is built yet. On
 
 Version: Lite's release becomes 3.0.0.
 
-## Open for Graham
-- 59 recording speed: in or out?
