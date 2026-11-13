@@ -95,8 +95,9 @@ All go through Louie's server (api/ai.js) unless the user typed a key. Server li
 | Tone (amp settings) | Haiku | no | user asks | 1k / 1.5k | under $0.01 |
 | Key test | Haiku | no | saving an own key | tiny | under $0.01 |
 
-**Cost per active user per month (A3):** about 6 songs added with chart plus groove (about $0.95), 10 Play next,
-2 photos, 1 translation and small calls (about $0.15). **About $1.10 a month.** Sonnet with web search is 90% of it.
+**Cost per active user per month (A3):** about 6 songs added with a chart (about $0.65; the groove lookup only runs with
+the drums on, which are off by default), 10 Play next, 2 photos, 1 translation and small calls (about $0.15). **About
+$0.80 a month** (corrected 2026-11-13 from $1.10). Sonnet with web search is most of it.
 
 **Worst case per device at today's limits:** 4 search calls a day for 30 days is about $14 a month, plus up to 56
 Haiku calls a day (pennies). The free limits are too generous for a public free tier.
@@ -208,7 +209,7 @@ everything works**, and it depends on AI and on the user copying from another si
 | An automated check runs on every page and sheet in CI (a11yall, 42 checks pass) | L | Keep it | none |
 | No Dynamic Type: fixed px text; 7 rules use 10 to 11px text | H | Scale with the system text size; nothing under 12px | M |
 | VoiceOver: 260 labels in the code, but the playing page moves on its own | H | Announce the current line on request, not on every scroll; test the playing page with VoiceOver | M |
-| Hands are on the guitar while playing | H | Support Bluetooth page-turner pedals (they send arrow or space keys): next line, pause, back a section | M |
+| Hands are on the guitar while playing | L | Already built (corrected): Bluetooth page-turner pedals play and pause, go to the next section, and back one with a hold. List it in the store text | none |
 | Reduced motion is respected in 37 places | L | Keep it | none |
 | Right-hand thumb layout only | M | A left-hand option that mirrors the bar | S |
 | Focus fade lowers contrast on purpose | M | Keep the current line and the next line at AA contrast; dimmed lines are decorative | S |

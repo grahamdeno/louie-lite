@@ -2,6 +2,7 @@
 import { LANGS, SPEEDS, TRASH_DAYS, Tabs, VERSION, html, langChosen, langOf, looksOwned, merchWear, merchWorn, raw } from "./core.js";
 import { $, app, ask, esc, icon, toast } from "./ui.js";
 import { coverPut } from "./sets.js";
+import { aiOff, setAiHelp } from "./aihelp.js";
 import { louie } from "./louie.js";
 import { ago, backupNow, copyDiagnostics, problems, storageKept, where } from "./store.js";
 import { AI, aiError, aiKey, ownKey, applyTheme, askClaude, busy, data, go, metroPreview, mmss, openTuner, setData, BPM_STORE, bpmKey } from "./app.js";
@@ -113,6 +114,12 @@ function renderSettings() {
     <p class="foot">Under the Songbook's title: your practice streak (a day counts when a song plays to its end) and, until you play today, one song to try. With a city, the weather picks it: a slow song on a rainy day, and when the air has changed a lot since your last play the song page says to tune up first. Only the city's position is sent, once a day; Louie asks for your location only if you plant your flag on the Tour Map. Weather data by <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo.com</a>.</p>`],
     keys: ["Keys", `
     <p class="foot" style="margin:0 4px 14px">AI help works without a key, through Louie's server, with a daily limit. A key of your own lifts the limit; each key stays on this phone and is sent only to its own service.</p>
+    <div class="set-group glass s-gap">
+      <div class="set">
+        <span class="tile">${icon("wand")}</span><span class="name">AI help<small class="sub">Sends a song's title, chords and words, or a photo you scan, to Anthropic's Claude</small></span>
+        <button class="toggle ${aiOff() ? "" : "on"}" id="s-aion" role="switch" aria-checked="${!aiOff()}" aria-label="AI help"></button>
+      </div>
+    </div>
     <div class="label">Anthropic · AI help</div>
     <div class="set-group glass">
       <label class="fld fld-k"><span class="tile ftile">${icon("wand")}</span>
@@ -241,6 +248,7 @@ function renderSettings() {
   $("s-metvol")?.addEventListener("change", () => metroPreview());
   $("s-metdrop")?.addEventListener("click", () => { s.metroDrop = !s.metroDrop; Tabs.save(data); renderSettings(); });
   $("s-transpose")?.addEventListener("change", e => { s.transpose = +e.target.value; Tabs.save(data); renderSettings(); });
+  $("s-aion")?.addEventListener("click", () => { setAiHelp(aiOff()); renderSettings(); });
   $("s-apple").onclick = () => { s.appleMusic = !s.appleMusic; Tabs.save(data); renderSettings(); };
   $("s-applesave")?.addEventListener("click", () => {
     const u = $("s-appletoken").value.trim();

@@ -10,12 +10,13 @@ import { chromium, base, browser, phone, skip, LIB, FAKE_MIC, useBrowser, until,
 useBrowser();
 
 
-test("first launch adds the sample song and opens on the Library", { skip: skip() }, async t => {
+test("first launch adds the sample song and the starter songs and opens on the Library (3.3.0)", { skip: skip() }, async t => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
   const page = await ctx.newPage();
   const errors = []; page.on("pageerror", e => errors.push(String(e)));
   await page.goto(base); await page.waitForSelector("#list .row");
-  assert.equal(await page.locator("#list .row").count(), 1, "the sample song is there");
+  const { STARTERS } = await import("../../starters.js");
+  assert.equal(await page.locator("#list .row").count(), 1 + STARTERS.length, "the sample song and the starters are there");
   assert.equal(await page.locator(".rd-path, #tabs").count(), 0, "no Road and no tab bar");
   assert.deepEqual(errors, []);
   await ctx.close();

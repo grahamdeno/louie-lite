@@ -1,4 +1,4 @@
-// One button and control system (4.30.0): sizes and the lip, on two screens each.
+// One button and control system (4.30.0; Louie Lite 3.1.0 sizes): on two screens each.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { skip, LIB, phone, settled, useBrowser } from "./harness.mjs";
@@ -21,13 +21,12 @@ for (const [name, hash] of [["Songbook", "#/library"], ["Settings", "#/settings"
     const page = await phone(t, LIB);
     await page.evaluate(h => { location.hash = h; }, hash); await settled(page);
     const r = await probe(page);
-    assert.equal(Math.round(r.main), 56, "main action is 56 tall");
-    assert.equal(Math.round(r.plain), 56, "a plain button beside it matches");
-    assert.equal(Math.round(r.row), 42, "row action is 42 tall");
-    assert.ok(r.seg >= 48, "segmented track is at least 48");
-    assert.match(r.mainLip, /8px 22px/, "main button has the copper glow");
-    assert.match(r.lip, /0px 4px 0px/, "plain button sits on its lip");
-    assert.match(r.segOn, /0px 2px 0px/, "the chosen segment has a lip");
+    /* Louie Lite 3.1.0: 2.49's sizes, not the Road's chunky ones: 46 tall, 34 small, a 12px corner, no lip */
+    assert.equal(Math.round(r.main), 46, "main action is 46 tall");
+    assert.equal(Math.round(r.plain), 46, "a plain button beside it matches");
+    assert.equal(Math.round(r.row), 34, "a small button is 34 tall");
+    assert.ok(r.seg >= 28, "segmented track is at least 28");
+    assert.doesNotMatch(r.lip, /0px [1-9]px 0px( 0px)? rgb/, "no lip under a plain button");
   });
 }
 

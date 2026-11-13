@@ -4725,3 +4725,9 @@ body.covered .st-fade, body.cedit .st-fade { display: none; }
 :root[data-look="amp"] .app.viewer .dock .looprow .chip::before { display: none; }
 :root[data-look="amp"] body .app.viewer .dock { background: none; box-shadow: none; border: 0; padding: 0; }
 :root[data-look="amp"] body.fold .app.viewer .dock .looprow .lp-lbl { display: none; }
+/* 3.3.0 contrast (axe in CI): the tuner's face is dark tolex in both looks, so its words use the dark look's ink */
+:root[data-theme="light"] .tuner2, :root[data-theme="light"] .tuner2 * { --bg: #0c0d0f; --fg: #f3f1ee; --fg-2: #d9d6d0; --muted: #b4b1ab; --accent-ink: #eda27f; --head: #efe7da;
+  --card: rgba(255,255,255,.045); --card-2: rgba(255,255,255,.08); --rim: rgba(184,147,90,.35); --line: rgba(255,255,255,.08); --hair: rgba(255,255,255,.08); --bar: #17171a; --solid: #17171a;
+  --plate-bg: #17171a; --glass-tint: rgba(255,255,255,.04); --tolex-card: #1b1b1e; }
+/* the choices you haven't picked in a segmented control read at AA on a dark card */
+:root[data-look="amp"] .seg button:not(.on) { color: var(--fg-2); }

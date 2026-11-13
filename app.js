@@ -13,6 +13,7 @@ import { STATUS, bindShelf, chipsHTML, filter, homeHooks, leaveSearch, query, re
 import { AI, BPM_STORE, aiError, aiKey, ownKey, aiLastStop, askClaude, bpmKey, busy, cleanSheet, parseJSON, readPhoto } from "./aihelp.js";
 import { BAND_MAX, BEATS, beatAt, beatMode, beatName, setBeat, beatTrack, drumJobs, drumsFor, grooveFor, metro, metroDrums, metroOn, metroPace, metroPreview, metroVol, recLength, startMetronome, stopMetronome, tempoFor } from "./audio.js";
 import { stagePlay, stageStop, stageOpen, stageBeat, coverOn, coverOff } from "./stage.js";
+import { STARTERS } from "./starters.js";
 
 
 // ---------- State ----------
@@ -2019,6 +2020,8 @@ And the morning's only borrowed`
 function firstLaunch() {
   if (data.settings.sampleAdded || data.songs.length) return;
   Tabs.addSong(data, { ...SAMPLE });
+  /* 3.3.0: and the starter songs (public domain), so a new Songbook has something you know */
+  for (const s of STARTERS) Tabs.addSong(data, { format: "chords", sample: true, ...s });
   data.settings.sampleAdded = true;
   Tabs.save(data);
 }

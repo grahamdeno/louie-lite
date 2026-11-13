@@ -11,6 +11,8 @@ This is version 3.0.0. It started from Louie 4.89.1 and left the game behind: no
 ### Library
 While a song plays, the line you're on is full strength; lines further from it are dimmer and the words fade into the page toward the top and bottom of the screen.
 
+A fresh install starts with the sample song and eight public-domain starter songs (Amazing Grace, Oh! Susanna, Red River Valley, Home on the Range, When the Saints, Down in the Valley, Clementine, Swing Low).
+
 Home is the Library. The header has Louie (opens Your playing and shows your days in a row), Sets and Settings. Under that: the Today strip (Just heard it first for 3 hours after a song plays in Apple Music), one row of filters (All, Can play, Learning, Favorites), a count line, the search bar and a music-note button that opens Search or add. There is no tab bar and no back button on home.
 
 ### A song
@@ -43,6 +45,8 @@ Support is in Settings. It links to ko-fi.com/louieguitar and shows Louie in the
 Songbook and backups can import a Louie backup. Songs, sets, recordings and timing come across. Game fields are dropped. A Louie look becomes Auto.
 
 ### AI help
+Before the first AI request on a phone, Louie says what is sent (a song's title, chords and words, or a photo) and to whom (Anthropic's Claude, through Louie's server) and asks. Settings > Keys has an AI help switch.
+
 Without a key of your own, AI help goes through Louie's server, which holds the shared key and the daily limits. A key typed in Settings > Keys stays on this phone and is sent only to Anthropic. The AI places chords and translates. It does not write the lyrics. The words come from your sheet or from LRCLIB.
 
 ## Lyrics and the AI (4.41.0)

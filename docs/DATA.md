@@ -8,6 +8,7 @@ Everything lives on the phone. Backups are the same data as one JSON file.
 |---|---|---|
 | IndexedDB `tabs-library` | store `copy`, key `lib` | **The library** (songs, sets, Recently deleted, settings) as `{ json, at }` |
 | localStorage | `tabs-v1` | A copy of the library, written with each save, plus `_savedAt`. Skipped if it no longer fits (about 5 MB) |
+| localStorage | `louielite.aiok.v1` | AI help consent (3.3.0): `yes` after Allow, `off` when turned off in Settings > Keys; missing means Louie asks before the first AI request. Phone only, not in backups |
 | localStorage | `louielite-heard` | Just heard it (3.2.0): `{ k, at, title, artist, done }`, the newest song in Apple Music's recently played and when it was first seen. Phone only, not in backups |
 | localStorage | `tabs.apikey.v1` | Your Anthropic API key. Never in backups or share links |
 | localStorage | `tabs.errors.v1` | The last 20 problems (message, screen, version, time) for Settings > Copy diagnostics. Never sent anywhere, not in backups |

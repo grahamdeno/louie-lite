@@ -1,5 +1,6 @@
 // The Road: AI help with your own Anthropic key: the request, errors and limits. Split from app.js (4.15.1); app.js re-exports what other files use.
 import { detectPaste } from "./core.js";
+import { ask } from "./ui.js";
 
 // ---------- AI help: Louie's server, or your own Anthropic key ----------
 // Your own key stays in this browser's storage and is sent only to api.anthropic.com,
@@ -11,7 +12,29 @@ export const AI = { store: "louielite.apikey.v1", fast: "claude-haiku-5-5", visi
 export const SERVER = "louie-server";
 const DEVICE = "louielite.device.v1";
 export function ownKey() { try { return localStorage.getItem(AI.store) || ""; } catch { return ""; } }
-export function aiKey() { return ownKey() || SERVER; }
+export function aiKey() { return aiOff() ? "" : ownKey() || SERVER; }
+/* 3.3.0, Apple's rule 5.1.2(i): before the first AI request on this phone, Louie says what is sent and to whom
+   and asks. "yes" after Allow; "off" when AI help is turned off in Settings > Keys (aiKey() is then empty, so the
+   AI buttons hide). Not now asks again next time the app opens. Kept on this phone only. */
+export const AI_OK = "louielite.aiok.v1";
+const aiState = () => { try { return localStorage.getItem(AI_OK) || ""; } catch { return ""; } };
+export const aiOff = () => aiState() === "off";
+export function setAiHelp(on) { try { localStorage.setItem(AI_OK, on ? "yes" : "off"); } catch { /* none */ } }
+let askedNow = null, notNow = 0; /* when Not now was chosen: background requests right after it stay quiet */
+const quiet = msg => Object.assign(new Error(msg), { status: -2, louie: true, quiet: true });
+function aiConsent() {
+  if (aiState() === "yes") return Promise.resolve();
+  if (aiOff()) return Promise.reject(quiet("AI help is off. Turn it on in Settings > Keys."));
+  if (Date.now() - notNow < 20000) return Promise.reject(quiet("Not now. Louie asks again the next time you use AI help."));
+  return askedNow || (askedNow = new Promise((ok, no) => {
+    let answered = false;
+    ask({ title: "Louie's AI help",
+      text: "To find chords, read a photo of a sheet, suggest songs or translate, Louie sends the song's title, its chords and words, or the photo, to Anthropic's Claude through Louie's server. Nothing else about you is sent, and nothing is kept to train AI. You can turn AI help off in Settings > Keys.",
+      ok: "Allow", keep: "Not now" }, () => { answered = true; setAiHelp(true); askedNow = null; ok(); });
+    /* Cancel, the scrim or Escape close the card without calling back: that is Not now */
+    const watch = setInterval(() => { if (!document.querySelector(".ask")) { clearInterval(watch); if (!answered) { notNow = Date.now(); askedNow = null; no(quiet("Not now. Louie asks again the next time you use AI help.")); } } }, 200);
+  }));
+}
 async function deviceToken() {
   try { const t = localStorage.getItem(DEVICE); if (t) return t; } catch { /* none */ }
   let r;
@@ -23,6 +46,7 @@ async function deviceToken() {
 }
 /* One Messages request, to Anthropic with your own key or to Louie's server without one. */
 export async function aiFetch(key, body) {
+  await aiConsent();
   if (key && key !== SERVER) return fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },

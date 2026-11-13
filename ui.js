@@ -181,7 +181,7 @@ function ask(o, done) {
     <div class="actions ${o.danger ? "stack" : ""}">
       ${o.danger
         ? html`<button class="btn bad" id="ask-ok">${o.ok}</button><button class="btn" id="ask-no">${o.keep || "Cancel"}</button>`
-        : html`${o.extra ? html`<button class="btn" id="ask-x">${o.extra.label}</button>` : o.readonly ? "" : raw('<button class="btn" id="ask-no">Cancel</button>')}${okBtn}`}
+        : html`${o.extra ? html`<button class="btn" id="ask-x">${o.extra.label}</button>` : o.readonly ? "" : html`<button class="btn" id="ask-no">${o.keep || "Cancel"}</button>`}${okBtn}`}
     </div></div>`;
   document.body.appendChild(w);
   const inp = $("ask-in"), ok = $("ask-ok");

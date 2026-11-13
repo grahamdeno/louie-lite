@@ -1,7 +1,7 @@
 // Settings menu: a short menu that opens one page per area.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { skip, LIB, SONG, phone, useBrowser, tool } from "./harness.mjs";
+import { skip, LIB, SONG, phone, useBrowser, tool, settled } from "./harness.mjs";
 useBrowser();
 
 test("Settings: menu rows show their state, open their page, and Back returns to the menu", { skip: skip() }, async t => {
@@ -459,3 +459,27 @@ test("Apple Music: a failure names the step it stopped at, and Apple's own alert
   assert.equal(await page.evaluate(() => typeof window.alert.caught), "boolean");
 });
 
+
+test("3.3.0 AI consent: Louie asks once before the first AI request, Not now sends nothing, Allow is kept, Settings turns AI help off", { skip: skip() }, async t => {
+  const page = await phone(t, LIB, { aiAsk: true });
+  let calls = 0;
+  await page.route("**/api/token", r => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ token: "dev.tok" }) }));
+  await page.route("**/api/ai", r => { calls++; r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ content: [{ type: "text", text: "OK" }] }) }); });
+  const send = () => page.evaluate(() => { window.aiOut = "waiting"; import("/aihelp.js").then(m => m.aiFetch(m.SERVER, { model: "claude-haiku-5-5", max_tokens: 10, messages: [] })).then(() => { window.aiOut = "sent"; }, e => { window.aiOut = "no:" + e.message; }); });
+  await send();
+  await page.waitForSelector(".ask .panel"); assert.match(await page.innerText(".ask .panel"), /Anthropic/);
+  await page.click("#ask-no");
+  await page.waitForFunction(() => /^no:Not now/.test(window.aiOut));
+  assert.equal(calls, 0, "Not now sends nothing");
+  await page.reload(); await page.waitForFunction(() => document.getElementById("app")?.childElementCount > 0);
+  await send(); await page.waitForSelector(".ask .panel"); await page.click("#ask-ok");
+  await page.waitForFunction(() => window.aiOut === "sent");
+  assert.equal(calls, 1);
+  assert.equal(await page.evaluate(() => localStorage.getItem("louielite.aiok.v1")), "yes");
+  await send(); await page.waitForFunction(() => window.aiOut === "sent");
+  assert.equal(await page.$(".ask"), null, "asked once");
+  await page.evaluate(() => { location.hash = "#/settings/keys"; }); await page.waitForSelector("#s-aion"); await settled(page);
+  await page.click("#s-aion"); await page.waitForFunction(() => localStorage.getItem("louielite.aiok.v1") === "off");
+  await send(); await page.waitForFunction(() => /^no:AI help is off/.test(window.aiOut));
+  assert.equal(calls, 2, "off sends nothing");
+});
