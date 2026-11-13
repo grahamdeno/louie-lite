@@ -2000,11 +2000,11 @@ test("Charts (4.6.0): weekly XP, the chart, promotion and records, rival battles
   assert.equal(b.songId, "a"); assert.ok(b.target >= 55 && b.target <= 95);
   assert.equal(b.rival, C.chartState(data, now).rival.name);
   const g = C.gigStart(); for (let i = 0; i < 10; i++) C.catchScore(g, true);
-  const fans0 = C.fansOf(data, now), xp0 = C.weekXP(data, C.weekOf(now));
+  const xp0 = C.weekXP(data, C.weekOf(now));
   const r = C.gigDone(data, "a", g, false, now);
   assert.equal(r.battle.result, "won"); assert.equal(r.battle.pct, 100);
-  assert.equal(C.weekXP(data, C.weekOf(now)) - xp0, 10 + 10 + 30, "landed changes, the crowd and the battle");
-  assert.ok(C.fansOf(data, now) - fans0 >= 40, "40 fans for the win");
+  assert.equal(C.weekXP(data, C.weekOf(now)) - xp0, 0, "a battle adds no XP; plays are the chart");
+  assert.equal(data.charts.fans || 0, 0, "a battle adds no fans");
   assert.equal(C.gigDone(data, "a", g, false, now).battle, undefined, "one battle a day");
   const kept = C.cleanCharts(JSON.parse(JSON.stringify(data.charts)));
   assert.deepEqual(kept, data.charts, "kept through a save");

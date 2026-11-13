@@ -470,13 +470,12 @@ export function chartsSettle(data, now = Date.now()) {
   c.week = wk;
   return c.last;
 }
-/* a gig finished: XP for it, and the battle if it was today's battle song */
-function chartsShow(data, songId, g, pct, now, mult = 1) {
-  addXP(data, mult * (g.hits * XP.landed + (g.last.length >= 6 && gigCrowd(g) >= 10 ? XP.crowd : 0)), now);
+/* A scored show used to add XP for chords, the crowd and a battle. Louie Lite counts XP from plays only. */
+function chartsShow(data, songId, g, pct, now) {
+  void g;
   const b = data.charts?.battle;
   if (!b || b.day !== dayKey(now) || b.songId !== songId || b.result || pct === null) return null;
   b.result = pct >= b.target ? "won" : "lost"; b.pct = pct;
-  if (b.result === "won") { addXP(data, mult * XP.battle, now); data.charts.fans = (data.charts.fans || 0) + XP.battleFans; }
   return { ...b };
 }
 export function cleanCharts(raw) {
@@ -562,8 +561,8 @@ export function badgesOf(data, p) {
     b("got1", "1st", "SONG GOT", "song", p.got >= 1), b("got10", "10", "SONGS GOT", "song", p.got >= 10),
     b("openmic", VENUES[1].toUpperCase(), "REACHED", "venue", ring >= 1), b("coffee", "CAFE", VENUES[2].toUpperCase(), "venue", ring >= 2), b("club", VENUES[3].toUpperCase(), "REACHED", "venue", ring >= 3),
     b("band1", "1st", "BAND MEMBER", "band", band.joined.length >= 1), b("drums", "BEAT", "ON DRUMS", "band", band.joined.some(x => x.id === "beat")), b("band18", "ALL", "FULL BAND", "band", band.joined.length >= BAND.length),
-    b("promoted", "UP", "PROMOTED", "chart", promoted), b("duel", "WIN", "SONG DUEL", "chart", won), b("tune10", "10", "TUNE-UPS", "streak", p.tune.sessions >= 10)
-  ];
+    b("promoted", "UP", "PROMOTED", "chart", promoted), b("duel", "WIN", "SONG DUEL", "chart", won),     b("tune10", "10", "TUNE-UPS", "streak", p.tune.sessions >= 10)
+  ].filter(x => !/fan|combo/i.test(x.id + x.lab));
   return { all, got: all.filter(x => x.got) };
 }
 
