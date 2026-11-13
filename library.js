@@ -118,7 +118,7 @@ export function chipsHTML() {
   if ((filter === "fav" && !hasFav) || (filter === "tab" && !hasTab) || (filter === "learn" && !hasLearn) || (filter === "can" && !can)) filter = "all";
   /* 4.20.1: one row that always fits. Sets is a button in the header and Tabs is a choice in the sort menu. */
   const chip = (f, label, aria = "") => `<button class="chip ${filter === f ? "on" : ""}" data-f="${f}"${aria ? ` aria-label="${aria}"` : ""}>${label}</button>`;
-  return `<div class="chips" id="chips">${chip("all", "All")}${can ? chip("can", `Can play<small>${can}</small>`) : ""}${hasLearn ? chip("learn", "Learning") : ""}${hasFav ? chip("fav", icon("heart"), "Favorites") : ""}</div>`;
+  return `<div class="chips" id="chips">${chip("all", "All")}${chip("can", can ? `Can play<small>${can}</small>` : "Can play")}${chip("learn", "Learning")}${chip("fav", icon("heart"), "Favorites")}</div>`;
 }
 /* Tonight's drawer holds the same Library; it registers how to repaint itself here. */
 export const homeHooks = { refresh: null, openDrawer: false }; /* openDrawer: Tonight opens with the Library up (3.24.2) */
