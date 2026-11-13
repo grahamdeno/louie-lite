@@ -33,15 +33,14 @@ const COVERS = {
   "german.js": ["german"],
   "sets.js": ["app", "regress"],
   "editor.js": ["app", "regress", "strum"],
-  "sketch.js": ["strum"], "strum.js": ["strum"],
+  "sketch.js": ["singit"],
   "store.js": ["app"],
   "styles.css": ["regress", "a11y"],
   "index.html": ["app", "a11y"],
   "sw.js": ["app"],
   "profile.js": ["profile"],
   "practice.js": ["practice"],
-  "gig.js": ["app", "gig"], "tour.js": ["app"], "charts.js": ["app"], "band.js": ["app"], "friends.js": ["app"], "merch.js": ["app", "gig"], "hud.js": ["app"],
-  "road.js": ["app"], "duel.js": ["app"], "share.js": ["app", "duet"], "listen.js": ["app", "getsong"], "playmap.js": ["app"],
+  "charts.js": ["app"], "share.js": ["app", "duet"], "listen.js": ["app", "getsong"], "playmap.js": ["app"],
   "scene.js": ["app"], "drawer.js": ["app"], "dial.js": ["app"], "crop.js": ["app"], "louie.js": ["regress"]
 };
 const files = new Set();

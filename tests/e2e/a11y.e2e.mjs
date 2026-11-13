@@ -24,8 +24,9 @@ const SCREENS = [
   ["question", "#/trash", p => p.click("[data-forget]")],
   ["tuner", "#/library", p => p.click("#tunerbtn")],
   ["sketch", "#/sketch"],
-  ["maker", "#/you", p => p.click("#pf-me")], /* 4.85.0: your guitarist's maker (labelled, pressed-state buttons) */
-  ["hats", "#/merch"]
+  ["playing", "#/you"],
+  ["rehearse", "#/practice"],
+  ["charts", "#/charts"]
 ];
 
 const unnamed = () => {
@@ -58,63 +59,3 @@ for (const theme of ["dark", "light"]) {
   });
 }
 
-/* 4.54.0: the show, the song it waits on, and Show complete (Chord Catch) have names and pass axe in each palette */
-import { FAKE_MIC, settled } from "./harness.mjs";
-for (const [theme, look] of [["dark", "neon"], ["light", "festival"], ["light", "green"], ["headliner", "headliner"]]) {
-  test(`the Gig, Wait for me and Show complete pass axe (${look})`, { skip: skip() }, async t => {
-    const song = { id: "w", title: "Short Road", artist: "Me", key: "A", format: "chords", duration: 12, waitForMe: true, bpm: 120,
-      body: "[Verse]\nA        D\nWalking down the road\nE        A\nLantern in my hand" };
-    const page = await phone(t, { ...lib(theme), songs: [song], settings: { ...lib(theme).settings, look, plainPlay: false } }, { colorScheme: theme === "light" ? "light" : "dark", reducedMotion: "reduce" });
-    await page.context().addInitScript(FAKE_MIC);
-    await page.goto(base + "#/song/w"); await page.reload(); await page.waitForSelector("#play");
-    const problems = [];
-    const check = async screen => {
-      for (const html of await page.evaluate(unnamed)) problems.push(`${screen}: no name: ${html}`);
-      if (!axePath) return;
-      await page.evaluate(fs.readFileSync(axePath, "utf8"));
-      const found = await page.evaluate(async () => (await window.axe.run(document, { runOnly: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"], resultTypes: ["violations"] }))
-        .violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => `${v.id} (${v.impact}): ${v.nodes.slice(0, 3).map(n => n.target.join(" ")).join(" | ")}`));
-      for (const f of found) problems.push(`${screen}: ${f}`);
-    };
-    await check("paused song with shape tiles");
-    await page.click("#play"); await page.waitForSelector("#gg-wait:not([hidden])", { timeout: 20000 });
-    await check("waiting for a chord");
-    await page.waitForFunction(() => { const b = document.getElementById("gg-skip"); if (b && !b.hidden) b.click(); return !!document.querySelector(".gc"); }, null, { timeout: 60000, polling: 300 }); /* skip each chord it waits on until the show ends */
-    await check("show complete");
-    for (const p of problems) console.log(`PROBLEM ${look} ${p}`);
-    assert.deepEqual(problems, []);
-  });
-}
-
-/* 4.59.0: the show over a white album cover (the hardest case) has names and passes axe in each palette */
-const WHITE_PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==", "base64");
-for (const [theme, look] of [["dark", "neon"], ["light", "festival"], ["light", "green"], ["headliner", "headliner"]]) {
-  test(`the Gig over an album cover passes axe (${look})`, { skip: skip() }, async t => {
-    const song = { id: "c", title: "Short Road", artist: "Me", key: "A", format: "chords", duration: 30, bpm: 120,
-      listen: { url: "https://music.apple.com/us/album/x/1?i=2", art: "https://is1-ssl.mzstatic.com/image/thumb/x/600x600bb.jpg" },
-      body: "[Verse]\nA        D\nWalking down the road\nE        A\nLantern in my hand\n\n[Chorus]\nD        A\nCarry me home" };
-    const page = await phone(t, { ...lib(theme), songs: [song], settings: { ...lib(theme).settings, look, plainPlay: false } }, { colorScheme: theme === "light" ? "light" : "dark", reducedMotion: "reduce" });
-    await page.route("https://is1-ssl.mzstatic.com/**", r => r.fulfill({ status: 200, contentType: "image/png", body: WHITE_PNG }));
-    await page.goto(base + "#/song/c"); await page.reload(); await page.waitForSelector("#play");
-    await page.waitForSelector("body.covered #gg-cover.in");
-    const problems = [];
-    const sweep = async screen => {
-      for (const html of await page.evaluate(unnamed)) problems.push(`${screen}: no name: ${html}`);
-      if (!axePath) return;
-      await page.evaluate(fs.readFileSync(axePath, "utf8"));
-      const found = await page.evaluate(async () => (await window.axe.run(document, { runOnly: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"], resultTypes: ["violations"] }))
-        .violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => `${v.id} (${v.impact}): ${v.nodes.slice(0, 3).map(n => n.target.join(" ")).join(" | ")}`));
-      problems.push(...found.map(f => `${screen}: ${f}`));
-    };
-    await sweep("song page, before Play");
-    await page.click("#play"); await page.waitForSelector("#gig #gg-pause");
-    await sweep("playing");
-    /* 4.60.1: paused, the page and the Tools sheet are dark too (they were white on white in the light palettes) */
-    await page.click("#gg-pause"); await page.waitForSelector("body.held"); await settled(page);
-    await sweep("paused");
-    await page.click("#more"); await page.waitForSelector(".menu.tools"); await settled(page);
-    await sweep("Tools open");
-    for (const p of problems) console.log(`PROBLEM covered ${look} ${p}`);
-    assert.deepEqual(problems, []);
-  });
-}

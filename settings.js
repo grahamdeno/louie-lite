@@ -3,7 +3,7 @@ import { LANGS, SPEEDS, TRASH_DAYS, Tabs, VERSION, html, langChosen, langOf, loo
 import { $, app, ask, esc, icon, toast } from "./ui.js";
 import { coverPut } from "./sets.js";
 import { ago, backupNow, copyDiagnostics, problems, storageKept, where } from "./store.js";
-import { AI, aiError, aiKey, applyTheme, askClaude, busy, data, go, metroPreview, mmss, setData, BPM_STORE, bpmKey } from "./app.js";
+import { AI, aiError, aiKey, applyTheme, askClaude, busy, data, go, metroPreview, mmss, openTuner, setData, BPM_STORE, bpmKey } from "./app.js";
 
 // ---------- Settings ----------
 const kb = n => n < 1048576 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1048576).toFixed(1)} MB`;
@@ -34,10 +34,6 @@ function renderSettings() {
       <div class="set">
         <span class="tile">${icon("metro")}</span><span class="name">Count-in</span>
         <button class="toggle ${s.countIn !== false ? "on" : ""}" id="s-count" role="switch" aria-checked="${s.countIn !== false}" aria-label="Count-in"></button>
-      </div>
-      <div class="set">
-        <span class="tile">${icon("mic")}</span><span class="name">Score my plays<small class="sub">The Gig listens for the chords you play. Off, shows play unscored</small></span>
-        <button class="toggle ${s.gigScore !== false ? "on" : ""}" id="s-score" role="switch" aria-checked="${s.gigScore !== false}" aria-label="Score my plays"></button>
       </div>
       <div class="set">
         <span class="tile">${icon("metro")}</span><span class="name">Beat</span>
@@ -178,12 +174,7 @@ function renderSettings() {
       <button class="set" id="s-tips"><span class="tile">${icon("info")}</span><span class="name">Tips &amp; gestures</span>${icon("chev", "chev")}</button>
       <button class="set" id="s-diag"><span class="tile">${icon("info")}</span><span class="name">Copy diagnostics</span><span class="val muted">${problems.length ? `${problems.length} problem${problems.length === 1 ? "" : "s"}` : ""}</span>${icon("chev", "chev")}</button>
     </div>
-    <div class="label">Testing</div>
-    <div class="set-group glass">
-      <button class="set" id="s-testfans"><span class="tile">${icon("shirt")}</span><span class="name">Add $1,000 in test tips</span><span class="val muted">${data.merch?.test ? `$${data.merch.test.toLocaleString("en-US")} added` : "To try the Merch table"}</span></button>
-      ${data.merch?.test ? `<button class="set" id="s-testfans-x"><span class="tile">${icon("x")}</span><span class="name">Remove test tips</span></button>` : ""}
-    </div>
-    <p class="foot">Test tips are only for spending at the Merch table. They don't count toward your fans, XP, the chart or your venue. Removing them takes back what's left to spend; what you bought stays.</p>`]
+    <p class="foot">Tips and gestures, and a copy of what went wrong if a screen fails. The copy leaves out song words and keys.</p>`]
   };
   if (PAGES[page]) {
     app.innerHTML = head(PAGES[page][0], "Back to settings") + PAGES[page][1];
@@ -193,8 +184,17 @@ function renderSettings() {
     const theme = looksOwned(data).has(s.theme) && { dark: "Dark", light: "Light", green: "Green Room", headliner: "Headliner" }[s.theme] || "Auto";
     const row = (id, ic, name, val, muted = false) => `<button class="set" data-page="${id}"><span class="tile">${icon(ic)}</span><span class="name">${name}</span><span class="val${muted ? " muted" : ""}">${val}</span>${icon("chev", "chev")}</button>`;
     const n = data.songs.length;
+    const jump = (id, ic, name, sub) => `<button class="set" id="${id}"><span class="tile">${icon(ic)}</span><span class="name">${name}<small class="sub">${sub}</small></span>${icon("chev", "chev")}</button>`;
     app.innerHTML = head("Settings", "Back") + `
     <div class="set-group glass">
+      ${jump("s-tuner", "fork", "Tuner", "Tune the guitar")}
+      ${jump("s-rehearse", "fretboard", "Rehearse", "Lesson of the day and your changes")}
+      ${jump("s-you", "star", "Your playing", "Passport, XP and badges")}
+      ${jump("s-map", "pin", "Tour Map", "Hexagons from the songs you play")}
+      ${jump("s-chart", "gauge", "Weekly chart", "You and nine players, by XP")}
+      ${jump("s-support", "heart", "Support", "Ko-fi and tell a friend")}
+    </div>
+    <div class="set-group glass s-gap">
       ${row("playing", "play", "Playing", [s.speedMode === "multiplier" ? "1x style" : "Song length", s.countIn !== false && "Count-in"].filter(Boolean).join(" · "))}
       ${row("look", "moon", "Look", theme)}
       ${row("newsongs", "sliders", "New songs", `${s.speedMode === "multiplier" ? ((s.startSpeed || SPEEDS.medium) / SPEEDS.medium).toFixed(1) + "x" : mmss(s.startLength || 210)} · ${t ? semis(t) : "No transpose"}`)}
@@ -214,6 +214,12 @@ function renderSettings() {
   }
   document.getElementById("back").onclick = () => go(PAGES[page] ? "#/settings" : "#/");
   app.querySelectorAll("[data-page]").forEach(b => b.onclick = () => go("#/settings/" + b.dataset.page));
+  document.getElementById("s-tuner")?.addEventListener("click", () => openTuner());
+  document.getElementById("s-rehearse")?.addEventListener("click", () => go("#/practice"));
+  document.getElementById("s-you")?.addEventListener("click", () => go("#/you"));
+  document.getElementById("s-map")?.addEventListener("click", () => go("#/playmap"));
+  document.getElementById("s-chart")?.addEventListener("click", () => go("#/charts"));
+  document.getElementById("s-support")?.addEventListener("click", () => go("#/support"));
   /* 4.36.0: one language for every song; switching asks first (german.js) */
   app.querySelectorAll(".s-lp [data-lang]").forEach(b => b.onclick = () => import(`./german.js?v=${VERSION}`).then(m => m.switchLang(b.dataset.lang, renderSettings)));
   document.getElementById("s-deen")?.addEventListener("click", () => { s.deEnglish = s.deEnglish !== true; Tabs.save(data); renderSettings(); });
@@ -225,7 +231,6 @@ function renderSettings() {
   $("s-length")?.addEventListener("change", e => { s.startLength = +e.target.value; Tabs.save(data); renderSettings(); });
   $("s-mode").onchange = e => { s.speedMode = e.target.value; Tabs.save(data); renderSettings(); };
   $("s-count").onclick = () => { s.countIn = s.countIn === false; Tabs.save(data); renderSettings(); };
-  $("s-score").onclick = () => { s.gigScore = s.gigScore === false; Tabs.save(data); renderSettings(); };
   $("s-streak").onclick = () => { s.streakMoment = s.streakMoment === false; Tabs.save(data); renderSettings(); };
   app.querySelectorAll("#s-beat [data-m]").forEach(b => b.onclick = () => { const m = b.dataset.m; s.metronome = m !== "off"; if (m !== "off") s.metroSound = m === "click" ? "click" : "kick"; Tabs.save(data); renderSettings(); if (m !== "off") metroPreview(); });
   /* The volume saves as it moves; letting go plays a bar's opening beat at that level. */
@@ -266,7 +271,7 @@ function renderSettings() {
   $("s-focus").onchange = e => { s.focus = e.target.value; Tabs.save(data); renderSettings(); };
   app.querySelectorAll("#s-theme [data-t]").forEach(b => b.onclick = () => {
     /* 4.78.0: a look you don't have opens it on the Merch table */
-    if (b.classList.contains("locked")) { toast(b.dataset.t === "headliner" ? "Headline a show to earn Headliner" : "Green Room is at the Merch table"); return go("#/merch"); }
+    if (b.classList.contains("locked")) { toast("That look isn't available"); return; }
     s.theme = b.dataset.t; Tabs.save(data); applyTheme(); renderSettings(); });
   $("s-savekey").onclick = () => {
     const k = $("s-key").value.trim();
@@ -305,8 +310,6 @@ function renderSettings() {
   $("s-tips").onclick = () => go("#/gestures");
   $("s-diag").onclick = copyDiagnostics;
   /* 4.16.0: test fans, to try the Merch table */
-  $("s-testfans")?.addEventListener("click", () => { const m = data.merch || (data.merch = {}); m.test = Math.min(1e6, (m.test || 0) + 1000); Tabs.save(data); renderSettings(); toast("$1,000 in test tips added"); });
-  $("s-testfans-x")?.addEventListener("click", () => { delete data.merch.test; Tabs.save(data); renderSettings(); toast("Test tips removed"); });
   $("s-import").onclick = () => $("file").click();
   $("file").onchange = e => {
     const f = e.target.files[0];

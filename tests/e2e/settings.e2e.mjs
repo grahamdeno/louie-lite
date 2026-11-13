@@ -122,32 +122,6 @@ test("Apple Music: opening a song readies the recording paused, Play starts it w
   assert.deepEqual(errs, []);
 });
 
-test("Cover requests (4.10.0): what you played in Apple Music becomes the request, or a cover quest when it isn't in the Songbook", { skip: skip() }, async t => {
-  const other = { ...LIB.songs[1] }; delete other.listen;
-  const lib = { ...LIB, songs: [{ ...LIB.songs[0], playLog: { total: 3, last: Date.now() - 86400000, days: { [new Date(Date.now() - 86400000).toISOString().slice(0, 10)]: 3 } } }, other], settings: { ...LIB.settings, appleMusic: true, appleMusicToken: "https://tabs-musickit.example.workers.dev/token", countIn: false } };
-  const page = await phone(t, lib);
-  const errs = []; page.on("pageerror", e => errs.push(e.message));
-  await page.route("https://*.workers.dev/**", r => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ token: "t.t.t", expires: 0 }) }));
-  await page.route("https://js-cdn.music.apple.com/**", r => r.fulfill({ status: 200, contentType: "text/javascript", body: `
-    window.mkTrack = window.mkTrack || { name: ${JSON.stringify(other.title)} + " (Remastered)", artistName: ${JSON.stringify(other.artist || "")} };
-    window.mkMusic = { isAuthorized: true, isPlaying: false, setQueue: async () => {}, seekToTime: async () => {}, play: async () => {}, pause: () => {}, stop: () => {},
-      api: { music: async () => ({ data: { data: [{ attributes: { ...window.mkTrack, url: "https://music.apple.com/us/album/x/1?i=777", artwork: { url: "https://is1-ssl.mzstatic.com/a/{w}x{h}bb.jpg" } } }] } }) } };
-    window.MusicKit = { configure: async () => {}, getInstance: () => window.mkMusic };
-    document.dispatchEvent(new Event("musickitloaded"));` }));
-  await page.route("https://is1-ssl.mzstatic.com/**", r => r.fulfill({ status: 200, contentType: "image/png", body: Buffer.from("89504e470d0a1a0a", "hex") }));
-  await page.evaluate(() => { location.hash = "#/tour"; }); await page.reload();
-  await page.waitForFunction(() => /FROM YOUR LISTENING/.test(document.querySelector(".tq-req")?.innerText || ""), null, { timeout: 8000 });
-  assert.match(await page.innerText(".tq-req"), new RegExp(`${other.title}[\\s\\S]*just played it in Apple Music`));
-  assert.equal(await page.locator(".rd-heard").count(), 0);
-  /* a song you don't have: a cover quest */
-  await page.addInitScript(() => { window.mkTrack = { name: "Wagon Wheel", artistName: "Old Crow" }; });
-  await page.reload();
-  await page.waitForSelector(".tq-cover", { timeout: 8000 });
-  assert.match(await page.innerText(".tq-cover"), /COVER QUEST[\s\S]*Wagon Wheel[\s\S]*3x fans[\s\S]*1 · Get the song/);
-  assert.match(await page.innerText("#tq-cover"), /GET THE SONG/);
-  assert.deepEqual(errs, []);
-});
-
 test("Apple Music: not signed in inside the app, opening a linked song offers Sign in instead of doing nothing", { skip: skip() }, async t => {
   const song = { ...LIB.songs[0], listen: { url: "https://music.apple.com/us/album/x/1?i=111", service: "Apple Music", length: 200 } };
   const lib = { ...LIB, songs: [song, LIB.songs[1]], settings: { ...LIB.settings, appleMusic: true, appleMusicToken: "https://tabs-musickit.example.workers.dev/token", countIn: false } };
@@ -489,35 +463,3 @@ test("Apple Music: a failure names the step it stopped at, and Apple's own alert
   assert.equal(await page.evaluate(() => typeof window.alert.caught), "boolean");
 });
 
-test("4.16.0: test fans from Help can be spent at the Merch table, and removed", { skip: skip() }, async t => {
-  const page = await phone(t);
-  await page.evaluate(() => { location.hash = "#/settings/help"; }); await page.waitForSelector("#s-testfans");
-  await page.click("#s-testfans");
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem("louielite-v1")).merch?.test === 1000);
-  await page.waitForSelector("#s-testfans-x");
-  await page.evaluate(() => { location.hash = "#/merch"; }); await page.waitForSelector(".mc-head");
-  assert.ok(+(await page.innerText(".mc-head .mc-fans")).replace(/\D/g, "") >= 1000, "spendable");
-  assert.match(await page.innerText(".mc-fin[data-id=pink]"), /Pink[\s\S]*FREE/, "Pink is free");
-  assert.match(await page.innerText(".mc-fin[data-id=black]"), /Studio black/);
-  await page.evaluate(() => { location.hash = "#/settings/help"; }); await page.waitForSelector("#s-testfans-x");
-  await page.click("#s-testfans-x");
-  await page.waitForFunction(() => !JSON.parse(localStorage.getItem("louielite-v1")).merch?.test);
-});
-
-test("4.78.0 looks you don't have: locked in Settings, a tap opens the Merch table; Headliner says how to earn it", { skip: skip() }, async t => {
-  const page = await phone(t, { ...LIB, merch: { tips: 500, tconv: 1, lconv: 1 } });
-  await page.evaluate(() => { location.hash = "#/settings/look"; }); await page.waitForSelector("#s-theme");
-  assert.equal(await page.locator("#s-theme button.locked").count(), 2, "Green and Headliner are locked");
-  await page.click("#s-theme [data-t='green']");
-  await page.waitForSelector(".mc-look[data-id='green']");
-  assert.equal(await page.evaluate(() => document.documentElement.dataset.look) !== "green", true, "not put on by the tap");
-  await page.click(".mc-look[data-id='headliner']"); await page.waitForSelector(".mt");
-  assert.match(await page.innerText(".mt-acts"), /HEADLINE A SHOW TO EARN IT/);
-  assert.equal(await page.evaluate(() => document.documentElement.dataset.look), "headliner", "trying it on shows the app in it");
-  await page.click("#mt-not");
-  assert.notEqual(await page.evaluate(() => document.documentElement.dataset.look), "headliner", "closing puts your own look back");
-  await page.click(".mc-look[data-id='green']"); await page.waitForSelector("#mt-buy");
-  await page.click("#mt-buy");
-  await page.waitForFunction(() => document.documentElement.dataset.look === "green");
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem("louielite-v1")).settings.theme === "green");
-});

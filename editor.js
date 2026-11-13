@@ -512,7 +512,7 @@ function paintText(song) {
     <div class="ed-tx"><div class="ed-tx-in"><pre class="ed-hl" id="ed-hl" aria-hidden="true">${hlText(song.body || "")}</pre>
       <textarea id="ed-body" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" aria-label="Song text" placeholder="${esc(TEXT_HINT)}">${esc(song.body || "")}</textarea></div></div>
     <div class="ed-start" id="ed-start" ${empty ? "" : "hidden"}>
-      <button class="ed-tile" id="ed-sing">${icon("mic")}<span><b>Sing or strum</b><small>Hold and play a line</small></span></button>
+      <button class="ed-tile" id="ed-sing">${icon("mic")}<span><b>Sing it</b><small>Sing a verse, voice only</small></span></button>
       ${aiKey() ? `<button class="ed-tile" id="ed-scan0">${icon("camera")}<span><b>Scan a page</b><small>Photo of a songbook</small></span></button>` : ""}
     </div>
     <input type="file" id="ed-photo" accept="image/*" hidden>

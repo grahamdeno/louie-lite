@@ -15,10 +15,9 @@
 // rises only there. Where listening can't help
 // (no microphone, a loud room, headphones), "I can't hear it, I got it" lets you
 // say so. Strumming, picking and fingerstyle are on the neck as "coming".
-import { CHORD_FIT, HEAR, chordLeadOver, relativeOf, Tabs, VERSION, bleedProfile, buzzRms, chordTargets, chromaOf, detectPitch, strumFit, nearestNote, pitchRms, strumDetector, strumLine, trackFloor, gradeSwitches, journalPractice, judgeTarget, stringRange, skillDone, skillState, soundcheck, soundcheckDone, missedChanges, SOUNDCHECK_XP, TUNINGS, SCALES, scaleTargets, playCount, practiceRate, lessonOfDay, lessonDone, lessonKeep, lessonPartOf, LESSON_PASSES, changesToWork } from "./core.js";
+import { Tabs, bleedProfile, buzzRms, chordTargets, detectPitch, nearestNote, pitchRms, strumDetector, trackFloor, gradeSwitches, journalPractice, judgeTarget, stringRange, skillDone, skillState, soundcheck, soundcheckDone, missedChanges, SOUNDCHECK_XP, TUNINGS, SCALES, scaleTargets, playCount, practiceRate, lessonOfDay, lessonDone, lessonKeep, lessonPartOf, LESSON_PASSES, changesToWork } from "./core.js";
 import { app, esc, getMic, icon, onLeave, sound, toast } from "./ui.js";
 import { beatTrack, chordSVG, data, go, loopHooks, openAtSection, openLessonSong, openTuner, playSong, tunedRecently } from "./app.js";
-import { statBar, bindStatBar } from "./hud.js";
 import { louie } from "./louie.js";
 import { callout } from "./callout.js";
 
@@ -123,7 +122,6 @@ function renderSkills() {
       ${lv.soon ? "" : `<div class="pk-board">${lv.steps.map(fret).join("")}</div>`}
     </section>`).join("")}
     ${learningCard()}
-    <button class="pf-card pk-hearcard" id="pk-hear">${icon("fork")}<span><b>What I hear</b><span class="pf-line">Check the microphone with your guitar: level, pitch and strums, live.</span></span>${icon("chev", "chev")}</button>
     ${next ? `<div class="s-dock"><button class="btn primary" id="pk-go">${icon("play")}${next.kind === "check" ? "Level check" : "Next: " + esc(lessonName(next))}</button></div>` : ""}`;
   $("back").onclick = () => go("#/practice");
   app.querySelectorAll("[data-song]").forEach(b => b.onclick = () => openAtSection(b.dataset.song));
@@ -138,7 +136,6 @@ function renderSkills() {
   const all = levels.flatMap(l => l.steps);
   app.querySelectorAll("[data-id]").forEach(b => b.onclick = () => open(all.find(s => s.id === b.dataset.id)));
   $("pk-go")?.addEventListener("click", () => open(next));
-  $("pk-hear").onclick = () => go("#/practice/hear");
 }
 /* Rehearse (4.33.0, one page): today's lesson (it was on the neck), Your changes (it takes in the soundcheck
    and the changes you dropped in gigs), your skills, and three more ways to practice. */
@@ -146,8 +143,6 @@ export function renderRehearse() {
   stopLive();
   backTo = "#/practice";
   const sc = soundcheck(data), missed = missedChanges(data), yc = changesToWork(data), l = lessonOfDay(data), { levels } = skillState(data);
-  const learn = data.songs.filter(x => x.status === "learning" && x.format !== "tab").sort((a, b) => (b.opened || 0) - (a.opened || 0))[0]
-    || data.songs.filter(x => x.format !== "tab").sort((a, b) => (b.opened || 0) - (a.opened || 0))[0];
   /* Your changes: today's soundcheck pairs first (while it's on), then the three your songs need most */
   const key = (a, b) => [a, b].sort().join(">"), byKey = new Map(yc.work.map(c => [key(c.a, c.b), c]));
   const scOn = sc.pairs.length && !sc.done;
@@ -172,19 +167,17 @@ export function renderRehearse() {
     </section>` : `<section class="rh-yc rh-yc-none" aria-label="Your changes"><div class="rh-yct"><div><b>Your changes</b><small>Add songs with chords and the changes they need show up here, with how often you land them in gigs.</small></div></div></section>`;
   const tile = (id, ic, t) => `<button class="rh-tile" id="${id}"><span class="rh-ic">${icon(ic)}</span><b>${t}</b></button>`;
   app.innerHTML = `<div class="rh">
-    <div class="tq-top">${statBar()}</div>
+    <div class="head"><button class="ib glass" id="back" aria-label="Back to the Library">${icon("back")}</button></div>
     <h1 class="rh-h1">Rehearse</h1>
     ${todayCard(l)}
     ${changes}
     ${skillsCard(levels)}
     <h2 class="tq-h"><span>MORE WAYS TO PRACTICE</span></h2>
     <div class="rh-tiles">
-      ${tile("rh-band", "metro", "Sit in with the band")}
       ${tile("rh-tuner", "fork", "Tuner")}
-      ${tile("rh-hear", "mic", "What I hear")}
     </div>
   </div>`;
-  bindStatBar();
+  $("back").onclick = () => go("#/");
   $("ls-go")?.addEventListener("click", () => l.finished ? go("#/practice/skills") : startPart(l, l.now));
   app.querySelectorAll(".ls-step").forEach(b => b.onclick = () => startPart(l, +b.dataset.part));
   $("ls-all").onclick = () => go("#/practice/skills");
@@ -192,9 +185,7 @@ export function renderRehearse() {
   app.querySelectorAll(".rh-pair").forEach(b => b.onclick = () => { drillQueue = []; go("#/practice/" + encodeURIComponent(b.dataset.id)); });
   app.querySelectorAll(".rh-ycd").forEach(b => b.onclick = () => { drillQueue = []; go("#/practice/" + encodeURIComponent(b.dataset.drill)); });
   $("rh-ycall")?.addEventListener("click", () => { const todo = rows.filter(r => !r.done); const list = (todo.length ? todo : rows).map(c => c.id); drillQueue = list.slice(1); go("#/practice/" + encodeURIComponent(list[0])); });
-  $("rh-band").onclick = () => learn ? openAtSection(learn.id) : toast("Add a song with chords to sit in with the band.");
   $("rh-tuner").onclick = () => openTuner();
-  $("rh-hear").onclick = () => go("#/practice/hear");
 }
 
 /* Learning (3.21.0): the songs you're learning, each with the one thing to do next and how far along
@@ -220,7 +211,7 @@ function learningCard() {
 /* ---------- one lesson ---------- */
 export function renderSession(id) {
   stopLive();
-  if (id === "hear") return whatIHear();
+  if (id === "hear") return go("#/practice");
   if (id === "skills") return renderSkills();
   const hit = find(id);
   if (id === "neck") return renderNeck();
@@ -579,7 +570,6 @@ function switchLesson(st) {
     if (grade.clean) { say(`Clean round${parts ? ` (${parts})` : ""}. Next round is ${bpm + 10} BPM.`); bpm += 10; }
     else if (grade.miss >= bars / 2) {
       say("I heard very little. Hold the phone closer to the guitar and strum firmly on the 1. Or tap \"I can't hear it, I got it\".");
-      if (!$("pk-check")) { b.parentElement.insertAdjacentHTML("beforeend", '<button class="tb" id="pk-check">Check the microphone</button>'); $("pk-check").onclick = () => go("#/practice/hear"); }
     }
     else say(`${parts || "Close"}. Stay at ${bpm} BPM and get your fingers there a beat early.`);
     round++;
@@ -609,196 +599,4 @@ function done(st, { secs, line, bpm = 0, sc = null }) {
   $("back").onclick = () => go(backTo); bindTune();
   $("pk-song")?.addEventListener("click", () => playSong(sg.id));
   $("pk-next").onclick = () => { if (qm) { drillQueue.shift(); return go("#/practice/" + encodeURIComponent(queued)); } nxt && nxt.kind !== "check" && !sc && backTo !== "#/practice" ? go("#/practice/" + encodeURIComponent(nxt.id)) : go(backTo); };
-}
-
-/* ---------- What I hear ----------
-   The microphone, live: the level (with the line a strum has to cross), the pitch and
-   which string of a chord it would light, and each strum caught. The level is the
-   strum band (under 1.5 kHz), as a switch lesson hears it. "Strum with the beat" plays
-   one quiet bar to learn how the beat leaks into the mic (the count-in a switch lesson
-   uses), then four bars to strum on the 1, graded as a lesson would. "Copy readings" puts a short plain summary on the clipboard to
-   paste into a message; nothing is recorded, kept or sent by the app. */
-const HEAR_CHORDS = ["", "G", "C", "D", "Em", "Am", "E", "A"];
-function whatIHear() {
-  let chord = "", guide = null, running = false, measuring = false, ctxRef = null, floorRef = null, prof = null, along = null;
-  const lane = [], strums = [], beats = []; /* last few seconds: [time, level] */
-  const st = { t0: 0, frames: 0, quiet: [], peak: 0, pitched: 0, buzzy: 0, strums: 0, notes: {}, lit: {}, grade: null, show: null };
-  const beatAt = [], alongLane = []; /* every beat played, audio time; the level while strumming with the beat */
-  const lastBeat = now => { for (let k = beatAt.length - 1; k >= 0; k--) if (beatAt[k] <= now) return { since: now - beatAt[k], one: k % 4 === 0 }; return null; };
-  const bleedNow = now => { const lb = prof && lastBeat(now); return lb ? prof.at(lb.since, lb.one) : 0; };
-  app.innerHTML = `${head("What I hear", "Play anything for half a minute. Nothing is recorded or sent.")}
-    <section class="pf-card pk-lesson">
-      <div class="pf-plate" role="group" aria-label="What the microphone hears">
-        <div class="pf-read"><b id="ph-lvl">–</b><span>level</span></div>
-        <div class="pf-read"><b id="ph-note">–</b><span id="ph-hz">pitch</span></div>
-        <div class="pf-read"><b id="ph-strums">0</b><span>strums</span></div>
-      </div>
-      <canvas class="ph-lane" id="ph-lane" aria-hidden="true"></canvas>
-      <div class="pk-beats" id="ph-beats" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-      <p class="ph-key"><i class="ph-k lvl"></i>level <i class="ph-k thr"></i>strum line <i class="ph-k on"></i>strum <i class="ph-k beat"></i>beat</p>
-      <h2 class="ph-h">Check against a chord</h2>
-      <div class="ph-chords" role="group" aria-label="Chord">${HEAR_CHORDS.map(c => `<button data-c="${c}" class="${c ? "" : "on"}">${c || "Off"}</button>`).join("")}</div>
-      <div class="pk-strings" id="ph-strings" hidden></div>
-      <p class="rd-bubble ph-say" id="pk-say" aria-live="polite">Tap Start, then pluck single strings, strum a chord, and stay quiet for a moment.</p>
-    </section>
-    <div class="s-dock"><button class="btn primary" id="ph-go">${icon("fork")}Start listening</button><div class="ph-row"><button class="tb" id="ph-drums" disabled>Strum with the beat</button><button class="tb" id="ph-copy" disabled>Copy readings</button></div></div>`;
-  $("back").onclick = () => go(backTo); bindTune();
-  const say = t => { const e = $("pk-say"); if (e) e.textContent = t; };
-  const strings = () => {
-    const box = $("ph-strings");
-    box.hidden = !chord;
-    if (!chord) return;
-    box.innerHTML = chordTargets(chord).map(t => `<span class="pk-str${t.hz ? "" : " skip"}" data-i="${t.i}"><i class="gs-lamp"></i><small>${t.hz ? esc(strName(t.i, "standard")) : "skip"}</small></span>`).join("");
-  };
-  app.querySelectorAll("[data-c]").forEach(b => b.onclick = () => {
-    chord = b.dataset.c; st.lit = {}; st.show = chord ? { reads: 0, fit: 0, other: {} } : null;
-    app.querySelectorAll("[data-c]").forEach(x => x.classList.toggle("on", x === b));
-    strings();
-    guide = chord ? stringGuide(chordTargets(chord), $("ph-strings")) : null;
-    const t = guide?.cur();
-    if (t) say(`Finger ${chord}, then pluck the ${strName(t.i, "standard")} string${fretText(t)}. Tap a lamp to pick another.`);
-  });
-  const canvas = $("ph-lane"), g = canvas.getContext("2d");
-  const y = (v, h) => h - 4 - Math.min(1, Math.sqrt(v / 0.5)) * (h - 8); /* square root, so quiet sounds still show */
-  const draw = () => {
-    if (!document.contains(canvas)) return;
-    const dpr = devicePixelRatio || 1, w = canvas.clientWidth, h = canvas.clientHeight;
-    if (canvas.width !== Math.round(w * dpr)) { canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr); }
-    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
-    const now = live?.ctx?.currentTime || 0, span = 4, x = t => w - (now - t) / span * w;
-    g.fillStyle = "rgba(255,255,255,.18)";
-    for (const t of beats) if (now - t < span) g.fillRect(x(t) - 1, 0, 2, h);
-    const thr = strumLine(live?.floor?.() ?? null);
-    g.strokeStyle = "rgba(255,120,90,.8)"; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(0, y(thr, h)); g.lineTo(w, y(thr, h)); g.stroke(); g.setLineDash([]);
-    g.strokeStyle = "#ffc27a"; g.lineWidth = 1.5; g.beginPath();
-    lane.forEach(([t, v], i) => { const px = x(t), py = y(v, h); i ? g.lineTo(px, py) : g.moveTo(px, py); });
-    g.stroke();
-    g.fillStyle = "#ffb24a";
-    for (const t of strums) if (now - t < span) { g.beginPath(); g.arc(x(t), 8, 4, 0, 7); g.fill(); }
-    requestAnimationFrame(draw);
-  };
-  const start = () => {
-    $("ph-go").disabled = true; say("Starting the microphone…");
-    mic().then(stream => {
-      const ctx = sound();
-      if (!ctx) throw new Error("none");
-      const fast = ctx.createAnalyser(), slow = ctx.createAnalyser();
-      fast.fftSize = 1024; slow.fftSize = 4096;
-      const src = ctx.createMediaStreamSource(stream); guitarBand(ctx, src).connect(fast); src.connect(slow);
-      /* 4.77.1: the chord as a show hears it, the Gig's own read (all 12 notes at once), so a strummed chord can be checked here */
-      const spec = ctx.createAnalyser(); spec.fftSize = 16384; spec.smoothingTimeConstant = 0; guitarBand(ctx, src).connect(spec);
-      const db = new Float32Array(spec.frequencyBinCount);
-      const fb = new Float32Array(fast.fftSize), sb = new Float32Array(slow.fftSize), strum = strumDetector();
-      let n = 0, shown = 0;
-      st.t0 = ctx.currentTime; ctxRef = ctx; floorRef = strum.floor;
-      live = { at: Date.now(), stream, src, ctx, timeouts: [], floor: strum.floor, timer: setInterval(() => {
-        const now = ctx.currentTime;
-        fast.getFloatTimeDomainData(fb);
-        let rms = 0; for (const v of fb) rms += v * v; rms = Math.sqrt(rms / fb.length);
-        lane.push([now, rms]); while (lane.length && now - lane[0][0] > 4.2) lane.shift();
-        st.frames++; st.peak = Math.max(st.peak, rms);
-        if (measuring) { const lb = lastBeat(now); if (lb) prof.add(lb.since, lb.one, rms); strum(rms, now, 1); return; }
-        if (along) alongLane.push([now, rms, strumLine(strum.floor(), bleedNow(now))]);
-        if (strum(rms, now, bleedNow(now))) { strums.push(now); along?.push(now); st.strums++; $("ph-strums").textContent = st.strums; }
-        while (strums.length && now - strums[0] > 4.2) strums.shift();
-        if (++n % 5) return; /* the pitch every 50 ms */
-        slow.getFloatTimeDomainData(sb);
-        st.quiet.push(rms); if (st.quiet.length > 600) st.quiet.shift();
-        const hz = detectPitch(sb, ctx.sampleRate, pitchRms(strum.floor()), HEAR.clarity, [70, 1000]);
-        if (Date.now() - shown > 120) { shown = Date.now(); $("ph-lvl").textContent = rms < 0.001 ? "0" : (rms * 100).toFixed(rms < 0.1 ? 1 : 0); }
-        if (hz > 0) {
-          st.pitched++;
-          const nn = nearestNote(hz), name = nn.name + nn.octave;
-          st.notes[name] = (st.notes[name] || 0) + 1;
-          $("ph-note").textContent = nn.name + nn.octave;
-          $("ph-hz").textContent = `${hz.toFixed(1)} Hz · ${nn.cents > 0 ? "+" : ""}${nn.cents}¢`;
-        } else if (rms > buzzRms(strum.floor())) { st.buzzy++; $("ph-note").textContent = "?"; $("ph-hz").textContent = "no clear pitch"; }
-        if (st.show && chord && rms > Math.max(0.004, strum.floor() * 3)) {
-          spec.getFloatFrequencyData(db);
-          const cr = chromaOf(db, ctx.sampleRate, spec.fftSize), f = strumFit(cr, chord);
-          if (cr && f !== null) {
-            st.show.reads++;
-            /* the Gig's test: the chord fits, and no other chord here fits clearly better */
-            const { lead, by } = chordLeadOver(cr, chord, [relativeOf(chord), ...HEAR_CHORDS]); /* 4.82.1: the show's own test */
-            if (f >= CHORD_FIT && lead > 0) st.show.fit++;
-            else { const k = f >= CHORD_FIT ? by : "too little of it"; st.show.other[k] = (st.show.other[k] || 0) + 1; }
-          }
-        }
-        const ev = guide?.hear(sb, ctx.sampleRate, strum.floor(), rms);
-        if (ev?.say) {
-          const nm = strName(ev.t.i, "standard");
-          if (ev.say === "ring") { st.lit[chord] = guide.count(); const nx = guide.cur(); say(nx ? `${nm} string: clean. Next, the ${strName(nx.i, "standard")} string${fretText(nx)}.` : `${nm} string: clean. Every string of ${chord} rang.`); }
-          else say(stringAdvice(ev, nm));
-        }
-      }, 10) };
-      running = true;
-      $("ph-go").disabled = false; $("ph-go").innerHTML = `${icon("pause")}Stop`;
-      $("ph-drums").disabled = false; $("ph-copy").disabled = false;
-      say("Listening. Pluck a few single strings, strum a chord, then stay quiet for a moment.");
-      requestAnimationFrame(draw);
-    }).catch(() => { $("ph-go").disabled = false; say("I can't use the microphone here. On iPhone: Settings, Apps, Safari, Microphone, Ask. Then try again."); });
-  };
-  const stop = () => {
-    stopLive(); running = false;
-    $("ph-go").innerHTML = `${icon("fork")}Start listening`;
-    $("ph-drums").disabled = true;
-    say("Stopped. Copy readings to send them, or start again.");
-  };
-  $("ph-go").onclick = () => running ? stop() : start();
-  /* one quiet bar to learn how the beat leaks into the mic, then four bars to strum on the 1 */
-  $("ph-drums").onclick = () => {
-    if (!live?.ctx) return;
-    say("First bar: stay quiet. Then strum on each 1 for four bars.");
-    $("ph-drums").disabled = true;
-    beatAt.length = 0; alongLane.length = 0; prof = bleedProfile(); along = null;
-    st.grade = { started: true };
-    const tr = beatTrack(70, (i, t) => {
-      beatAt.push(t); beats.push(t);
-      if (i < 20) live?.timeouts.push(setTimeout(() => document.querySelectorAll("#ph-beats i").forEach((e, n) => e.classList.toggle("on", n === i % 4)), Math.max(0, (t - live.ctx.currentTime) * 1000)));
-    }, { hats: true });
-    if (!tr) return;
-    const audio = live.ctx, spb = tr.spb;
-    live.track = tr;
-    const at = (sec, fn) => live.timeouts.push(setTimeout(fn, Math.max(0, (sec - audio.currentTime) * 1000)));
-    at(tr.t0 - 0.05, () => { measuring = true; });
-    at(tr.t0 + 4 * spb - 0.05, () => { measuring = false; along = []; say(`Strum on the 1. The beat leaks ${(prof.peak() * 100).toFixed(1)} into the mic, only for a moment after each tick.`); });
-    at(tr.t0 + 20 * spb + 0.4, () => {
-      tr.stop();
-      if (live) live.track = null;
-      const dues = [4, 8, 12, 16].map(k => tr.t0 + k * spb + tr.lag);
-      st.grade = gradeSwitches(dues, along || [], spb);
-      /* each 1: was a strum there, and how loud against the line (so a miss says whether it was the playing or the listening) */
-      st.bars = dues.map((d, k) => {
-        const win = alongLane.filter(([t]) => t >= d - 0.6 * spb && t <= d + 1.2 * spb);
-        const top = win.reduce((a, x) => x[1] > a[1] ? x : a, [d, 0, 0]);
-        const caught = (along || []).filter(o => o >= d - 0.6 * spb && o <= d + 1.2 * spb).sort((a, b) => Math.abs(a - d) - Math.abs(b - d))[0];
-        return `${k + 1}: ${caught !== undefined ? `strum at ${caught - d >= 0 ? "+" : ""}${((caught - d) * 1000).toFixed(0)} ms` : "none caught"}, loudest ${(top[1] * 100).toFixed(1)} at ${top[0] - d >= 0 ? "+" : ""}${((top[0] - d) * 1000).toFixed(0)} ms, line ${(top[2] * 100).toFixed(1)}`;
-      });
-      along = null; beats.length = 0;
-      document.querySelectorAll("#ph-beats i").forEach(e => e.classList.remove("on"));
-      if (!document.contains(canvas)) return;
-      $("ph-drums").disabled = false;
-      say(`On the 1: ${st.grade.on} of 4${st.grade.late ? `, ${st.grade.late} late` : ""}${st.grade.early ? `, ${st.grade.early} early` : ""}${st.grade.miss ? `, ${st.grade.miss} not heard` : ""}.`);
-    });
-  };
-  $("ph-copy").onclick = () => {
-    const q = [...st.quiet].sort((a, b) => a - b), floor = q.length ? q[Math.floor(q.length * 0.1)] : 0;
-    const top = Object.entries(st.notes).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, v]) => `${k} ${v}`).join(", ");
-    const pct = (a, b) => b ? Math.round(a / b * 100) + "%" : "0%";
-    const reads = Math.floor(st.frames / 5);
-    const text = [
-      `Louie: Learn Guitar ${VERSION}, What I hear`,
-      `Listened ${Math.round((ctxRef?.currentTime || 0) - st.t0)} s · sample rate ${ctxRef?.sampleRate || "?"} · output delay ${Math.round(((ctxRef?.baseLatency || 0) + (ctxRef?.outputLatency || 0)) * 1000)} ms`,
-      `Quiet floor ${(floor * 100).toFixed(3)} (tracked ${((floorRef?.() || 0) * 100).toFixed(3)}) · strum line ${(strumLine(floorRef?.() ?? null) * 100).toFixed(2)} · loudest ${(st.peak * 100).toFixed(1)} · beat in the mic ${prof ? (prof.peak() * 100).toFixed(2) : "not measured"}`,
-      ...(st.bars ? ["Each 1: " + st.bars.join(" · ")] : []),
-      ...(guide ? guide.report() : []),
-      st.grade?.started ? "With the beat: not finished (it takes about 17 seconds)" : st.grade ? `With the beat: ${st.grade.on} of 4 on the 1, ${st.grade.late} late, ${st.grade.early} early, ${st.grade.miss} not heard` : "",
-      `Strums caught ${st.strums} · pitch clear ${pct(st.pitched, reads)} of reads · buzzy ${pct(st.buzzy, reads)}`,
-      `Notes heard: ${top || "none"}`,
-      chord ? `${chord}: strings lit ${st.lit[chord] || 0} of ${chordTargets(chord).filter(t => t.hz).length} (one string at a time)` : "",
-      st.show ? `${chord} as a show hears it: fits ${st.show.fit} of ${st.show.reads} sounding reads${Object.keys(st.show.other).length ? " · when it didn't: " + Object.entries(st.show.other).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(", ") : ""}` : "",
-      `Settings: ${Object.entries(HEAR).map(([k, v]) => `${k} ${v}`).join(", ")}`
-    ].filter(Boolean).join("\n");
-    navigator.clipboard?.writeText(text).then(() => toast("Readings copied. Paste them into a message."), () => toast("Couldn't copy here."));
-  };
 }

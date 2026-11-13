@@ -1,7 +1,7 @@
 // Tabs sharing : song and set links, opening a
 // shared link, and Play together. The song or set rides inside the
 // link, so it works without a server or an account.
-import { Tabs, VERSION, findSame, packShare, shareable, strumDetector, unpackShare } from "./core.js";
+import { Tabs, findSame, packShare, shareable, strumDetector, unpackShare } from "./core.js";
 import { louie } from "./louie.js";
 import { $, esc, getMic, icon, layer, onLeave, showToCopy, sound, toast } from "./ui.js";
 import { setSongs } from "./sets.js";
@@ -142,7 +142,6 @@ async function renderImport(code) {
   render();
   if (!got) return toast("That link didn't come through whole. Ask for it again");
   if (got.duet && got.song) return duetJoin(got.song); /* 4.29.0: with or without an old start time */
-  if (got.duel) { const m = await import(`./duel.js?v=${VERSION}`); if (m.openDuelLink(got)) return; } /* Song duels (4.12.0) */
   const songs = got.song ? [got.song] : got.set.songs;
   const have = songs.filter(x => findSame(data, x));
   const name = got.song ? `"${esc(got.song.title)}"${got.song.artist ? ` by ${esc(got.song.artist)}` : ""}` : `the set "${esc(got.set.name)}"`;

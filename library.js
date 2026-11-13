@@ -1,6 +1,6 @@
 // The Road: the Songbook (search, filters, the song list, swipes) and the paste card. Split from app.js (4.15.1); app.js re-exports what other files use.
 import { coachTip, demoSearch, dismissCoach, markUsed, searchOpened, tick, tipDue, tipsSeen, used } from "./coach.js";
-import { Tabs, artistSortName, detectPaste, gigCountdown, guessKey, indexLetter, knownChords, lastPlayed, nextSet, parseSheet, pickNudge, playCount, playsThisWeek, requestSong, searchSongs, sheetChords, sortSongs, untilLabel, weatherMood } from "./core.js";
+import { Tabs, artistSortName, detectPaste, gigCountdown, guessKey, indexLetter, knownChords, lastPlayed, nextSet, parseSheet, pickNudge, playCount, playsThisWeek, searchSongs, sheetChords, sortSongs, untilLabel, weatherMood } from "./core.js";
 import { recentApple, searchApple } from "./listen.js";
 import { guitarIcon } from "./rock.js";
 import { appleBlocksSearch, fullWhen, itunes, keyColor, newSet, playSet, setCover, setKeys, setLength, setSetCtx, setSongs, whenText } from "./sets.js";
@@ -8,7 +8,7 @@ import { renderImport } from "./share.js";
 import { ago, backupNow, needsBackup } from "./store.js";
 import { $, I, app, esc, followKeyboard, icon, layer, onLeave, toast } from "./ui.js";
 import { aiError, aiKey, busy, cleanSheet, readPhoto } from "./aihelp.js";
-import { bindFind, data, findAI, findCard, go, keyOf, lastOpened, newSong, nextSongs, openTuner, playGig, route, tunedRecently } from "./app.js";
+import { bindFind, data, findAI, findCard, go, keyOf, lastOpened, newSong, nextSongs, openTuner, route, tunedRecently } from "./app.js";
 
 export let query = "";
 export let filter = "all";
@@ -75,11 +75,9 @@ function todayItems() {
   if (nudge && n.kind === "streak") items.push(nudge);
   if (filter === "all" && data.songs.length >= 3 && !searching) {
     const one = data.songs.filter(x => fitOf(x).missing.length === 1).sort((a, b) => (b.status === "learning") - (a.status === "learning") || (b.opened || 0) - (a.opened || 0))[0];
-    const req = requestSong(data);
-    const again = data.songs.filter(x => { const c = playCount(x); return c >= 1 && c <= 2 && x.status !== "got" && Date.now() - (x.playLog?.last || 0) > 21 * 864e5 && x !== one && x !== req; })
+    const again = data.songs.filter(x => { const c = playCount(x); return c >= 1 && c <= 2 && x.status !== "got" && Date.now() - (x.playLog?.last || 0) > 21 * 864e5 && x !== one; })
       .sort((a, b) => (b.playLog?.last || 0) - (a.playLog?.last || 0))[0];
     if (one) items.push(`<button class="tdy-i upn-c one" data-id="${esc(one.id)}"><span class="tdy-t"><small>ONE NEW CHORD</small><b>${esc(one.title)}</b><em>Learn ${esc(fitOf(one).missing[0])} and it's yours</em></span></button>`);
-    if (req) items.push(`<button class="tdy-i upn-c req" data-gig="${esc(req.id)}"><span class="tdy-t"><small>${data.quests?.heard?.id === req.id ? "FROM YOUR LISTENING" : "REQUESTED"}</small><b>${esc(req.title)}</b><em>2x bonus fans tonight</em></span></button>`);
     if (again) items.push(`<button class="tdy-i upn-c again" data-id="${esc(again.id)}"><span class="tdy-t"><small>WORTH ANOTHER TRY</small><b>${esc(again.title)}</b><em>You left it ${Math.round((Date.now() - again.playLog.last) / 864e5 / 7)} weeks ago</em></span></button>`);
   }
   if (nudge && n.kind !== "streak") items.push(nudge);
@@ -99,7 +97,6 @@ function bindToday() {
   clearInterval(gigTimer);
   const strip = $("tdy"); if (!strip) return;
   strip.querySelectorAll(".upn-c[data-id]").forEach(b => b.onclick = () => go("#/song/" + encodeURIComponent(b.dataset.id)));
-  strip.querySelectorAll(".upn-c[data-gig]").forEach(b => b.onclick = () => playGig(b.dataset.gig));
   const up = $("upnext");
   if (up) {
     const set = data.sets.find(x => x.id === up.dataset.set);

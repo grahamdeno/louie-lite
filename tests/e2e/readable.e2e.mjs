@@ -62,8 +62,8 @@ function scan() {
   }
   return out;
 }
-const SCREENS = [["road", "#/"], ["songbook", "#/library"], ["song", "#/song/a"], ["tools", "#/song/a", async p => { await p.click("#more"); await p.click(".menu [data-tab=play]"); }],
-  ["charts", "#/charts"], ["tour", "#/tour"], ["band", "#/band"], ["profile", "#/you"], ["merch", "#/merch"], ["rehearse", "#/practice"], ["lessons", "#/practice/skills"],
+const SCREENS = [["library", "#/"], ["songbook", "#/library"], ["song", "#/song/a"], ["tools", "#/song/a", async p => { await p.click("#more"); await p.click(".menu [data-tab=play]"); }],
+  ["charts", "#/charts"], ["profile", "#/you"], ["rehearse", "#/practice"], ["lessons", "#/practice/skills"],
   ["settings", "#/settings"], ["toast", "#/song/a", p => p.evaluate(() => import("/app.js").then(m => m.toast("River Road moved to Recently deleted", null, { label: "Undo", fn: () => {} })))]];
 for (const theme of ["light", "dark"]) {
   test(`4.89.0 readable: no text under 12 px and enough contrast on the main screens (${theme})`, { skip: skip(), timeout: 240000 }, async t => {

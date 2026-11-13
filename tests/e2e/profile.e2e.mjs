@@ -7,14 +7,13 @@ useBrowser();
 test("Your profile: worked out from the songs you've played, with a passport, changes and a way back to a song", { skip: skip() }, async t => {
   const songs = LIB.songs.map((s, i) => ({ ...s, playLog: { total: i === 0 ? 6 : 1, last: Date.now() - (i === 0 ? 1 : 40) * 86400e3, days: {} } }));
   const page = await phone(t, { ...LIB, songs }, { home: true });
-  await page.waitForSelector("#h-streak"); await settled(page);
-  await page.click("#h-streak");
+  await page.evaluate(() => { location.hash = "#/you"; }); await settled(page);
   await page.waitForSelector(".pf-player");
-  assert.match(await page.innerText("h1"), /Your profile/);
+  assert.match(await page.innerText("h1"), /Your playing/);
   /* 4.17.0: the player card, its tiles, badges and band */
   assert.match(await page.innerText(".pf-player"), /LEVEL 1[\s\S]*\/ 100 XP/);
   assert.equal(await page.locator(".pf-tile-streak .ri-knob").count(), 1, "the streak's knob");
-  assert.match(await page.innerText(".pf-tiles"), /SHOWS PLAYED[\s\S]*SONGS YOU CAN PLAY/);
+  assert.match(await page.innerText(".pf-tiles"), /PLAYS[\s\S]*SONGS YOU CAN PLAY/);
   assert.ok(await page.locator(".pf-badge:not(.locked)").count() >= 1, "a song played through is a badge");
   assert.match(await page.innerText(".pf-label:has-text('BADGES')"), /\d+ of 26/);
   /* 4.19.0: the chord passport, a page per family, Learn it opens a lesson */
@@ -35,7 +34,7 @@ test("Your profile: worked out from the songs you've played, with a passport, ch
   await page.evaluate(() => { location.hash = "#/you"; }); await page.waitForSelector(".pf-player"); await settled(page);
   await page.click("#pf-map"); await page.waitForFunction(() => location.hash === "#/playmap"); /* the venue opens the Tour Map */
   await page.evaluate(() => { location.hash = "#/you"; }); await page.waitForSelector(".pf-player"); await settled(page);
-  await page.click("#back"); await page.waitForSelector(".rd-path"); /* 4.0.0: back to the Road */
+  await page.click("#back"); await page.waitForSelector("#list");
 });
 
 test("Your profile: an empty library says how it fills in, with no share button", { skip: skip() }, async t => {

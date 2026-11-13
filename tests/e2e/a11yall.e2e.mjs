@@ -29,12 +29,9 @@ const SCREENS = [
   ["edit", "#/song/a", p => tool(p, "edit")],
   ["get the chords", "#/library", p => p.evaluate(() => import("/findai.js").then(m => m.chartLinkSheet({ title: "Lantern", artist: "Me" })))],
   ["paste back", "#/library", async p => { await p.evaluate(() => import("/app.js").then(m => m.expectPaste({ q: "Lantern", title: "Lantern" }))); await back(p); }],
-  ["merch", "#/merch"], ["merch item", "#/merch", p => p.click(".mc-fin[data-id=tweed]")],
-  ["charts", "#/charts"], ["tour", "#/tour"], ["band", "#/band"], ["profile", "#/you"], ["map", "#/playmap"],
+  ["charts", "#/charts"], ["profile", "#/you"], ["map", "#/playmap"],
   ["practice", "#/practice"], ["settings", "#/settings"], ["settings: playing", "#/settings/playing"], ["settings: look", "#/settings/look"],
-  ["more", "#/", p => p.click("#tabs [data-tab=more]")],
-  ["set", "#/set/s"], ["trash", "#/trash"], ["gestures", "#/gestures"],
-  ["show complete", "#/song/g", async p => { await p.click("#play"); await p.waitForSelector(".gc", { timeout: 40000 }); await p.waitForFunction(() => !document.querySelector(".co"), null, { timeout: 15000 }).catch(() => {}); }]
+  ["set", "#/set/s"], ["trash", "#/trash"], ["gestures", "#/gestures"]
 ];
 
 const unnamed = () => {

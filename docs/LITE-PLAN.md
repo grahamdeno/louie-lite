@@ -137,3 +137,9 @@ Rules: one task per commit, `eslint .` and `node tests/quick.mjs` before each pu
 
 Version: Lite's release becomes 3.0.0.
 
+## Surprises
+
+- Step 1: the Road, Opening night, the band, duels, merch, the guitarist and Strum it are gone from the screens. The pure numbers for those (road path, fans, merch buys, guitarist parts) still sit in `core/game.js`, because the unit tests cover them and later steps still use XP, the weekly chart and Louie's finishes. Nothing in the app draws those screens.
+- Step 1: `openingOn` was already hard-coded false. `openingView` can still say a new save is on a leg, but no screen reads it, and a step cannot advance.
+- The design canvas at claude.ai was not opened for step 1. Steps 7 and 8 still need it.
+

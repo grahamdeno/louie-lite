@@ -2,57 +2,16 @@
 // sing the whole idea (tap again to stop), and it is split into lines at your breaths; hold the mic for one line.
 // Redo and Done are buttons. The key is a pill and a card of its chords. Your song plays your voice back with
 // the chords strummed under it, then saves to the Songbook. Everything happens on this phone. Loads on first use.
-import { VERSION, detectPitch, melodyNotes, detectKey, harmonize, chordLine, chordWords, chordFit, keyConfidence, keyFamily, lineHint, packNotes, sungLines, unpackNotes, syllables, strumChords, riffNotes, cleanNotes, chordToneNotes, html, raw } from "./core.js";
+import { detectPitch, melodyNotes, detectKey, harmonize, chordLine, chordWords, chordFit, keyConfidence, keyFamily, lineHint, packNotes, sungLines, unpackNotes, syllables, html, raw } from "./core.js";
 import { $, app, getMic, icon, layer, toast, onLeave, ask, sound } from "./ui.js";
-import { data, go, markUsed, showCallout, tick } from "./app.js";
+import { data, go, markUsed, tick } from "./app.js";
 import { Tabs, splitTake, takeLines, lineOptions } from "./core.js";
 import { louie } from "./louie.js";
 import { noteError } from "./store.js";
 
 const MAX_LINE = 180; /* seconds: a take stops itself (4.74.0: a whole idea, not one line) */
-// Strum it: how a line is heard. "sing": your voice, chords that fit the
-// melody (as before). "strum": your guitar, the chords you played (Basic Pitch,
-// strum.js, loaded on first use). "both": both, and where they disagree the
-// line offers You played / Melody fits. The choice is remembered.
-/* 4.74.0: Voice, Guitar and Both (the page itself is Sing it) */
-const MODES = [["sing", "Voice"], ["strum", "Guitar"], ["both", "Both"]];
-const mode = () => (MODES.some(m => m[0] === data.settings.sketchMode) ? data.settings.sketchMode : "sing");
-const hears = () => mode() !== "sing";
-let ear = null; /* strum.js, once loaded */
-let earState = ""; /* "", "loading", "ready", "failed" */
-function loadEar() {
-  if (ear || earState === "loading") return;
-  earState = "loading"; paint();
-  import(`./strum.js?v=${VERSION}`).then(async m => { if (!(await m.ready())) throw new Error("model"); ear = m; earState = "ready"; paint(); })
-    .catch(() => { earState = "failed"; paint(); });
-}
-// The line's recording, heard for chords (or a riff). One at a time.
-let hearQueue = Promise.resolve();
-export async function listenTo(blob) {
-  const ctx = sound();
-  const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
-  const n = buf.length, x = new Float32Array(n);
-  for (let ch = 0; ch < buf.numberOfChannels; ch++) { const d = buf.getChannelData(ch); for (let i = 0; i < n; i++) x[i] += d[i] / buf.numberOfChannels; }
-  ear ||= await import(`./strum.js?v=${VERSION}`);
-  const notes = await ear.hear(x, buf.sampleRate);
-  return readPlaying(notes);
-}
-// Chords if you strummed (notes starting together);
-// otherwise the single notes of a riff. Also a melody line for the key.
-export function readPlaying(notes) {
-  const ns = cleanNotes(notes);
-  /* A strum starts several strings together; a riff starts one note at a time.
-     So: chords when a good share of notes (30%; stray notes in the quiet
-     before and after a line lower it) begin within 60 ms of another note. */
-  const together = ns.filter(n => ns.some(o => o !== n && Math.abs(o.start - n.start) < 0.06)).length;
-  const strummed = ns.length >= 3 && together / ns.length >= 0.3;
-  const chords = strummed ? strumChords(notes) : [];
-  const riff = chords.length ? [] : riffNotes(notes);
-  /* The top voice stands in for a melody: the key and the chord places use it. */
-  const top = [];
-  for (const n of [...ns].sort((a, b) => a.start - b.start)) { const p = top[top.length - 1]; if (p && n.start < p.start + p.dur - 0.05) { if (n.midi > p.midi) Object.assign(p, { midi: n.midi }); } else top.push({ midi: n.midi, start: n.start, dur: n.dur }); }
-  return { chords, riff, melody: top };
-}
+/* Louie Lite: Sing it is voice only. Guitar and Both, and Strum it, are gone. */
+const mode = () => "sing";
 // The sketch in progress stays while the app is open, so a look elsewhere
 // doesn't lose it. Each line: { words, notes, dur, url, blob, custom (chords
 // you chose over the suggestion) }. `again` is a line being sung again.
@@ -155,7 +114,6 @@ function stopLine(how = "keep") {
     if (again) { made[0].words = sk.lines[rec.i].words; sk.lines[rec.i] = made[0]; }
     else sk.lines.push(...made);
     if (cuts.length) sk.take = take;
-    if (hears()) made.forEach(l => { l.hearing = true; });
   }
   const ln = made[0];
   if (rec.recorder && rec.recorder.state !== "inactive") {
@@ -169,13 +127,10 @@ function stopLine(how = "keep") {
       /* one line, one recording: the guitar is heard from it */
       if (made.length === 1) { ln.blob = take.blob; ln.url = take.url; }
       paint();
-      if (ln?.hearing && made.length === 1) hearLine(ln);
-      else made.forEach(l => { l.hearing = false; });
     };
     rec.recorder.stop();
   }
   if (how === "drop-quiet") return;
-  if (keep && ln.hearing && !rec.recorder) { made.forEach(l => { l.hearing = false; }); toast("This phone can't record the take, so Louie can't hear the guitar. Your voice still works."); }
   if (how === "keep" && !keep) {
     paint();
     const pitched = rec.frames.filter(f => f.hz > 0).length, secs = rec.frames.at(-1)?.t || 0;
@@ -188,33 +143,13 @@ function stopLine(how = "keep") {
       : "No steady notes were heard. Sing the line (not speak it), a little closer to the phone.");
   }
   if (!keep) { paint(); return toast(rec.i < sk.lines.length ? `Line ${rec.i + 1} kept as it was` : "That take is gone. Tap the mic to sing it again."); }
-  tick(); markUsed("sketch"); if (hears()) markUsed("strum");
+  tick(); markUsed("sketch");
   /* Words next: the first new line opens for typing in the same tap, so the keyboard
      (and its microphone, for dictation) is ready. Return moves on to the next line with no words. */
   sk.editing = ln.words ? -1 : sk.lines.indexOf(ln);
   paint();
   if (made.length > 1) toast(`Split at your breaths: ${made.length} lines. Drag a marker to move a split.`);
   if (sk.editing >= 0) $("sk-words")?.focus();
-}
-
-// Hear a kept line's recording: the played chords (or riff) arrive a few
-// seconds after you let go. In Strum it they become the line's chords; in Both
-// they lead too, and the melody's own chords stay one tap away.
-function hearLine(ln) {
-  hearQueue = hearQueue.then(async () => {
-    if (!sk.lines.includes(ln) || !ln.blob) return;
-    try {
-      const r = await listenTo(ln.blob);
-      if (!r.melody.length && !ln.notes.length) { ln.hearing = false; paint(); return toast("Nothing clear was heard. Hold the phone nearer the guitar and try the line again."); }
-      /* Strum it: the chords played stand in for the melody (key, chord places). */
-      if (ln.via === "strum") ln.notes = r.chords.length ? chordToneNotes(r.chords) : r.melody.length ? r.melody : ln.notes;
-      else if (!ln.notes.length) ln.notes = r.melody;
-      ln.played = r.chords.map(c => ({ chord: c.chord, at: c.at }));
-      ln.riff = r.riff.length >= 3 ? r.riff.map(n => n.name) : null;
-      if (ln.played.length) ln.custom = ln.played;
-    } catch { toast("Couldn't hear the guitar in that line. The melody's chords stand in."); }
-    ln.hearing = false; paint();
-  });
 }
 
 // ---- The song so far: the key, each line's chords, and nudges ----
@@ -361,10 +296,8 @@ function paintAll() {
   app.innerHTML = html`<div class="sk2">
     <div class="sk-head"><button class="sk-x" id="sk-cancel" aria-label="${n ? "Discard this sketch" : "Close Sing it"}">${raw(icon("x"))}</button>
       <h1 class="title">Sing it</h1><span class="sk-key" id="sk-key">${keyPill(conf)}</span></div>
-    ${!rec && html`<div class="seg sk-mode" role="group" aria-label="What Louie listens for">${MODES.map(([k, nm]) => html`<button data-mode="${k}" class="${mode() === k ? "on" : ""}" aria-pressed="${mode() === k}">${nm}</button>`)}</div>`}
-    ${hears() && earState !== "ready" ? html`<div class="skear">${earState === "failed" ? html`Couldn't load the chord listener. Check the connection, then switch again.` : html`<i class="spin"></i>Getting the chord listener ready (about 2 MB, once)`}</div>` : ""}
     ${rec
-      ? html`<div class="sk-rec"><div class="sk-reclab"><i aria-hidden="true"></i><b>${rec.i < n ? `LINE ${rec.i + 1} AGAIN` : hears() ? "LISTENING TO YOUR GUITAR" : "LISTENING"}</b><span id="sk-time">0:00</span></div>
+      ? html`<div class="sk-rec"><div class="sk-reclab"><i aria-hidden="true"></i><b>${rec.i < n ? `LINE ${rec.i + 1} AGAIN` : "LISTENING"}</b><span id="sk-time">0:00</span></div>
           <div class="sk-recard"><svg id="sk-rib" viewBox="0 0 346 86" preserveAspectRatio="none" role="img" aria-label="Your melody"></svg><p>${sk.lines[rec.i]?.words || "Add the words after you stop."}</p></div>
           <div class="sk-fits" id="sk-live" aria-live="polite"></div></div>`
       : !n ? introHTML()
@@ -417,12 +350,6 @@ function bind() {
     const l = sk.lines[+b.dataset.pick];
     if (b.dataset.src === "melody") { l.melodyPick = true; delete l.custom; } else { l.melodyPick = false; l.custom = l.played; }
     paint(); tick();
-  });
-  app.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => {
-    if (sk.rec) return;
-    data.settings.sketchMode = b.dataset.mode; Tabs.save(data);
-    if (hears()) loadEar();
-    paint();
   });
   app.querySelectorAll("[data-opts]").forEach(b => b.onclick = () => lineSheet(+b.dataset.opts));
   app.querySelectorAll(".skfam-c").forEach(b => b.onclick = () => strum(b.dataset.chord));
@@ -571,7 +498,6 @@ async function showSong() {
   stopLine("drop-quiet");
   if (!sk.lines.length) return;
   await Promise.race([Promise.all(sk.lines.map(l => l.ready)), new Promise(r => setTimeout(r, 1500))]);
-  if (sk.lines.some(l => l.hearing)) { toast("Still hearing your chords. One moment…"); await Promise.race([hearQueue, new Promise(r => setTimeout(r, 30000))]); }
   if (!sk.lines.some(l => l.notes.length)) return;
   sk.view = "song"; sk.editing = -1;
   paint(); window.scrollTo(0, 0);
@@ -588,7 +514,7 @@ function paintSong() {
     </section>
     <div><small class="sk-k">HOW THE CHORDS PLAY</small>
       <div class="seg sk-feel" role="group" aria-label="How the chords play">${FEELS.map(([k, n]) => html`<button data-feel="${k}" class="${sk.feel === k ? "on" : ""}" aria-pressed="${sk.feel === k}">${n}</button>`)}</div></div>
-    ${first && html`<div class="sks-win"><span class="sks-badge" aria-hidden="true">${raw(icon("note"))}</span><div><b>Songwriter!</b><span>Your first song: +${WRITER_FANS} fans when you save it</span></div></div>`}
+    ${first && html`<div class="sks-win"><span class="sks-badge" aria-hidden="true">${raw(icon("note"))}</span><div><b>Songwriter!</b><span>Your first song, written here</span></div></div>`}
     <div class="sk-space"></div>
     <div class="sk-dock sks-dock"><button class="btn sks-edit" id="sk-edit">Edit lines</button><button class="btn primary sk-done" id="sk-save">SAVE TO SONGBOOK</button></div>
   </div>`.toString();
@@ -634,13 +560,12 @@ async function playSong() {
   if (songPlay === p) stopSongPlay();
 }
 // Save: the chords as shown (with any you picked) over the words, as a song in the Songbook, with the melody and the
-// recordings on this phone. The first song you write is worth fans (and the Songwriter badge).
-const WRITER_FANS = 50;
+// recordings on this phone.
 async function save() {
   stopSongPlay();
   const kept = sk.lines.filter(l => l.notes.length);
   if (!kept.length) return;
-  const key = plan(), first = !data.songs.some(x => x.sketch);
+  const key = plan();
   const body = kept.map(l => l.riff && !l.played?.length ? `Riff: ${l.riff.join(" ")}${l.words.trim() ? `\n${l.words.trim()}` : ""}` : chordLine(l.words.trim(), l.notes, l.changes || [])).join("\n");
   const name = key ? key.name : "";
   const sketch = { v: 1, key: name, style: "simple", feel: sk.feel, lines: kept.map(l => ({ n: packNotes(l.notes) })) };
@@ -648,11 +573,9 @@ async function save() {
   const title = sk.title.trim() || `New song ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
   const song = Tabs.addSong(data, { title, body, key: key?.sure ? name : "", format: "chords", sketch });
   if (clips.some(Boolean)) saveClips(song.id, clips).catch(() => {});
-  if (first) { const q = data.quests || (data.quests = { fans: 0 }); q.fans = (q.fans || 0) + WRITER_FANS; Tabs.save(data); }
   reset(); closeMic();
   go("#/song/" + encodeURIComponent(song.id));
-  if (first) setTimeout(() => showCallout({ kind: "earn", pow: "WROTE IT!", word: "SONGWRITER", big: `+${WRITER_FANS} fans` }), 700);
-  setTimeout(() => toast(`Saved${name ? `, in ${pretty(name)}` : ""}. Tap any chord to change it.`), first ? 2600 : 700);
+  setTimeout(() => toast(`Saved${name ? `, in ${pretty(name)}` : ""}. Tap any chord to change it.`), 700);
 }
 
 // ---- Recordings kept on this phone (IndexedDB "louielite-sketch"), one per sung line ----
@@ -744,7 +667,6 @@ export async function hearSketch(song, onEnd) {
 }
 
 export function renderSketch() {
-  if (hears()) loadEar();
   paint();
   window.scrollTo(0, 0);
 }

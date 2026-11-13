@@ -2339,26 +2339,12 @@ test("4.39.1 Louie's hands: the thumbs up tips the thumb out, and the pointing h
   assert.match(louie("happy", { pose: "point" }), /translate\(180 108\) rotate\(40\)/, "the pointing hand leans, never straight up");
 });
 
-test("4.40.0 Opening night: only for a new player, one step at a time, fans once, skip and replay", () => {
-  const fresh = () => ({ songs: [{ id: "s", title: "Harbor Lights", sample: true, body: "[Verse]\nG D\nLights" }], sets: [], trash: [], settings: {} });
-  const d = fresh();
-  assert.equal(C.openingView(d), "leg", "a new player starts on Opening night");
-  assert.equal(C.openingView({ ...fresh(), skills: { done: { "chord-G": { n: 1 } } } }), null, "anyone with a lesson (or a play) never sees it");
-  assert.equal(C.openingAdvance(d, "chord"), false, "steps go in order");
-  assert.equal(C.OPENING[0].id, "who", "4.85.0: Who's playing tonight? comes first");
-  assert.equal(C.openingAdvance(d, "mic"), false, "the microphone waits for the guitarist");
-  assert.equal(C.openingAdvance(d, "who"), true);
-  assert.equal(C.fansOf(d), 0, "making your guitarist pays no fans");
-  assert.equal(C.openingAdvance(d, "mic"), true);
-  assert.equal(C.openingStep(d), 2); assert.equal(C.fansOf(d), C.FANS.lesson, "a step gives lesson fans");
-  for (const id of ["chord", "verse", "pause", "show"]) assert.ok(C.openingAdvance(d, id), id);
-  assert.equal(d.opening.fans, 4 * C.FANS.lesson, "the show itself pays as a play, not as a step");
-  assert.equal(C.openingView(d), "done", "the Road shows it done once");
-  d.opening.seen = 1; assert.equal(C.openingView(d), null);
-  C.openingReplay(d); assert.equal(C.openingView(d), "leg", "Tips & gestures replays it");
-  assert.equal(C.openingStep(d), 1, "a replay skips choosing your guitarist again");
-  C.openingAdvance(d, "mic"); assert.equal(d.opening.fans, 4 * C.FANS.lesson, "no fans twice");
-  const s = fresh(); C.openingSkip(s); assert.equal(C.openingView(s), null, "Skip ends it");
+test("Louie Lite: Opening night does not run", () => {
+  const d = { songs: [{ id: "s", title: "Harbor Lights", sample: true, body: "[Verse]\nG D\nLights" }], sets: [], trash: [], settings: {} };
+  assert.equal(C.openingOn(d), false);
+  assert.equal(C.openingAdvance(d, "who"), false);
+  assert.equal(C.openingAdvance(d, "mic"), false);
+  assert.equal(d.opening, undefined, "a step does not start a night or pay fans");
   assert.deepEqual(C.cleanOpening({ step: 9, fans: 999, micOff: true, done: "x", junk: 1 }), { step: 6, v: 2, fans: 25, micOff: true });
   assert.equal(C.cleanOpening({ step: 2, fans: 5 }).step, 3, "a save from before 4.85.0 moves up one step");
   assert.equal(C.cleanOpening({ step: 0 }).step, 0, "one that hadn't started stays at the start");
@@ -2720,43 +2706,6 @@ test("4.85.0 your guitarist: patches, moods and seeded rivals", () => {
   assert.ok(C.cleanMe(a), "a rival is a valid guitarist");
   const worn = C.cleanMe({ ...C.ME_DEFAULT, patches: ["b:nope"] });
   assert.deepEqual(C.patchesOf({ ...data, me: worn }), [], "a patch you haven't earned isn't worn");
-});
-
-test("4.85.0 guitarist.js draws every hair, pose, mood, look and guitar, and lefty mirrors the body", async () => {
-  const { guitarist } = await import("../guitarist.js");
-  const looks = ["tee", "vest", "leather", "stage"], P = [{ kind: "leg", color: "#8a6a4a", top: "1" }, { kind: "show", color: "#ff5fa8", top: "10" }];
-  for (const hair of C.ME_HAIR) for (const pose of ["play", "hornsUp", "rest"]) for (const mood of ["happy", "cheer", "worried", "sleepy", "proud"]) {
-    const s = guitarist({ ...C.ME_DEFAULT, hair, beard: "beard", glasses: true, extra: "cap" }, { mood, pose, look: looks[mood.length % 4], patches: P, guitar: C.GUITARS.strum });
-    assert.ok(s.startsWith("<svg") && s.endsWith("</svg>") && !s.includes("undefined") && !s.includes("NaN"), `${hair} ${pose} ${mood}`);
-  }
-  for (const g of Object.values(C.GUITARS)) assert.ok(!guitarist(C.ME_DEFAULT, { guitar: g }).includes("undefined"), g.name);
-  assert.ok(guitarist(C.ME_DEFAULT, {}).includes('aria-label="Your guitarist"'));
-  assert.ok(guitarist(C.ME_DEFAULT, { label: "Neon Jen" }).includes('aria-label="Neon Jen"'));
-  assert.ok(guitarist({ ...C.ME_DEFAULT, lefty: true }, {}).includes("scale(-1 1)"), "lefty mirrors");
-  assert.ok(!guitarist(C.ME_DEFAULT, {}).includes("scale(-1 1)"));
-  const bust = guitarist(C.ME_DEFAULT, { crop: "bust", patches: [...P].reverse() });
-  assert.equal((bust.match(/font-size="9.5"/g) || []).length, 1, "the bust wears only the newest patch");
-  assert.notEqual(guitarist(C.ME_DEFAULT, {}).match(/id="t\d+"/)[0], guitarist(C.ME_DEFAULT, {}).match(/id="t\d+"/)[0], "clip ids are unique");
-});
-
-test("4.87.0 every guitar is a picture: head, body and small picture saved for offline, numbers in range, each picture under 60 KB", async () => {
-  const { GUITARS } = await import("../core.js");
-  const PICS = (await import("../art/guitars/pics.js")).default;
-  const shell = read("sw.js");
-  assert.ok(shell.includes(`"art/guitars/pics.js"`));
-  for (const [leg, g] of Object.entries(GUITARS)) {
-    const name = g.body === "swallow" ? "headliner" : g.body, p = PICS[name];
-    assert.ok(p, `${leg} has numbers for ${name}`);
-    for (const part of ["head", "body", "small"]) {
-      const file = `art/guitars/${name}-${part}.webp`;
-      assert.ok(fs.existsSync(path.join(root, file)), `${leg} has ${file}`);
-      assert.ok(shell.includes(`"${file}"`), `${file} is saved for offline`);
-      assert.ok(fs.statSync(path.join(root, file)).size <= 60000, `${file} is small`);
-    }
-    for (const part of ["head", "body"]) assert.ok(p[part].nw > 20 && p[part].cx > 0 && p[part].cx < p[part].w, `${name} ${part}: the neck is inside the picture`);
-    assert.ok(p.body.end > 0 && p.body.end < p.body.bridge && p.body.bridge < p.body.h, `${name}: neck end, then bridge, inside the body`);
-    assert.match(p.lit, /^#[0-9a-f]{6}$/); assert.match(p.shade, /^#[0-9a-f]{6}$/);
-  }
 });
 
 test("4.88.0: trumpet came out; what it saved is cleared on load", () => {

@@ -81,7 +81,7 @@ test("4.74.0 Sing it: one take split at a breath into two lines, words, Your son
   await page.click("#ed-sing"); await page.waitForSelector('#sk-pad');
   assert.match(await page.innerText("h1"), /Sing it/);
   assert.equal(await page.locator(".skwheel, #sk-wheel").count(), 0, "4.74.0: no key wheel");
-  assert.deepEqual(await page.$$eval("[data-mode]", b => b.map(x => x.textContent.trim())), ["Voice", "Guitar", "Both"]);
+  assert.equal(await page.locator("[data-mode]").count(), 0, "voice only: no Guitar or Both");
   const hz = m => 440 * 2 ** ((m - 69) / 12);
   const sing = async ms => { for (const m of ms) { await page.evaluate(f => { window.__hz = f; }, hz(m)); await page.waitForTimeout(420); /* real timer */ } };
   const rest = async ms => { await page.evaluate(() => { window.__hz = 0; }); await page.waitForTimeout(ms); /* real timer */ };
@@ -116,7 +116,6 @@ test("4.74.0 Sing it: one take split at a breath into two lines, words, Your son
   assert.equal(song.key, "G");
   assert.match(song.body, /^G\s+C\nPorch light burning past the second shift\nD\s+G\nHome to you a little more$/);
   assert.deepEqual(song.sketch.lines.map(l => l.n.length), [8, 6], "the melody stays with the song (the three Gs at the end are one held note)");
-  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).quests.fans >= 50, true, "+50 fans for the first song written");
   await page.waitForSelector('h1.song-title');
   await page.waitForSelector("#sk-hear:not([hidden])", { timeout: 4000 }); await settled(page); /* the song page has just faded in: taps wait for it */
   /* keep hold of the Undo button the moment it appears: on a busy machine a later toast can replace it before the save lands */
@@ -547,12 +546,12 @@ test("4.44.0 an achievement callout bursts over a playing song, takes no taps, c
   const page = await phone(t, lib);
   await page.goto(base + "#/song/a"); await page.waitForSelector("#play");
   await page.click("#play"); await page.waitForFunction(() => document.body.classList.contains("fold"));
-  await page.evaluate(() => import("/app.js").then(m => { m.showCallout({ kind: "combo", word: "COMBO", big: "x10" }); m.showCallout({ kind: "level", word: "LEVEL UP", big: "3" }); }));
+  await page.evaluate(() => import("/app.js").then(m => { m.showCallout({ kind: "chord", word: "NEW CHORD", big: "F" }); m.showCallout({ kind: "level", word: "LEVEL UP", big: "3" }); }));
   await page.waitForSelector(".co");
   assert.equal(await page.locator(".co").count(), 1, "one at a time");
-  assert.match(await page.innerText(".co-badge"), /COMBO\s*x10/);
+  assert.match(await page.innerText(".co-badge"), /NEW CHORD\s*F/);
   assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector(".co")).pointerEvents), "none", "taps go to the screen underneath");
-  await page.waitForFunction(() => /COMBO x10/.test(document.getElementById("co-say")?.textContent || ""));
+  await page.waitForFunction(() => /NEW CHORD F/.test(document.getElementById("co-say")?.textContent || ""));
   await page.waitForFunction(() => /LEVEL UP/.test(document.querySelector(".co-badge")?.textContent || ""), null, { timeout: 5000 }); /* the next one, after the first clears */
   assert.equal(await page.getAttribute("#play", "aria-label"), "Pause auto-scroll", "the song kept playing");
   await page.waitForSelector(".co", { state: "detached", timeout: 5000 });
@@ -573,7 +572,7 @@ test("4.45.1: a toast from a switch in Tools sits above the sheet, not at the to
   await page.goto(base + "#/song/a"); await page.waitForSelector('.metarow');
   await page.click("#more"); await page.waitForSelector('.menu.tools');
   await page.waitForFunction(() => !document.querySelector(".menu").getAnimations().length);
-  await page.click('.menu [data-m="wait"]'); await page.waitForSelector('.toast.show');
+  await page.click('.menu [data-m="follow"]'); await page.waitForSelector('.toast.show');
   await page.waitForFunction(() => { const t = document.getElementById("toast").getBoundingClientRect(), m = document.querySelector(".menu").getBoundingClientRect(); return Math.abs(t.bottom - m.top) < 24; });
 });
 

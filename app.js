@@ -1,5 +1,5 @@
 // Tabs app: screens and interaction. core.js holds the logic that has unit tests.
-import { achSettle, profileOf, MAX_LENGTH, openingOn, spotTimes, liningDue, practicing, practiceRate, keyGap, journalPractice, addSync, mergeSyncs, syncSeconds, syncWhere, playCredited, playSongs, soundOffset, germanBlocks, sungText, deSource, DE_LEVELS, Tabs, SPEEDS, playsThisWeek, playCount, sortSongs, TUNINGS, detectTuning, parseBlocks, wrapTab, guessKey, transposeKey, prefersFlats, detectPaste, parseSheet, sheetChords, chordShape, appleTrackId, VERSION, restyle, firstLyric, bodyCapo, journalTime, journalGot, streakMoment, knownChords, questsSettle, bandMeet, merchWorn, LANGS, langOf, langChosen, deLangOk, looksOwned } from "./core.js";
+import { achSettle, profileOf, MAX_LENGTH, spotTimes, liningDue, practicing, practiceRate, keyGap, journalPractice, addSync, mergeSyncs, syncSeconds, syncWhere, playCredited, playSongs, soundOffset, germanBlocks, sungText, deSource, DE_LEVELS, Tabs, SPEEDS, playsThisWeek, playCount, sortSongs, TUNINGS, detectTuning, parseBlocks, wrapTab, guessKey, transposeKey, prefersFlats, detectPaste, parseSheet, sheetChords, chordShape, appleTrackId, VERSION, restyle, firstLyric, bodyCapo, journalTime, journalGot, streakMoment, knownChords, merchWorn, LANGS, langOf, langChosen, deLangOk, looksOwned } from "./core.js";
 import { openDial } from "./dial.js";
 import { setupFold, teardownFold } from "./fold.js";
 import { $, app, esc, icon, layer, leaveHooks, oneHandMQ, onLeave, onScroll, toast, sound } from "./ui.js";
@@ -58,9 +58,9 @@ function applyTheme() {
 
 const go = h => { location.hash = h; };
 /* From Tonight: open a song and start it playing; open the Library with search ready. */
-let playNext = null, searchNext = false, lastHome = "library"; /* where a song's Back goes: Tonight or the Library */
+let playNext = null, searchNext = false;
 const playSong = id => { playNext = id; go("#/song/" + encodeURIComponent(id)); };
-/* The Gig (4.1.0): open the song and play it as a scored show. gigHooks are set by gig.js while a show is on. */
+/* Louie Lite has no scored show. gigHooks stays so a play can still report when it stops. */
 const gigHooks = { on: false, held: false, credited: null, stopped: null, resume: null, leave: null, band: null };
 /* Play opens the Gig (4.2.0). The Gig is words first (4.46.0). Practicing a section or slower, a tab and Play together play the plain sheet.
    plainPlay (tests only, never set by the app) keeps Play plain. */
@@ -88,30 +88,9 @@ function celebrate(had) {
   Tabs.save(data);
   if (got.length) setTimeout(() => got.forEach(showCallout), 900);
 }
-/* Your band (4.7.0): a play that brings in a new friend says so (4.44.0: with a callout, the friend in it) */
-function bandToast() {
-  const fresh = bandMeet(data);
-  if (!fresh.length) return;
-  Tabs.save(data);
-  fresh.slice(0, 2).forEach(f => setTimeout(() => showCallout({ kind: "join", word: "JOINED YOUR BAND", big: FRIEND_NAMES[f.id] || f.id, who: f.id }), 2000));
-  const names = fresh.map(f => FRIEND_NAMES[f.id] || f.id);
-  setTimeout(() => toast(`${names.join(" and ")} joined your band!`, null, { label: "Meet", fn: () => go("#/band") }), 2500);
-}
-const FRIEND_NAMES = { lola: "Lola", tilly: "Tilly", beat: "Beat", metro: "Metro", bex: "Bex", jax: "Jax", milo: "Milo", pip: "Pip", key: "Key", strap: "Strap", slide: "Slide", shaker: "Shaker", pickup: "Pickup", humb: "Humb", reverb: "Reverb", triangle: "Triangle", whammy: "Whammy", looper: "Looper" };
-/* Tour quests (4.5.0): a play that finishes a goal says so */
-function questToast() {
-  const got = questsSettle(data);
-  if (!got.length) return;
-  Tabs.save(data);
-  toast(got.map(x => `${x.label}: +${x.fans} fans`).join(" · "));
-  /* 4.71.0: and a POW for what it paid */
-  showCallout({ kind: "earn", pow: got.length > 1 ? "WHAM!" : "POW!", word: got.length > 1 ? "SETLIST DONE" : "QUEST DONE", big: `+${got.reduce((n, x) => n + x.fans, 0)} fans` });
-}
 let songSpeed = null; /* the song page's speed dial, for the Tools sheet */
-let gigNext = null;
-let gigFrom = null; /* 4.66.0: where the last show was started from, so the song page's Back returns there */
-const playGig = (id, opts = {}) => { gigNext = { id, ...opts }; if (opts.from) gigFrom = { id, from: opts.from }; if (route().name === "song" && route().id === id) return openGigNow(); go("#/song/" + encodeURIComponent(id)); };
-function openGigNow() { const g = gigNext; gigNext = null; if (g && viewing?.id === g.id) lazy("gig.js").then(m => { if (viewing?.id === g.id && route().name === "song" && $("sheet")) m.openGig(viewing, g); }); }
+/* Play a song straight through. The scored show is gone. */
+const playGig = id => playSong(id);
 const openSearch = (from = "") => { searchNext = true; setSearchFrom(from); go("#/library"); };
 /* The Neck's Learning list opens a song on the section you last practiced (3.24.2). */
 let sectionNext = null;
@@ -161,9 +140,7 @@ function renderViewer(id) {
   app.classList.add("viewer");
   /* Back goes where the song was opened from: its set, when played from one. */
   const fromSet = (() => { const x = setCtx && data.sets.find(z => z.id === setCtx.id); return x && setSongs(x)[setCtx.idx]?.id === song.id ? x : null; })();
-  /* 4.66.0: a show started from Tour or Charts comes back there with the page's own Back */
-  const via = gigFrom?.id === song.id ? gigFrom.from : "";
-  const back = fromSet ? { to: "#/set/" + encodeURIComponent(fromSet.id), label: `Back to ${fromSet.name}` } : via === "tour" ? { to: "#/tour", label: "Back to the Tour" } : via === "charts" ? { to: "#/charts", label: "Back to the Charts" } : lastHome === "road" || via === "road" ? { to: "#/", label: "Back to the Road" } : { to: "#/library", label: "Back to the Songbook" };
+  const back = fromSet ? { to: "#/set/" + encodeURIComponent(fromSet.id), label: `Back to ${fromSet.name}` } : { to: "#/library", label: "Back to the Songbook" };
   diag.pinned = null; diag.scrolling = false; diag.block = null;
   /* One song screen (4.2.0): the song at the top (back, title, favorite), its chips, the song map,
      the chords, the sheet, and at the bottom Tools and Play. Play opens the Gig. */
@@ -297,7 +274,7 @@ function renderViewer(id) {
   paintLoop(song);
   setTimeout(buildMap, 50);
   if (setCtx?.autoplay) { setCtx.autoplay = false; setTimeout(() => { if (viewing === song && !scroll.on) startScroll(song); }, 400); }
-  else setTimeout(() => { if (openingOn(data)) import(`./opening.js?v=${VERSION}`).then(m => { if (viewing === song && !m.onSong(song)) songCoach(song); }); else songCoach(song); }, 600); /* 4.40.0: Opening night says what this step wants */
+  else setTimeout(() => { if (viewing === song) songCoach(song); }, 600);
   /* 4.41.0: a song whose chords were guessed is lined up from the chord sites, once, in the background */
   if (aiKey() && liningDue(song)) setTimeout(() => { if (viewing === song) lazy("findai.js").then(m => m.relineSong(song)); }, 1500);
 
@@ -1027,7 +1004,7 @@ const menuHasNew = () => !tipsSeen().menu && Object.values(NEW_IN_MENU).some(k =
 const usesMusic = song => hasMusic(song) && song.backing !== "band";
 /* Wait for me (4.54.0): the song holds on each chord until you play it. Saved per song, on for a song you are
    learning; not with a recording, which can't wait. */
-const waitOn = song => !!song && !usesMusic(song) && (song.waitForMe ?? song.status === "learning");
+const waitOn = () => false; /* Louie Lite: no Wait for me. The page does not hold for a heard chord. */
 /* Follow my tempo (4.80.0): the page and the band speed up or slow down to the chords you play. Saved per song,
    on for a song you are learning; not with a recording, which keeps its own tempo. `follow.k` is the pace now. */
 const followOn = song => !!song && !usesMusic(song) && (song.followTempo ?? song.status === "learning");
@@ -1167,7 +1144,6 @@ function songMenu(song, anchor, redrawSong) {
     { id: "play", label: "Play", head: "HOW IT PLAYS", rows: [
       { id: "speed", icon: "gauge", label: byLength() ? "Song length" : "Speed", sub: byLength() ? "How long one play takes" : "How fast the page moves", step: true },
       { id: "beat", icon: "metro", label: "Beat", sub: beatMode() === "off" ? "Off" : `${beatName()} · ${song.bpm || 90} BPM`, beat: true },
-      chords && { id: "wait", icon: "mic", label: "Wait for me", sub: usesMusic(song) ? "Plays with the band or the scroll, not a recording" : "The song waits for each chord you play", on: waitOn(song), off: usesMusic(song) },
       chords && { id: "follow", icon: "gauge", label: "Follow my tempo", sub: usesMusic(song) ? "Plays with the band or the scroll, not a recording" : scroll.on && followOn(song) && follow.k !== 1 ? `Following you: ${Math.round(follow.k * 100)}% of the song's tempo` : "The song speeds up or slows down with you", on: followOn(song), off: usesMusic(song) },
       { id: "size", icon: "type", label: "Text size", size: true }
     ] },
@@ -1261,7 +1237,6 @@ function songMenu(song, anchor, redrawSong) {
     }
     const inPlace = { metro: () => toggleMetronome(song, toolsAnchor()),
       capo: () => { song.capoOff = !song.capoOff; if (!song.capoOff) delete song.capoOff; Tabs.save(data); redrawSong(); toast(song.capoOff ? "Capo off: the chords are in the key the song sounds in" : `Capo ${bodyCapo(song.body)} is back`); },
-      wait: () => { song.waitForMe = !waitOn(song); Tabs.save(data); toast(song.waitForMe ? "Wait for me: the song waits for each chord you play" : "Wait for me off", toolsAnchor()); },
       follow: () => { song.followTempo = !followOn(song); if (!song.followTempo) follow.k = 1; Tabs.save(data); toast(song.followTempo ? "Follow my tempo: the song keeps your pace" : "Follow my tempo off: the song's own tempo", toolsAnchor()); },
       easy: () => { if (aiKey()) return false; ez.on = !ez.on; Tabs.save(data); redrawSong(); } };
     const ip = ev.target.closest("[data-m]");
@@ -1571,7 +1546,7 @@ document.addEventListener("click", e => {
   if (chord && !scroll.on) {
     const same = chord.classList.contains("sel");
     showChordPop(same ? null : chord);
-    if (!same) { chordTapped(chord); if (openingOn(data)) import(`./opening.js?v=${VERSION}`).then(m => m.onChord()); }
+    if (!same) chordTapped(chord);
     return;
   }
   if (!(e.target instanceof Element && e.target.closest(".shapecard"))) showChordPop(null);
@@ -1851,7 +1826,7 @@ async function startScroll(song, opts = {}) {
       if (!activeLoop(song) && end >= 0 && scrollY >= end - 2) {
         const expectedMs = (end < 40 ? songLength(song) : end / (pxPerSecond(song) * loopFactor(song))) * 1000;
         if (!scroll.logged && playCredited({ end, cover: scroll.cover, ms: scroll.runMs, expectedMs })) {
-          scroll.logged = true; scroll.credited = true; const had = chordsHad(); Tabs.logPlay(data, song); if (data.settings.place) lazy("tuneup.js").then(m => m.notePlayAir()); /* 4.72.0 */ curPaintStat?.(); endMoment(song); streakSoon(song); gigHooks.credited?.(song); celebrate(had); if (!gigHooks.on) { questToast(); bandToast(); } if (setRun && setCtx?.id === setRun.id) setRun.played.add(song.id); if (setCtx) nextUp();
+          scroll.logged = true; scroll.credited = true; const had = chordsHad(); Tabs.logPlay(data, song); if (data.settings.place) lazy("tuneup.js").then(m => m.notePlayAir()); /* 4.72.0 */ curPaintStat?.(); endMoment(song); streakSoon(song); gigHooks.credited?.(song); celebrate(had); if (setRun && setCtx?.id === setRun.id) setRun.played.add(song.id); if (setCtx) nextUp();
         }
         /* A sheet that fits the screen has only the clock to go by, so it plays on until it counts. */
         if (scroll.logged || end >= 40) {
@@ -1972,11 +1947,7 @@ function render() {
 function renderRoute() {
   const r = route();
   leaveHooks.forEach(fn => fn(r));
-  if (r.name === "road" || r.name === "library") lastHome = r.name;
-  document.body.classList.toggle("is-home", r.name === "road");
-  /* 4.0.0: the tab bar along the bottom of the main pages (not a lesson, a song or Settings) */
-  const tabbed = ["road", "tour", "charts", "band", "practice", "you", "merch", "support"].includes(r.name) && !(r.name === "practice" && r.id && r.id !== "neck"); /* 4.42.5: #/practice/neck is Rehearse, so it keeps the tab bar */
-  document.body.classList.remove("tabbed"); void tabbed; /* Louie Lite: no tab bar */
+  document.body.classList.remove("tabbed", "is-home"); /* Louie Lite: no tab bar, no Road */
   app.classList.remove("viewer");
   layer.innerHTML = "";
   /* Old links: #/add and #/edit/<id> open the editor. */
@@ -1987,7 +1958,6 @@ function renderRoute() {
     if (lessonOpen?.id === r.id) { const lo = lessonOpen; lessonOpen = null; sectionNext = r.id; setTimeout(() => { if (viewing?.id === r.id) applyLessonOpen(viewing, lo); }, 120); }
     if (sectionNext === r.id) { sectionNext = null; setTimeout(() => { const s = viewing, first = s?.id === r.id && s.loop && sheetLines()[s.loop.a]; if (first && !scroll.on) window.scrollTo({ top: Math.max(0, scrollY + first.getBoundingClientRect().top - innerHeight * READ_AT), behavior: "auto" }); }, 200); }
     if (playNext === r.id) { playNext = null; setTimeout(() => { if (viewing?.id === r.id && !scroll.on) $("play")?.click(); }, 450); }
-    if (gigNext?.id === r.id) setTimeout(openGigNow, 350);
     const want = openEdit;
     openEdit = null;
     const song = viewing?.id === r.id && want?.id === r.id ? viewing : null;
@@ -2001,13 +1971,8 @@ function renderRoute() {
   else if (r.name === "sketch") lazy("sketch.js").then(m => { if (route().name === "sketch") m.renderSketch(); });
   else if (r.name === "set") { renderSet(r.id); window.scrollTo(0, 0); }
   else if (r.name === "import") renderImport(r.id);
-  else if (r.name === "road") lazy("road.js").then(m => { if (route().name === "road") { m.renderRoad(); window.scrollTo(0, 0); } });
-  else if (r.name === "tour") lazy("tour.js").then(m => { if (route().name === "tour") { m.renderTour(); window.scrollTo(0, 0); } });
-  else if (r.name === "duel") lazy("duel.js").then(m => { if (route().name === "duel") { m.renderDuel(r.id); window.scrollTo(0, 0); } });
   else if (r.name === "charts") lazy("charts.js").then(m => { if (route().name === "charts") { m.renderCharts(); window.scrollTo(0, 0); } });
-  else if (r.name === "merch") lazy("merch.js").then(m => { if (route().name === "merch") { m.renderMerch(); window.scrollTo(0, 0); } });
   else if (r.name === "support") lazy("support.js").then(m => { if (route().name === "support") { m.renderSupport(); window.scrollTo(0, 0); } });
-  else if (r.name === "band") lazy("band.js").then(m => { if (route().name === "band") { m.renderBand(); window.scrollTo(0, 0); } });
   else { renderLibrary(); window.scrollTo(0, 0); if (searchNext) { searchNext = false; setTimeout(() => $("q")?.focus(), 60); } } /* the library always opens at its top */
 }
 
