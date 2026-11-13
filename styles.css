@@ -4472,3 +4472,39 @@ body.staged .sheet > .sec.st-past { color: var(--muted); }
 /* Show complete's Chords tile: white words on a deeper blue in Light, white on purple in Green Room */
 :root[data-theme="light"]:not([data-look="green"]) .gc-tile.beat, :root[data-look="festival"] .gc-tile.beat { background: var(--strings-deep); box-shadow: 0 5px 0 #1F56B8; }
 :root[data-theme="light"]:not([data-look="green"]) .gc-tile.beat small, :root[data-look="festival"] .gc-tile.beat small, :root[data-look="green"] .gc-tile.beat small { color: #FFFFFF; }
+
+/* Louie Lite: the amp look is the only theme. Dark is the default, Light keeps the same materials. */
+:root[data-look="amp"] {
+  --bg: #0c0d0f; --fg: #f3f1ee; --fg-2: #c9c7c3; --muted: #8f8e8c; --accent: #eda27f; --accent-ink: #eda27f;
+  --card: rgba(255,255,255,.045); --card-2: rgba(255,255,255,.08); --rim: rgba(184,147,90,.35); --line: rgba(255,255,255,.08);
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --serif: "New York", ui-serif, "Iowan Old Style", Charter, Georgia, serif;
+  --display: "New York", ui-serif, "Iowan Old Style", Charter, Georgia, serif;
+  --bronze: #b8935a; --bronze-line: rgba(184,147,90,.42);
+  --plate: repeating-linear-gradient(90deg, rgba(255,250,230,.07) 0 1px, rgba(0,0,0,0) 1px 3px, rgba(90,60,20,.05) 3px 4px), linear-gradient(180deg, #e6cb92, #cfab6a 42%, #b08b4f);
+  --plate-shadow: inset 0 1px 0 rgba(255,246,220,.75), inset 0 -1px 0 rgba(60,40,10,.35), 0 10px 28px rgba(0,0,0,.4);
+  --copper: linear-gradient(180deg, #c8804f, #9c5631); --copper-fg: #fff3e6; --copper-hi: inset 0 1px 0 rgba(255,220,190,.45); --copper-glow: 0 8px 22px rgba(156,86,49,.45);
+  --chrome: radial-gradient(circle at 50% 25%, #2b2b2f, #111113);
+  --lamp-off: radial-gradient(circle at 35% 30%, rgba(255,230,190,.3) 0 14%, #6b3a12 45%, #2e1606 85%);
+  --lamp-on: radial-gradient(circle at 35% 30%, #fff1c9 0 12%, #ffb24a 34%, #e2661c 70%, #8a2d08);
+  --lamp-glow: 0 0 8px 2px rgba(255,140,40,.6);
+  --glass-tint: rgba(28,28,31,.72);
+}
+:root[data-look="amp"][data-theme="light"] {
+  --bg: #f4f1ea; --fg: #1c1b19; --fg-2: #4a463f; --muted: #6f6a62; --accent: #9c5631; --accent-ink: #7a3e22;
+  --card: #fffdf8; --card-2: #fff; --rim: rgba(134,102,58,.35); --line: rgba(80,60,30,.12);
+  --glass-tint: rgba(255,252,246,.82);
+}
+:root[data-look="amp"] body, :root[data-look="amp"] .app { background: var(--bg); color: var(--fg); font-family: var(--sans); }
+:root[data-look="amp"] .title, :root[data-look="amp"] h1.title, :root[data-look="amp"] .song-title { font-family: var(--serif); font-weight: 600; letter-spacing: .2px; }
+:root[data-look="amp"] .btn { min-height: 42px; border-radius: 16px; font-family: var(--sans); }
+:root[data-look="amp"] .btn.primary { min-height: 56px; background: var(--copper); color: var(--copper-fg); border: 1px solid #6e3a1e; box-shadow: var(--copper-hi), var(--copper-glow); }
+:root[data-look="amp"] .btn:not(.primary) { background: var(--chrome); color: #e9e9ec; border: 1px solid #3a3a40; }
+:root[data-look="amp"] .chip { height: 32px; border: 1px solid var(--bronze-line); background: var(--card); }
+:root[data-look="amp"] .chip::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--lamp-off); box-shadow: 0 0 0 1.5px rgba(0,0,0,.45); flex: none; }
+:root[data-look="amp"] .chip.on::before { background: var(--lamp-on); box-shadow: 0 0 0 1.5px rgba(0,0,0,.45), var(--lamp-glow); }
+:root[data-look="amp"] .set-group, :root[data-look="amp"] .panel, :root[data-look="amp"] .card, :root[data-look="amp"] .endcard { border: 1px solid var(--bronze-line); }
+:root[data-look="amp"] .dock { background: var(--plate); box-shadow: var(--plate-shadow); border: 1px solid #6d5326; border-radius: 22px; padding: 8px; }
+:root[data-look="amp"] .dock .play { background: var(--copper); color: var(--copper-fg); border: 1px solid #6e3a1e; }
+:root[data-look="amp"] .menu.tools, :root[data-look="amp"] .panel { background: var(--glass-tint); backdrop-filter: blur(18px); }
+:root[data-look="amp"][data-theme="light"] .btn:not(.primary) { background: #fff; color: var(--fg); border: 1px solid var(--bronze-line); }

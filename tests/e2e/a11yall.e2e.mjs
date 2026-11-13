@@ -43,7 +43,7 @@ const unnamed = () => {
 };
 
 /* one test per palette and screen, so CI lists each problem on its own line */
-for (const theme of ["dark", "light", "green", "headliner"]) for (const [screen, hash, act] of SCREENS) {
+for (const theme of ["dark", "light"]) for (const [screen, hash, act] of SCREENS) {
   test(`4.73.0 ${screen}: names, and axe finds nothing serious (${theme})`, { skip: skip(), timeout: 120000 }, async t => {
     const page = await phone(t, lib(theme), { colorScheme: ["dark", "headliner"].includes(theme) ? "dark" : "light", reducedMotion: "reduce", locale: "en-US", permissions: ["clipboard-read", "clipboard-write"] });
     await page.route("https://api.open-meteo.com/**", r => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ current: { relative_humidity_2m: 85, temperature_2m: 60 } }) }));

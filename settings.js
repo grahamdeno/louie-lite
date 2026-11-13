@@ -63,10 +63,7 @@ function renderSettings() {
     <div class="set-group glass">
       <div class="set">
         <span class="tile">${icon("moon")}</span><span class="name">Theme</span>
-        <div class="seg mini" id="s-theme" role="group" aria-label="Theme">${(() => { const own = looksOwned(data), on = own.has(s.theme) ? s.theme : "auto";
-          return [["auto", "Auto"], ["light", "Light"], ["dark", "Dark"], ["green", "Green"], ["headliner", "Headliner"]].map(([k, n]) => own.has(k)
-            ? `<button data-t="${k}" class="${on === k ? "on" : ""}" aria-pressed="${on === k}">${n}</button>`
-            : `<button data-t="${k}" class="locked" aria-label="${n}, at the Merch table">${icon("lock")}${n}</button>`).join(""); })()}</div>
+        <div class="seg mini" id="s-theme" role="group" aria-label="Theme">${[["auto", "Auto"], ["dark", "Dark"], ["light", "Light"]].map(([k, n]) => `<button data-t="${k}" class="${(s.theme || "auto") === k ? "on" : ""}" aria-pressed="${(s.theme || "auto") === k}">${n}</button>`).join("")}</div>
       </div>
     </div>
     <div class="label">Louie's finish</div>
@@ -76,7 +73,7 @@ function renderSettings() {
       </div>
     </div>
     <p class="foot">Every finish is free. Amp is black tolex with copper and gold, and it's on unless you pick another.</p>
-    <p class="foot">Light is Festival Poster and Dark is Neon Midnight. Auto follows your phone between Light and Dark.</p>
+    <p class="foot">One look: the amp. Dark is the default. Light is the same materials on a warm paper ground. Auto follows your phone.</p>
     <p class="foot">On a phone held upright, the whole bar shows while a song is paused. Press Play and it folds into Play's corner; pause and it comes back. At the top of a paused song, pull down to go back.</p>`],
     newsongs: ["New songs", `
     <div class="set-group glass">

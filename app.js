@@ -1,5 +1,5 @@
 // Tabs app: screens and interaction. core.js holds the logic that has unit tests.
-import { achSettle, profileOf, MAX_LENGTH, spotTimes, liningDue, practicing, practiceRate, keyGap, journalPractice, addSync, mergeSyncs, syncSeconds, syncWhere, playCredited, playSongs, soundOffset, germanBlocks, sungText, deSource, DE_LEVELS, Tabs, SPEEDS, playsThisWeek, sortSongs, TUNINGS, detectTuning, parseBlocks, wrapTab, guessKey, transposeKey, prefersFlats, detectPaste, parseSheet, sheetChords, chordShape, appleTrackId, VERSION, restyle, firstLyric, bodyCapo, journalTime, journalGot, streakMoment, knownChords, merchWorn, LANGS, langOf, langChosen, deLangOk, looksOwned, strumDetector, tempoStep, streakOf, levelOf, XP } from "./core.js";
+import { achSettle, profileOf, MAX_LENGTH, spotTimes, liningDue, practicing, practiceRate, keyGap, journalPractice, addSync, mergeSyncs, syncSeconds, syncWhere, playCredited, playSongs, soundOffset, germanBlocks, sungText, deSource, DE_LEVELS, Tabs, SPEEDS, playsThisWeek, sortSongs, TUNINGS, detectTuning, parseBlocks, wrapTab, guessKey, transposeKey, prefersFlats, detectPaste, parseSheet, sheetChords, chordShape, appleTrackId, VERSION, restyle, firstLyric, bodyCapo, journalTime, journalGot, streakMoment, knownChords, merchWorn, LANGS, langOf, langChosen, deLangOk, strumDetector, tempoStep, streakOf, levelOf, XP } from "./core.js";
 import { openDial } from "./dial.js";
 import { setupFold, teardownFold } from "./fold.js";
 import { $, app, esc, getMic, icon, layer, leaveHooks, oneHandMQ, onLeave, onScroll, toast, sound } from "./ui.js";
@@ -44,16 +44,13 @@ const phoneLight = () => !!window.matchMedia?.("(prefers-color-scheme: light)").
 window.matchMedia?.("(prefers-color-scheme: light)").addEventListener?.("change", () => { if (data.settings.theme === "auto" || !data.settings.theme) applyTheme(); });
 function applyTheme() {
   sysText = readSysText();
-  const t0 = data.settings.theme, t = looksOwned(data).has(t0) ? t0 : "auto"; /* 4.78.0: a look you don't have yet is Auto */
-  const green = t === "green", head = t === "headliner", light = green || t === "light" || (t !== "dark" && !head && phoneLight());
+  const t0 = data.settings.theme;
+  const light = t0 === "light" || (t0 !== "dark" && phoneLight());
   document.documentElement.dataset.theme = light ? "light" : "dark";
-  /* 4.0.0: Light is Festival Poster, Dark is Neon Midnight, Green is Green Room (a light look) */
-  /* 4.77.0: Headliner is a dark look: violet, gold and blaze orange on black */
-  document.documentElement.dataset.look = green ? "green" : head ? "headliner" : light ? "festival" : "neon";
-  /* 4.14.0: the finish Louie wears, bought at the Merch table */
+  document.documentElement.dataset.look = "amp"; /* Louie Lite: one look, Dark or Light */
   const wear = merchWorn(data);
   if (wear === "stock") delete document.body.dataset.wear; else document.body.dataset.wear = wear;
-  document.querySelector('meta[name="theme-color"]').content = green ? "#e6efe7" : head ? "#16171b" : light ? "#eaf3ff" : "#1d1640";
+  document.querySelector('meta[name="theme-color"]').content = light ? "#f4f1ea" : "#0c0d0f";
 }
 
 

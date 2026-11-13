@@ -9,7 +9,7 @@ const lum = c => { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : 
 const rgb = s => s.match(/[\d.]+/g).map(Number);
 const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 
-for (const theme of ["light", "dark", "green", "headliner"]) {
+for (const theme of ["light", "dark"]) {
   test(`4.89.0 a callout's big word stands out from its card (${theme})`, { skip: skip() }, async t => {
     const page = await phone(t, { ...LIB, settings: { ...LIB.settings, v: 6, theme } }, { colorScheme: ["dark", "headliner"].includes(theme) ? "dark" : "light", reducedMotion: "reduce" });
     await page.goto(base + "#/song/a"); await page.waitForSelector("#play");
