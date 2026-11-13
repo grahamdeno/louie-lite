@@ -127,7 +127,7 @@ navigator.storage?.persisted?.().then(ok => { if (storageKept === null) storageK
 
 const WEEK = 7 * 86400000;
 function needsBackup() {
-  if (!data.songs.length) return false;
+  if (!data.songs.some(x => !x.sample)) return false; /* 3.3.0: the sample and starter songs need no backup */
   const s = data.settings, now = Date.now();
   if (s.backupSnooze && now < s.backupSnooze) return false;
   return !s.lastBackup || now - Date.parse(s.lastBackup) > WEEK;
