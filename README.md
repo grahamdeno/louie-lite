@@ -2,7 +2,7 @@
 
 A personal chord sheet and guitar tab app for the phone. It works offline, keeps everything on the device, and needs no account.
 
-Live at `https://grahamdeno.github.io/louie-lite/` (GitHub Pages from `main`). Add it to the home screen to use it as an app.
+Live at `https://louie-lite.tangomike.app/` (Vercel, deploys from `main`). Add it to the home screen to use it as an app.
 
 ## What it does
 

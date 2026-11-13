@@ -1,7 +1,7 @@
-# Working on Tabs
+# Working on Louie Lite
 
-Tabs is Graham's personal guitar PWA: plain ES modules, no build step, live on
-GitHub Pages from `main`. The README's Development section is the architecture
+Louie Lite is Graham's guitar PWA, copied from Tabs v2.49.2: plain ES modules, no build step, live on
+louie-lite.tangomike.app (Vercel) from `main`. The README's Development section is the architecture
 map; docs/DATA.md describes every stored field. Read those before guessing.
 
 ## Standing rules (from Graham)
