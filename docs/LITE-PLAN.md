@@ -49,7 +49,7 @@ Status: approved by Graham 2026-11-13. Nothing here is built yet. One release at
 - 59 Recording speed per song, half to full (Graham: in).
 
 ### Tuner and practice
-- 29 Guided headstock tuner: string ticks, chimes, the finish, "your low E drifts most". Lite's amp tuner face stays as the look; the headstocks follow Louie's finish.
+- 29 Guided headstock tuner: string ticks, chimes, the finish, "your low E drifts most". Use the headstocks from current Louie (heads.js and its styles at 4.89.0), not Lite's older ones (Graham, 2026-11-13); acoustic is wood, electric follows Louie's finish. Lite's amp tuner face (tolex, channel buttons, pilot lamp) stays around them.
 - 30 Tune up first after a big humidity or temperature swing (city in Settings > Playing).
 - 27 Follow my tempo, rebuilt on strum timing: the mic hears when you strum, not which chord, and the page eases toward your pace (at most 3% a change, within a quarter of the song's tempo).
 - 31 Lesson of the day: warm up, learn a change against the click, then the song's section at 70%. The change step uses an "I got it" tap instead of the mic judging chords. String-by-string checks keep the mic.
@@ -97,7 +97,7 @@ Status: approved by Graham 2026-11-13. Nothing here is built yet. One release at
 - Steps Claude can't do (Vercel environment variable, the key-value store, the Anthropic spend limit, the token Worker's allowed sites) go to Grok as one prompt when that stage starts.
 
 ## Build order (one branch, one release)
-1. Mockups (Opus): the Amp Louie finish, and the new screens in the amp look (search or add, Chords for your level, Welcome back, guided tuner, Tools sheet, folding bar, end card, Support). Graham approves before building.
+1. Mockups (Opus): done and approved 2026-11-13, on the Design canvas https://claude.ai/artifact/91PLusrfWHZJX87dDbbNBw. Build to match them.
 2. Shell (Sonnet): remove the ring, folding bar, button system, Tools sheet, pause gives the page back, filters row, readability.
 3. Song page (Sonnet): 13 to 16, 18 to 20, 22, 23, 52, start at the first line.
 4. Recording (Sonnet): 34, 48, 49, 50, 59, 33.
