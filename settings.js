@@ -3,7 +3,7 @@ import { LANGS, SPEEDS, TRASH_DAYS, Tabs, VERSION, html, langChosen, langOf, loo
 import { $, app, ask, esc, icon, toast } from "./ui.js";
 import { coverPut } from "./sets.js";
 import { ago, backupNow, copyDiagnostics, problems, storageKept, where } from "./store.js";
-import { AI, aiError, aiKey, applyTheme, askClaude, busy, data, go, metroPreview, mmss, setData, BPM_STORE, bpmKey } from "./app.js";
+import { AI, aiError, aiKey, ownKey, applyTheme, askClaude, busy, data, go, metroPreview, mmss, setData, BPM_STORE, bpmKey } from "./app.js";
 
 // ---------- Settings ----------
 const kb = n => n < 1048576 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1048576).toFixed(1)} MB`;
@@ -113,15 +113,15 @@ function renderSettings() {
     </div>
     <p class="foot">Under the Songbook's title: your practice streak (a day counts when a song plays to its end) and, until you play today, one song to try. With a city, the weather picks it: a slow song on a rainy day, and when the air has changed a lot since your last play the song page says to tune up first. Only the city's position is sent, once a day; Louie asks for your location only if you plant your flag on the Tour Map. Weather data by <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo.com</a>.</p>`],
     keys: ["Keys", `
-    <p class="foot" style="margin:0 4px 14px">Each key stays on this phone and is sent only to its own service.</p>
+    <p class="foot" style="margin:0 4px 14px">AI help works without a key, through Louie's server, with a daily limit. A key of your own lifts the limit; each key stays on this phone and is sent only to its own service.</p>
     <div class="label">Anthropic · AI help</div>
     <div class="set-group glass">
       <label class="fld fld-k"><span class="tile ftile">${icon("wand")}</span>
-        <input id="s-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Anthropic API key (sk-ant-...)" value="${esc(aiKey())}" aria-label="Anthropic API key"></label>
+        <input id="s-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Anthropic API key (sk-ant-...)" value="${esc(ownKey())}" aria-label="Anthropic API key"></label>
       <div class="key-row">
-        <span class="ai-status"><i class="dot ${aiKey() ? "on" : ""}"></i>${aiKey() ? "On" : "Off"}</span>
+        <span class="ai-status"><i class="dot ${ownKey() ? "on" : ""}"></i>${ownKey() ? "Your key" : "Louie's AI"}</span>
         <button class="btn sm" id="s-test">Test</button>
-        ${aiKey() ? `<button class="btn sm" id="s-remove">Remove</button>` : ""}
+        ${ownKey() ? `<button class="btn sm" id="s-remove">Remove</button>` : ""}
         <button class="btn sm primary" id="s-savekey">Save key</button>
       </div>
     </div>
@@ -202,7 +202,7 @@ function renderSettings() {
     <div class="set-group glass s-gap">
       ${row("today", "flame", "Today", s.nudge === false ? "Off" : city ? esc(city) : "On")}
       ${row("apple", "note", "Apple Music", s.appleMusic ? (s.appleMusicToken ? "On" : "On · no token") : "Off")}
-      ${row("keys", "wand", "Keys", `<span class="s-keys">${dot(aiKey())}AI ${dot(bpmKey())}Tempo</span>`, true)}
+      ${row("keys", "wand", "Keys", `<span class="s-keys">${dot(true)}AI ${dot(bpmKey())}Tempo</span>`, true)}
       ${row("lang", "chat", "Language practice", langChosen(data) ? LANGS[langOf(data)].name : "Not picked")}
     </div>
     <div class="set-group glass s-gap">
@@ -290,7 +290,7 @@ function renderSettings() {
     renderSettings(); toast("Key removed from this phone");
   });
   $("s-test").onclick = async () => {
-    const k = $("s-key").value.trim() || aiKey();
+    const k = $("s-key").value.trim() || aiKey(); /* no key typed: tests Louie's server */
     const out = $("s-keymsg");
     if (!k) { out.textContent = "No key entered."; return; }
     $("s-test").innerHTML = busy("Testing");

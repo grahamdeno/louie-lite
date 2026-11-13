@@ -2339,7 +2339,7 @@ test("4.39.1 Louie's hands: the thumbs up tips the thumb out, and the pointing h
   assert.match(louie("happy", { pose: "point" }), /translate\(180 108\) rotate\(40\)/, "the pointing hand leans, never straight up");
 });
 
-test("4.40.0 Opening night: only for a new player, one step at a time, fans once, skip and replay", () => {
+test.skip("4.40.0 Opening night (Louie Lite: no Opening night; removed in step 1): only for a new player, one step at a time, fans once, skip and replay", () => {
   const fresh = () => ({ songs: [{ id: "s", title: "Harbor Lights", sample: true, body: "[Verse]\nG D\nLights" }], sets: [], trash: [], settings: {} });
   const d = fresh();
   assert.equal(C.openingView(d), "leg", "a new player starts on Opening night");

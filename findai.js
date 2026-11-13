@@ -6,6 +6,7 @@ import { coverHead, searchApple, attachRecording } from "./listen.js";
 import { itunes, appleBlocksSearch } from "./sets.js";
 import { $, data, esc, icon, layer, toast, go, busy, AI, aiKey, askClaude, aiError, parseJSON, openLink, expectPaste, newSong, appleSearchURL, leaveSearch, bpmKey, aiLastStop, grooveFor, route, chordSVG, redraw } from "./app.js";
 import { louie } from "./louie.js";
+import { aiFetch } from "./aihelp.js";
 // Ask with web search turned on: Claude searches (up to `searches` times) and answers.
 // Returns { text, sources: [{ url, title }] }. Long searches may pause; we carry on.
 async function askClaudeSearch({ model = AI.vision, system, content, maxTokens = 6000, searches = 4, key = aiKey() }) {
@@ -15,15 +16,11 @@ async function askClaudeSearch({ model = AI.vision, system, content, maxTokens =
   for (let turn = 0; turn < 4; turn++) {
     let r;
     try {
-      r = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
-        body: JSON.stringify({ model, max_tokens: maxTokens, system, tools, messages })
-      });
-    } catch { throw Object.assign(new Error("network"), { status: 0, model }); }
+      r = await aiFetch(key, { model, max_tokens: maxTokens, system, tools, messages });
+    } catch (e) { if (e.louie) throw Object.assign(e, { model }); throw Object.assign(new Error("network"), { status: 0, model }); }
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      throw Object.assign(new Error(j?.error?.message || "HTTP " + r.status), { status: r.status, model });
+      throw Object.assign(new Error(j?.error?.message || "HTTP " + r.status), { status: r.status, model, louie: j?.error?.type === "louie_limit" });
     }
     const j = await r.json();
     out = out.concat(j.content || []);

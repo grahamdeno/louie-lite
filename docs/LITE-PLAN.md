@@ -120,7 +120,7 @@ Rules: one task per commit, `eslint .` and `node tests/quick.mjs` before each pu
 10. Tuner: the guided headstocks from 4.89.1 inside 2.49's amp tuner face (tolex, channel button menu, pilot lamp).
 11. Support: ko-fi.com/louieguitar, Louie in the Amp finish.
 12. Accept a Louie backup on import (songs, sets, recordings, timing; game fields dropped).
-13. AI on the server: Vercel function, device token, caps, Get the song cap, own-key fallback. Needs Grok's setup prompt first (Opus writes it).
+13. AI on the server: built on branch `lite-3-ai` (Opus, 2026-11-13): `api/ai.js`, `api/token.js`, `api/_lib.js` (limits in `LIMITS`), `aiFetch` in aihelp.js (own key straight to Anthropic, else the server), Settings > Keys wording, tests/api.test.mjs. Merge `lite-3-ai` into `lite-3` after step 1 (expect small conflicts in aihelp.js and findai.js if those files changed). Grok sets up ANTHROPIC_API_KEY, DEVICE_SECRET and the Upstash counters on Vercel.
 14. App name Louie, version 3.0.0, README and CLAUDE.md rewritten for Louie Lite, then the check by a separate agent and screenshots for Graham. Ship = merge `lite-3` to main when Graham says ship (he said ship on 2026-11-13: ship when 1 to 12 are done and tested; 13 can follow).
 
 ## Build order (original, superseded by the steps above)
