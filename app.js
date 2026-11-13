@@ -1740,6 +1740,16 @@ function streakSoon(song) {
     lazy("profile.js").then(m => m.showStreak(streakMoment(playSongs(data), Date.now(), data.journal?.best)));
   }, 1400);
 }
+/* The first line with words. Chord-only intros sit above it. */
+function firstSungLine() {
+  const sheet = $("sheet");
+  if (!sheet) return null;
+  for (const el of sheet.children) {
+    if (el.classList.contains("ly") && !el.classList.contains("note") && el.textContent.trim()) return el;
+    if (el.classList.contains("pr") && el.querySelector(".w")) return el;
+  }
+  return null;
+}
 async function startScroll(song, opts = {}) {
   follow.k = 1; /* each play starts at the song's own tempo */
   document.querySelector(".endnote")?.remove();
@@ -1747,10 +1757,25 @@ async function startScroll(song, opts = {}) {
   const first = $("sheet")?.querySelector(":scope > .pr, :scope > .ly, :scope > .tab, :scope > .crow");
   const fr = first?.getBoundingClientRect();
   const atTop = !fr || (fr.bottom > 0 && fr.top < innerHeight);
+  /* Without a recording, start on the first sung line so an intro of chords does not have to scroll by.
+     With a recording, stay at the top so the words still meet the audio. */
+  scroll.leadPx = 0;
+  if (atTop && !usesMusic(song) && !opts.duet && !activeLoop(song) && !diag.pinned) {
+    const sung = firstSungLine();
+    if (sung && sung !== first) {
+      const top = Math.max(0, window.scrollY + sung.getBoundingClientRect().top - innerHeight * READ_AT);
+      if (top > 8) {
+        const max = document.documentElement.scrollHeight - innerHeight;
+        if (top > max + 4) endRoom(top - max + 8);
+        window.scrollTo({ top, behavior: "auto" });
+        scroll.leadPx = window.scrollY;
+      }
+    }
+  }
   trail.length = 0;
   scroll.on = true; scroll.last = 0; scroll.carry = 0; scroll.bottomSince = 0; scroll.logged = false; scroll.wait = false; scroll.duet = !!opts.duet; scroll.part = opts.part || ""; /* 4.29.0: Play together's part */
   /* A play is judged over the run: pausing and playing on adds up, another song or a credited play starts it again. */
-  if (scroll.runId !== song.id || scroll.credited) { scroll.cover = 0; scroll.runMs = 0; scroll.runId = song.id; scroll.credited = false; }
+  if (scroll.runId !== song.id || scroll.credited) { scroll.cover = scroll.leadPx || 0; scroll.runMs = 0; scroll.runId = song.id; scroll.credited = false; }
   document.body.classList.add("playing");
   foldApi?.mode?.(); /* the bar folds into Play's corner */
   setTimeout(() => {
@@ -1824,7 +1849,8 @@ async function startScroll(song, opts = {}) {
       // At the end: a play counts if auto-scroll carried the page most of the way (see playCredited).
       // Then wait a few seconds (the reader may scroll back up), then stop.
       if (!activeLoop(song) && end >= 0 && scrollY >= end - 2) {
-        const expectedMs = (end < 40 ? songLength(song) : end / (pxPerSecond(song) * loopFactor(song))) * 1000;
+        const span = Math.max(0, end - (scroll.leadPx || 0));
+        const expectedMs = (span < 40 ? songLength(song) : span / (pxPerSecond(song) * loopFactor(song))) * 1000;
         if (!scroll.logged && playCredited({ end, cover: scroll.cover, ms: scroll.runMs, expectedMs })) {
           scroll.logged = true; scroll.credited = true; const had = chordsHad(); Tabs.logPlay(data, song); if (data.settings.place) lazy("tuneup.js").then(m => m.notePlayAir()); /* 4.72.0 */ curPaintStat?.(); endMoment(song); streakSoon(song); gigHooks.credited?.(song); celebrate(had); if (setRun && setCtx?.id === setRun.id) setRun.played.add(song.id); if (setCtx) nextUp();
         }

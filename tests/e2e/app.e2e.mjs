@@ -38,6 +38,25 @@ test("a song opens, its Key opens the key dial, and it plays; a tap pauses it", 
   assert.equal(await page.getAttribute("#play", "aria-label"), "Start auto-scroll");
 });
 
+test("Play without a recording starts on the first sung line, past the intro", { skip: skip() }, async t => {
+  const intro = Array.from({ length: 14 }, () => "G  D  Em  C").join("\n");
+  const body = `[Intro]\n${intro}\n\n[Verse]\nG              D\nSaw the harbor lights come on at six`;
+  const songs = [{ id: "a", title: "Harbor Lights", artist: "Sample", key: "G", format: "chords", body, duration: 180, bpm: 96 }];
+  const page = await phone(t, { ...LIB, songs, settings: { ...LIB.settings, countIn: false } });
+  await page.goto(base + "#/song/a"); await page.waitForSelector(".pr");
+  const before = await page.evaluate(() => window.scrollY);
+  await page.click("#play");
+  await page.waitForFunction(() => document.getElementById("play").getAttribute("aria-label") === "Pause auto-scroll");
+  const at = await page.evaluate(() => {
+    const line = document.querySelector(".pr");
+    const y = line.getBoundingClientRect().top;
+    return { y, scroll: window.scrollY, crows: document.querySelectorAll(".crow").length, prs: document.querySelectorAll(".pr").length };
+  });
+  assert.ok(before < 20, "the page opened at the top");
+  assert.ok(at.y < 420, `the first sung line is up on the page (${Math.round(at.y)}, scroll ${Math.round(at.scroll)})`);
+  assert.ok(at.scroll > 40, "the intro scrolled by as Play started");
+});
+
 test("search moves to the top, finds lyrics, and offers to find what's missing", { skip: skip() }, async t => {
   const page = await phone(t);
   await page.tap("#q"); await page.waitForFunction(() => document.body.classList.contains('searching'));
