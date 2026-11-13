@@ -144,3 +144,15 @@ Version: Lite's release becomes 3.0.0.
 - Step 1: `openingOn` was already hard-coded false. `openingView` can still say a new save is on a leg, but no screen reads it, and a step cannot advance.
 - The design canvas at claude.ai was not opened. Steps 7, 8 and 9 used docs/lite-mockups (the pictures and mockups.html) instead.
 
+
+## Review fixes (Opus, 2026-11-13, from screenshots of lite-3 at c9518e1)
+
+Must fix before merging to main:
+1. Leftover Neon Midnight colors: lime green (Play's lip, the Pause button's lip, the search bar's outline, the icon tiles in Settings and Tools), indigo/purple (the panel inside the song bar behind Tools and Play, the list row dividers in the Library and Rehearse, Rehearse's progress bars, the mic button while playing), teal (the song's letter cover on the song page). Replace each with the amp materials: copper, bronze piping, recess, chrome, lamp.
+2. Search bar: dark frosted glass with bronze piping, as in mockup 02 and 03, not the gold plate. Its placeholder and Cancel must be readable (4.5:1). The music-note add button sits beside it as its own gold-plate button.
+3. Search or add: the "Not in your songbook yet?" label is cut off under the bar; give it room.
+4. Song bar (paused): the gold plate holds Back (recess), Tools (recess) and Play (copper), as in mockup 06. No indigo panel, no lime lip. Play in normal case ("Play"), not capitals.
+5. Playing: the band on the line you're on (mockup 07) is missing in this capture; check that it shows when playing without a recording.
+6. Library: the filter row shows only All; show All, Can play, Learning and the heart at all times (mockup 02).
+7. Your playing: take out game words left from fans and venues: "Venue 1", "Tour Map" as a venue link on the card, badges named Gig or Gigs (rename to Song played or Play), the pink and purple streak guitar icon (use the amp colors). The chart line can stay ("Garage chart · 10th").
+8. Look: show each finish as a small Louie in that finish (mockup 01), not a text segment.
