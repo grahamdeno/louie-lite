@@ -156,3 +156,14 @@ Must fix before merging to main:
 6. Library: the filter row shows only All; show All, Can play, Learning and the heart at all times (mockup 02).
 7. Your playing: take out game words left from fans and venues: "Venue 1", "Tour Map" as a venue link on the card, badges named Gig or Gigs (rename to Song played or Play), the pink and purple streak guitar icon (use the amp colors). The chart line can stay ("Garage chart · 10th").
 8. Look: show each finish as a small Louie in that finish (mockup 01), not a text segment.
+
+## Shipped
+
+3.0.0 merged to main on 2026-11-13 (PR #1), live at louie-lite.tangomike.app. Review fixes 1 to 6 by the coding agent, 7 and 8 by Opus. Step 13's code is in; the server answers "isn't set up yet" until the setup below is done, and a key typed in Settings > Keys works meanwhile.
+
+## Follow up after 11:30 AM ET on 2026-11-16 (Grok's credit resets)
+
+1. Grok: the AI server setup on Vercel (the prompt Claude wrote on 2026-11-13): an Anthropic key named louie-lite-server only in Vercel's ANTHROPIC_API_KEY, a $20 monthly spend limit, DEVICE_SECRET, and an Upstash Redis store (louie-lite-counters) connected to the louie-lite project. Then Claude checks /api/token and one AI call on louie-lite.tangomike.app.
+2. Grok: on ko-fi.com/louieguitar turn off Shop and Commissions (Graham agreed); leave payouts alone. Graham confirms the account's location and decides PayPal or Stripe himself.
+3. Grok's lite-3 coding agent stopped when the credit ran out; check that nothing it had in progress was left half done (its last pushed commit was 4944fac; everything after is Claude's).
+4. Claude: read the CI run on main for the 3.0.0 merge and fix anything it flags.
