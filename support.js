@@ -25,7 +25,7 @@ export function renderSupport() {
   document.getElementById("back").onclick = () => history.length > 1 ? history.back() : go("#/");
   document.getElementById("sp-kofi").addEventListener("click", () => toast("Thank you. Louie says so too."));
   document.getElementById("sp-share").onclick = async () => {
-    const msg = { title: "Louie: Learn Guitar", text: "A guitar app that turns practice into a tour.", url: APP_URL };
+    const msg = { title: "Louie: Learn Guitar", text: "A guitar app for chord sheets, playing along and practice.", url: APP_URL };
     try { if (navigator.share) return await navigator.share(msg); } catch (e) { if (e?.name === "AbortError") return; }
     showToCopy("Share Louie", APP_URL);
   };
