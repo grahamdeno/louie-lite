@@ -1,12 +1,38 @@
 // The Road: AI help with your own Anthropic key: the request, errors and limits. Split from app.js (4.15.1); app.js re-exports what other files use.
 import { detectPaste } from "./core.js";
 
-// ---------- AI help (optional, your own Anthropic key) ----------
-// No server: the key stays in this browser's storage and is sent only to
-// api.anthropic.com, using Anthropic's header for direct browser access.
-// Without a key the app works as usual and the AI options don't appear.
+// ---------- AI help: Louie's server, or your own Anthropic key ----------
+// Your own key stays in this browser's storage and is sent only to api.anthropic.com,
+// using Anthropic's header for direct browser access.
 export const AI = { store: "louielite.apikey.v1", fast: "claude-haiku-5-5", vision: "claude-sonnet-5-5" };
-export function aiKey() { try { return localStorage.getItem(AI.store) || ""; } catch { return ""; } }
+/* Louie Lite: without a key of your own, AI help goes through Louie's server (/api/ai), which holds
+   the shared key and keeps the daily limits. A key typed in Settings > Keys stays on this phone and
+   is used instead, straight to Anthropic, as before. */
+export const SERVER = "louie-server";
+const DEVICE = "louielite.device.v1";
+export function ownKey() { try { return localStorage.getItem(AI.store) || ""; } catch { return ""; } }
+export function aiKey() { return ownKey() || SERVER; }
+async function deviceToken() {
+  try { const t = localStorage.getItem(DEVICE); if (t) return t; } catch { /* none */ }
+  let r;
+  try { r = await fetch("/api/token", { method: "POST" }); } catch { throw Object.assign(new Error("network"), { status: 0 }); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.token) throw Object.assign(new Error(j?.error?.message || "HTTP " + r.status), { status: r.status, louie: true });
+  try { localStorage.setItem(DEVICE, j.token); } catch { /* none */ }
+  return j.token;
+}
+/* One Messages request, to Anthropic with your own key or to Louie's server without one. */
+export async function aiFetch(key, body) {
+  if (key && key !== SERVER) return fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+    body: JSON.stringify(body)
+  });
+  const send = async () => fetch("/api/ai", { method: "POST", headers: { "content-type": "application/json", "x-louie-device": await deviceToken() }, body: JSON.stringify(body) });
+  let r = await send();
+  if (r.status === 401) { try { localStorage.removeItem(DEVICE); } catch { /* none */ } r = await send(); }
+  return r;
+}
 /* The GetSongBPM key, stored the same way (read by Get the song and Settings). */
 export const BPM_STORE = "louielite.bpmkey.v1";
 export function bpmKey() { try { return localStorage.getItem(BPM_STORE) || ""; } catch { return ""; } }
@@ -22,16 +48,12 @@ export async function askClaude({ model = AI.fast, system, content, maxTokens = 
   let r;
   lastStop = "";
   try {
-    r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
-      body: JSON.stringify({ model, max_tokens: maxTokens, system, messages: [{ role: "user", content }], ...(stream ? { stream: true } : {}) })
-    });
-  } catch { throw Object.assign(new Error("network"), { status: 0, model }); }
+    r = await aiFetch(key, { model, max_tokens: maxTokens, system, messages: [{ role: "user", content }], ...(stream ? { stream: true } : {}) });
+  } catch (e) { if (e.louie) throw Object.assign(e, { model }); throw Object.assign(new Error("network"), { status: 0, model }); }
   if (!r.ok) {
-    // Read Anthropic's error body so the real reason can be explained.
+    // Read the error body so the real reason can be explained (Louie's server marks its own limits).
     const j = await r.json().catch(() => ({}));
-    throw Object.assign(new Error(j?.error?.message || "HTTP " + r.status), { status: r.status, model });
+    throw Object.assign(new Error(j?.error?.message || "HTTP " + r.status), { status: r.status, model, louie: j?.error?.type === "louie_limit" });
   }
   if (stream && r.body && /event-stream/.test(r.headers.get("content-type") || "")) {
     const reader = r.body.getReader(), dec = new TextDecoder();
@@ -62,6 +84,7 @@ export async function askClaude({ model = AI.fast, system, content, maxTokens = 
 // Plain-English reasons, mapped from Anthropic's status codes.
 export function aiError(e) {
   const m = e?.message || "", st = e?.status;
+  if (e?.louie) return m; /* Louie's server says it plainly: a daily limit, or not set up yet */
   if (st === 400 && /web search/i.test(m)) return "Web search is turned off for this key's organization. An admin can turn it on in the Anthropic Console under Settings > Capabilities.";
   if (st === -1) return "Couldn't make sense of that. Try again, or keep the original.";
   if (!st) return "Could not reach Anthropic. Check the connection, and turn off any content blocker or VPN filtering for this site.";

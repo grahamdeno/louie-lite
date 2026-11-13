@@ -54,7 +54,7 @@ self.addEventListener("fetch", e => {
   const req = e.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
-  if (url.hostname === "api.anthropic.com") return; // never cache AI calls
+  if (url.hostname === "api.anthropic.com" || url.pathname.startsWith("/api/")) return; // never cache AI calls
   // Album art used for set covers: keep a copy so covers still show offline.
   // (Kept across releases; images only, from Apple's artwork servers.)
   if (/(^|\.)mzstatic\.com$/.test(url.hostname) && req.destination === "image") {

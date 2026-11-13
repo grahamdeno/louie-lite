@@ -120,7 +120,7 @@ Rules: one task per commit, `eslint .` and `node tests/quick.mjs` before each pu
 10. Tuner: the guided headstocks from 4.89.1 inside 2.49's amp tuner face (tolex, channel button menu, pilot lamp).
 11. Support: ko-fi.com/louieguitar, Louie in the Amp finish.
 12. Accept a Louie backup on import (songs, sets, recordings, timing; game fields dropped).
-13. AI on the server: Vercel function, device token, caps, Get the song cap, own-key fallback. Needs Grok's setup prompt first (Opus writes it).
+13. AI on the server: merged from `lite-3-ai`: `api/ai.js`, `api/token.js`, `api/_lib.js` (limits in `LIMITS`), `aiFetch` in aihelp.js (own key straight to Anthropic, else the server), Settings > Keys wording, tests/api.test.mjs. Someone still sets ANTHROPIC_API_KEY, DEVICE_SECRET and the Upstash counters on Vercel.
 13b. Icons and launch screens (Graham, 2026-11-13): Louie's current icon and launch screens (references: docs/lite-mockups/louie-icon-reference.png and louie-launch-reference.png) redrawn with Louie in the Amp finish (black tolex body, bronze trim; see mockup 01.png), and "Louie" in place of "The Road". Grok is making the art and will replace the files in icons/ and icons/splash/. Not the leather pick. Until then icons/ holds the original blue Louie.
 14. App name Louie, version 3.0.0, README and CLAUDE.md rewritten for Louie Lite, then the check by a separate agent and screenshots for Graham. Ship = merge `lite-3` to main when Graham says ship (he said ship on 2026-11-13: ship when 1 to 12 are done and tested; 13 can follow).
 

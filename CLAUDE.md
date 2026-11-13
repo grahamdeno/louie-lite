@@ -17,8 +17,10 @@ map; docs/DATA.md describes every stored field. Read those before guessing.
   translations, never with the lyrics themselves: it doesn't write lyrics from
   memory (Claude won't reproduce them, and they come out wrong), and the phone
   puts the words and chords together. Lyrics still come from LRCLIB or his sheet.
-- API keys stay on the phone only. Never put a key in the code or in a backup,
-  and don't change how keys are stored.
+- Keys (Louie Lite, Graham 2026-11-13): the shared Anthropic key lives only on the
+  server (Vercel environment variable ANTHROPIC_API_KEY, used by `api/ai.js`). A key
+  typed in Settings > Keys stays on the phone, is never in the code or a backup, and is
+  sent only to api.anthropic.com. Don't change how phone keys are stored.
 - He uses the phone one-handed, mostly right hand: put actions people reach
   for mid-song in thumb reach (bottom of sheets, `pfoot`, the bar).
 - The Gig is words first (4.46.0): no Lines in a gig and no Full; the words fill the screen.
