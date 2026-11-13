@@ -121,7 +121,7 @@ Rules: one task per commit, `eslint .` and `node tests/quick.mjs` before each pu
 11. Support: ko-fi.com/louieguitar, Louie in the Amp finish.
 12. Accept a Louie backup on import (songs, sets, recordings, timing; game fields dropped).
 13. AI on the server: Vercel function, device token, caps, Get the song cap, own-key fallback. Needs Grok's setup prompt first (Opus writes it).
-13b. Icons and launch screens (Graham, 2026-11-13): The Road's black leather pick with copper piping on black leather (3.7.0; references in docs/lite-mockups/road-icon-reference.png and road-launch-reference.png), with "Louie" in the same cream script in place of "The Road". Grok makes the new art; install it as icons/apple-touch-icon.png (180), favicon-32.png, icon-192.png, icon-512.png, icon-maskable-512.png and the nine icons/splash/launch-*.png at the same sizes as now. Not Louie the amp as the icon.
+13b. Icons and launch screens (Graham, 2026-11-13): Louie's current icon and launch screens from 4.89.1 with his body in black tolex instead of blue, and "Louie" in place of "The Road". Done by Opus: the files in icons/ and icons/splash/ are already replaced. Not the leather pick.
 14. App name Louie, version 3.0.0, README and CLAUDE.md rewritten for Louie Lite, then the check by a separate agent and screenshots for Graham. Ship = merge `lite-3` to main when Graham says ship (he said ship on 2026-11-13: ship when 1 to 12 are done and tested; 13 can follow).
 
 ## Build order (original, superseded by the steps above)
