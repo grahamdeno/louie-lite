@@ -1,6 +1,6 @@
 # Louie Lite plan: Louie's features in the amp look, without the game
 
-Status: waiting for Graham's OK. Nothing here is built yet. One release at the end, shipped when Graham says ship.
+Status: approved by Graham 2026-11-13, pending 59. Nothing here is built yet. One release at the end, shipped when Graham says ship.
 
 ## Ground rules for whoever builds this
 
@@ -59,7 +59,7 @@ Status: waiting for Graham's OK. Nothing here is built yet. One release at the e
 ### Louie
 - Louie comes over as the newest drawing, with every finish from the Merch table, all free in Settings > Look: Stock blue, Pink, Teal, Tweed, Black, Mint, Gold, plus a new Amp finish in black tolex, copper and gold (the default in Lite).
 - 46 Louie's count-in. 56 The streak celebration with Louie, confetti and a share picture (replaces Lite's flame). 57 Louie's one-liners above Play and in tips.
-- 38 Support page: Ko-fi and Tell a friend. The Ko-fi link to be confirmed (Louie uses ko-fi.com/theroadapp).
+- 38 Support page: Ko-fi and Tell a friend, linking to ko-fi.com/louieguitar (Graham, 2026-11-13).
 
 ### Light progress (no chord hearing)
 - 44 The weekly chart only: you and nine computer players by XP from plays; top 5 up, bottom 3 down. No rival battles, no song duels, no Friends board or Friend quest.
@@ -112,4 +112,3 @@ Version: Lite's release becomes 3.0.0.
 
 ## Open for Graham
 - 59 recording speed: in or out?
-- The Ko-fi link for Lite.
