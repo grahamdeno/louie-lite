@@ -163,6 +163,8 @@ Must fix before merging to main:
 
 ## Follow up after 11:30 AM ET on 2026-11-16 (Grok's credit resets)
 
+Done early on 2026-11-13 (Grok's credit reset): items 1, 2, 3 and 5. Anthropic key louie-lite-server-2 never expires; disable louie-lite-server once Get the song works on 3.2.0. Still open: Graham confirms the Ko-fi location; Grok moves AuthKey_KABHU54QBS.p8 to iCloud Drive/Keys when Graham's Mac is online.
+
 1. Grok: the AI server setup on Vercel (the prompt Claude wrote on 2026-11-13): an Anthropic key named louie-lite-server only in Vercel's ANTHROPIC_API_KEY, a $20 monthly spend limit, DEVICE_SECRET, and an Upstash Redis store (louie-lite-counters) connected to the louie-lite project. Then Claude checks /api/token and one AI call on louie-lite.tangomike.app.
 2. Grok: on ko-fi.com/louieguitar turn off Shop and Commissions (Graham agreed); leave payouts alone. Graham confirms the account's location and decides PayPal or Stripe himself.
 3. Grok's lite-3 coding agent stopped when the credit ran out; check that nothing it had in progress was left half done (its last pushed commit was 4944fac; everything after is Claude's).
