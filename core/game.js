@@ -549,19 +549,17 @@ export function castFor(data, kind, last, r = Math.random(), who = null) {
 }
 /* p is profileOf(data): the journal's numbers (chords, best streak, songs got, tune-ups) */
 export function badgesOf(data, p) {
-  const shows = data.gig?.shows || 0, ring = venueOf(lifetimePlays(data)).ring, band = bandState(data);
-  const won = (data.duels?.list || []).some(d => duelWon(d) === true), promoted = (data.charts?.records || []).length > 0;
+  const promoted = (data.charts?.records || []).length > 0;
   const b = (id, top, lab, kind, got) => ({ id, top, lab, kind, got: !!got });
   const all = [
     b("song1", "1st", "SONG PLAYED", "song", p.songsPlayed >= 1), b("song10", "10", "SONGS PLAYED", "song", p.songsPlayed >= 10), b("song25", "25", "SONGS PLAYED", "song", p.songsPlayed >= 25),
-    b("show1", "1st", "GIG", "show", shows >= 1), b("show10", "10", "GIGS", "show", shows >= 10), b("show50", "50", "GIGS", "show", shows >= 50), b("show100", "100", "GIGS", "show", shows >= 100),
-    b("streak7", "7", "NIGHT STREAK", "streak", p.best >= 7), b("streak30", "30", "NIGHT STREAK", "streak", p.best >= 30), b("streak100", "100", "NIGHT STREAK", "streak", p.best >= 100),
+    b("play50", "50", "PLAYS", "show", lifetimePlays(data) >= 50), b("play100", "100", "PLAYS", "show", lifetimePlays(data) >= 100), b("play250", "250", "PLAYS", "show", lifetimePlays(data) >= 250),
+    b("streak7", "7", "DAY STREAK", "streak", p.best >= 7), b("streak30", "30", "DAY STREAK", "streak", p.best >= 30), b("streak100", "100", "DAY STREAK", "streak", p.best >= 100),
     b("chords5", "5", "CHORDS", "chord", p.chords.length >= 5), b("chords10", "10", "CHORDS", "chord", p.chords.length >= 10), b("chords20", "20", "CHORDS", "chord", p.chords.length >= 20), b("barre", "1st", "BARRE CHORD", "chord", p.barres >= 1),
     b("writer", "1st", "SONG WRITTEN", "song", (data.songs || []).some(x => x.sketch)), /* 4.74.0: Sing it */
     b("got1", "1st", "SONG GOT", "song", p.got >= 1), b("got10", "10", "SONGS GOT", "song", p.got >= 10),
-    b("openmic", VENUES[1].toUpperCase(), "REACHED", "venue", ring >= 1), b("coffee", "CAFE", VENUES[2].toUpperCase(), "venue", ring >= 2), b("club", VENUES[3].toUpperCase(), "REACHED", "venue", ring >= 3),
-    b("band1", "1st", "BAND MEMBER", "band", band.joined.length >= 1), b("drums", "BEAT", "ON DRUMS", "band", band.joined.some(x => x.id === "beat")), b("band18", "ALL", "FULL BAND", "band", band.joined.length >= BAND.length),
-    b("promoted", "UP", "PROMOTED", "chart", promoted), b("duel", "WIN", "SONG DUEL", "chart", won),     b("tune10", "10", "TUNE-UPS", "streak", p.tune.sessions >= 10)
+    /* Louie Lite: no venue, band or duel badges (the game is out) */
+    b("promoted", "UP", "PROMOTED", "chart", promoted), b("tune10", "10", "TUNE-UPS", "streak", p.tune.sessions >= 10)
   ].filter(x => !/fan|combo/i.test(x.id + x.lab));
   return { all, got: all.filter(x => x.got) };
 }

@@ -2143,11 +2143,12 @@ test("Levels and badges (4.17.0): XP from plays and gigs, levels that take a lit
   assert.deepEqual(C.levelOf(data), { level: 2, xp: 110, from: 100, to: 300, into: 10, need: 200 });
   assert.equal(C.cleanXP({ days: {}, life: 5000 }).life, 5000, "kept in saves after the days roll off");
   const p = C.profileOf(data, now), b = C.badgesOf(data, p);
-  assert.equal(b.all.length, 26, "4.74.0: Songwriter");
+  assert.equal(b.all.length, 18, "Louie Lite: no gig, venue, band or duel badges");
   assert.equal(b.got.length, 0, "nothing played yet");
-  data.gig = { shows: 12, fans: 0, best: {} };
+  assert.ok(!b.all.some(x => /GIG|BAND|DUEL|REACHED/.test(x.lab)), "no game badges");
+  data.charts = { records: [{ week: "2026-W42", tier: 0 }] };
   const ids = C.badgesOf(data, p).got.map(x => x.id);
-  assert.deepEqual(ids, ["show1", "show10"]);
+  assert.deepEqual(ids, ["promoted"]);
 });
 
 test("Merch table (4.16.0): Pink and Teal are free to wear, and test fans only add to what you can spend", () => {
@@ -2366,14 +2367,13 @@ test("4.41.0 chords where the chord sites have them: numbered words in, position
 
 test("4.44.0 achievement callouts: a level and a badge are celebrated once; the first run counts what you have as seen", () => {
   const p = { songsPlayed: 0, chords: [], best: 0, got: 0, barres: 0, tune: { sessions: 0 } };
-  const data = { songs: [], gig: { shows: 1 } };
+  const data = { songs: [], charts: { records: [{ week: "2026-W42", tier: 0 }] } };
   assert.deepEqual(C.achSettle(data, p), [], "first run: nothing, everything you have is seen");
-  assert.ok(data.ach.badges.includes("show1"));
-  data.gig.shows = 10;
-  const got = C.achSettle(data, p);
-  assert.deepEqual(got.map(x => [x.kind, x.word, x.big]), [["badge", "GIGS", "10"]]);
-  assert.deepEqual(C.achSettle(data, p), [], "not again");
-  const had = new Set(["G"]), p2 = { ...p, chords: [{ name: "G" }, { name: "F" }] };
+  assert.ok(data.ach.badges.includes("promoted"));
+  const got = C.achSettle(data, { ...p, tune: { sessions: 10 } });
+  assert.deepEqual(got.map(x => [x.kind, x.word, x.big]), [["badge", "TUNE-UPS", "10"]]);
+  assert.deepEqual(C.achSettle(data, { ...p, tune: { sessions: 10 } }), [], "not again");
+  const had = new Set(["G"]), p2 = { ...p, tune: { sessions: 10 }, chords: [{ name: "G" }, { name: "F" }] };
   assert.deepEqual(C.achSettle(data, p2, had).map(x => x.big), ["F"], "a new chord");
 });
 

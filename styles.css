@@ -2675,15 +2675,20 @@ body.gigging .ask { z-index: 66; }
 .tq-bar.fq i.th { background: var(--streak); }
 
 /* ---- 4.14.0: the Merch table ---- */
-.fin-pink .louie, body[data-wear="pink"] .louie:not(.fin .louie) { --lv-body: #FF4FA3; --lv-shade: #D93A8A; --lv-hi: #FF84C0; --lv-cheek: #FFD84D; --lv-lamp: #3DE0FF; --lv-tongue: #3DE0FF; }
-.fin-teal .louie, body[data-wear="teal"] .louie:not(.fin .louie) { --lv-body: #0F8B8D; --lv-shade: #0B6F71; --lv-hi: #3BA7A9; --lv-cheek: #FF5A4E; --lv-lamp: #FF5A4E; --lv-tongue: #FF5A4E; }
+.fin-pink .louie, body[data-wear="pink"] .louie:not(.fin .louie) { --lv-face: #FFD23F; --lv-face-sh: #F2B705; --lv-grille: #14213D; --lv-slat: #2A3A63; --lv-pupil: #14213D; --lv-shadow: #14213D; --lv-body: #FF4FA3; --lv-shade: #D93A8A; --lv-hi: #FF84C0; --lv-cheek: #FFD84D; --lv-lamp: #3DE0FF; --lv-tongue: #3DE0FF; }
+.fin-teal .louie, body[data-wear="teal"] .louie:not(.fin .louie) { --lv-face: #FFD23F; --lv-face-sh: #F2B705; --lv-grille: #14213D; --lv-slat: #2A3A63; --lv-pupil: #14213D; --lv-shadow: #14213D; --lv-body: #0F8B8D; --lv-shade: #0B6F71; --lv-hi: #3BA7A9; --lv-cheek: #FF5A4E; --lv-lamp: #FF5A4E; --lv-tongue: #FF5A4E; }
 .fin-tweed .louie, body[data-wear="tweed"] .louie:not(.fin .louie) { --lv-body: #D8B571; --lv-shade: #B08A48; --lv-hi: #EBD39C; --lv-face: #F4EBD6; --lv-face-sh: #DCCDA8; --lv-grille: #5A3A22; --lv-slat: #7A5434; --lv-pupil: #3A2414; --lv-cheek: #E07A5F; --lv-lamp: #E63946; --lv-tongue: #E07A5F; --lv-shadow: #3A2414; }
 .fin-black .louie, body[data-wear="black"] .louie:not(.fin .louie) { --lv-body: #2A2B33; --lv-shade: #16171C; --lv-hi: #474956; --lv-face: #D5D8E0; --lv-face-sh: #A9AEBB; --lv-grille: #14151A; --lv-slat: #3A3D48; --lv-pupil: #14151A; --lv-cheek: #FF3D7F; --lv-lamp: #3A86FF; --lv-tongue: #FF3D7F; --lv-shadow: #000; }
 .fin-mint .louie, body[data-wear="mint"] .louie:not(.fin .louie) { --lv-body: #6FD3B8; --lv-shade: #45B394; --lv-hi: #A6E8D6; --lv-face: #FFF4E2; --lv-face-sh: #F0DDBD; --lv-grille: #1E3A34; --lv-slat: #33584F; --lv-pupil: #1E3A34; --lv-cheek: #FF7A9C; --lv-lamp: #FF3D7F; --lv-tongue: #FF7A9C; --lv-shadow: #1E3A34; }
 .fin-gold .louie, body[data-wear="gold"] .louie:not(.fin .louie) { --lv-body: #E8B828; --lv-shade: #C2961A; --lv-hi: #F6D96A; --lv-face: #FFF3C4; --lv-face-sh: #F2DD8C; --lv-grille: #3A2A10; --lv-slat: #5C4420; --lv-pupil: #3A2A10; --lv-cheek: #FF3D7F; --lv-lamp: #FF3D7F; --lv-tongue: #FF3D7F; --lv-shadow: #3A2A10; }
-body[data-wear="amp"] .louie .lv-b { fill: url(#tolex); }
-body[data-wear="amp"] .louie { --lv-body: #0f0f11; --lv-shade: #0f0f11; --lv-hi: #b8935a; --lv-face: #d9bd85; --lv-face-sh: #b08b4f; --lv-grille: #2e2116; --lv-slat: #4a3524; --lv-pupil: #1a120d; --lv-cheek: #c8804f; --lv-tongue: #c8804f; --lv-lamp: #ffb24a; --lv-shadow: #0f0f11; }
+.fin-stock .louie { --lv-body: #3A86FF; --lv-shade: #2C6FE0; --lv-hi: #6BA4FF; --lv-face: #FFD23F; --lv-face-sh: #F2B705; --lv-grille: #14213D; --lv-slat: #2A3A63; --lv-pupil: #14213D; --lv-cheek: #FF3D7F; --lv-lamp: #FF3D7F; --lv-tongue: #FF3D7F; --lv-shadow: #14213D; }
+body[data-wear="amp"] .louie:not(.fin .louie) .lv-b, .fin-amp .louie .lv-b { fill: url(#tolex); }
+body[data-wear="amp"] .louie:not(.fin .louie), .fin-amp .louie { --lv-body: #0f0f11; --lv-shade: #0f0f11; --lv-hi: #b8935a; --lv-face: #d9bd85; --lv-face-sh: #b08b4f; --lv-grille: #2e2116; --lv-slat: #4a3524; --lv-pupil: #1a120d; --lv-cheek: #c8804f; --lv-tongue: #c8804f; --lv-lamp: #ffb24a; --lv-shadow: #0f0f11; }
 .fin { display: inline-block; line-height: 0; }
+/* Louie Lite: Settings > Look shows each finish as a small Louie */
+.fin-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 12px; }
+.fin-pick { display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 92px; padding: 8px 2px 6px; border-radius: 14px; border: 1px solid var(--bronze-line, rgba(184,147,90,.42)); background: var(--card); color: var(--fg-2); font: 500 12px/1.2 var(--sans); }
+.fin-pick.on { color: var(--fg); border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .mc-tk { fill: var(--fans); } .mc-tkd { fill: var(--fans-deep); }
 .mc { padding-bottom: calc(var(--tabs) + 24px); }
 .mc-head { display: flex; align-items: center; gap: 10px; padding-top: 8px; }
@@ -2857,8 +2862,8 @@ body[data-wear="amp"] .louie { --lv-body: #0f0f11; --lv-shade: #0f0f11; --lv-hi:
 
 /* the knob: the ring fills and the knob turns to the level, with a little overshoot */
 .ri-knob .ri-track, .ri-knob .ri-fill { fill: none; stroke-width: 3; stroke-linecap: round; }
-.ri-knob .ri-track { stroke: var(--locked-ic, #3A3570); } .ri-knob .ri-fill { stroke: #3DE0FF; animation: ri-fill 1.1s cubic-bezier(.3,1.2,.5,1) .2s both; }
-.ri-knob .ri-cap { fill: #3DE0FF; } .ri-knob .ri-cap-lip { fill: #1F7FA0; } .ri-knob .ri-ink { fill: #1B1838; }
+.ri-knob .ri-track { stroke: rgba(184,147,90,.35); } .ri-knob .ri-fill { stroke: #ffb24a; animation: ri-fill 1.1s cubic-bezier(.3,1.2,.5,1) .2s both; }
+.ri-knob .ri-cap { fill: #e9e9ec; } .ri-knob .ri-cap-lip { fill: #8e8e94; } .ri-knob .ri-ink { fill: #1a120d; }
 .ri-knob .ri-dial { transform-origin: 16px 17px; transform: rotate(var(--a)); animation: ri-turn 1.1s cubic-bezier(.3,1.5,.5,1) .2s both; }
 @keyframes ri-fill { from { stroke-dashoffset: 56.5; } }
 @keyframes ri-turn { from { transform: rotate(-135deg); } }
@@ -2878,7 +2883,7 @@ body[data-wear="amp"] .louie { --lv-body: #0f0f11; --lv-shade: #0f0f11; --lv-hi:
 .pf-player { margin: 14px 0 0; padding: 16px; border-radius: 24px; background: var(--streak); box-shadow: 0 6px 0 var(--streak-deep); color: #1B1838; position: relative; overflow: hidden; }
 .pf-player::before { content: ""; position: absolute; right: -40px; top: -40px; width: 170px; height: 170px; border-radius: 50%; background: #fff; opacity: .16; }
 .pf-pc-top { position: relative; display: flex; gap: 14px; align-items: center; }
-.pf-pc-lou { flex: none; width: 112px; height: 112px; border-radius: 28px; background: #1B1838; display: grid; place-items: center; overflow: hidden; }
+.pf-pc-lou { flex: none; width: 112px; height: 112px; border-radius: 28px; background: var(--recess, #1f1910); display: grid; place-items: center; overflow: hidden; }
 .pf-pc-lou .louie { width: 100px; height: auto; margin-top: 8px; }
 .pf-pc-who { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
 .pf-pc-who > small { font: 800 12px var(--body, Nunito, sans-serif); letter-spacing: .08em; opacity: .8; }
@@ -2886,11 +2891,11 @@ body[data-wear="amp"] .louie { --lv-body: #0f0f11; --lv-shade: #0f0f11; --lv-hi:
 .pf-pc-venue b { font: 700 26px/1.05 var(--display); }
 .pf-pc-venue span { font: 700 14px var(--body, Nunito, sans-serif); display: inline-flex; align-items: center; gap: 2px; }
 .pf-pc-venue .chev { width: 16px; height: 16px; }
-.pf-pc-chart { margin-top: 4px; background: #1B1838; color: #B8F34A; border-radius: 999px; padding: 5px 11px; font: 800 12px var(--body, Nunito, sans-serif); letter-spacing: .06em; }
-.pf-pc-level { position: relative; margin-top: 14px; background: #1B1838; border-radius: 14px; padding: 10px 12px; color: #F4F1FF; }
+.pf-pc-chart { margin-top: 4px; background: var(--recess, #1f1910); color: var(--recess-on, #ffc27a); border-radius: 999px; padding: 5px 11px; font: 800 12px var(--body, Nunito, sans-serif); letter-spacing: .06em; }
+.pf-pc-level { position: relative; margin-top: 14px; background: var(--recess, #1f1910); border-radius: 14px; padding: 10px 12px; color: var(--recess-fg, #f1e3c4); }
 .pf-pc-level > div { display: flex; justify-content: space-between; font: 800 12px var(--body, Nunito, sans-serif); letter-spacing: .06em; }
-.pf-pc-level > div span { color: #B9B3DA; }
-.pf-pc-level > i { display: block; height: 10px; border-radius: 5px; margin-top: 6px; background: linear-gradient(90deg, #B8F34A var(--w), #3A3570 var(--w)); }
+.pf-pc-level > div span { color: var(--recess-dim, #a99b80); }
+.pf-pc-level > i { display: block; height: 10px; border-radius: 5px; margin-top: 6px; background: linear-gradient(90deg, #c8804f var(--w), rgba(0,0,0,.45) var(--w)); }
 .pf-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
 .pf-tile { background: var(--card); border-radius: 18px; padding: 12px; display: flex; flex-direction: column; justify-content: center; }
 .pf-tile b { font: 700 26px var(--display); color: var(--fg); } .pf-tile b span { font-size: 16px; color: var(--muted); }

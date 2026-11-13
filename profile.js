@@ -7,11 +7,11 @@
 // got?", "what do I practice most?", "when do I play?"). Each card opens with
 // a plain sentence that answers it, then a small picture. Cards with nothing
 // to say yet stay hidden. Sharing is a button in thumb reach at the bottom.
-import { PASSPORT, STREAK_GOALS, Tabs, badgesOf, chartState, levelOf, playableSongs, profileOf, lifetimePlays, venueOf } from "./core.js";
+import { PASSPORT, STREAK_GOALS, Tabs, badgesOf, chartState, levelOf, playableSongs, profileOf, lifetimePlays } from "./core.js";
 import { app, esc, icon, layer, toast } from "./ui.js";
 import { chordSVG, data, go } from "./app.js";
 import { louie } from "./louie.js";
-import { stageLight, hornsIcon, knobIcon, guitarIcon, buzz } from "./rock.js";
+import { stageLight, hornsIcon, knobIcon, buzz } from "./rock.js";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const shortDay = d => { const [y, m, dd] = String(d).split("-"); return y && m ? `${MONTHS[+m - 1]} ${+dd || ""}${y !== String(new Date().getFullYear()) ? `, ${y}` : ""}`.replace(" ,", ",") : ""; };
@@ -60,20 +60,19 @@ export function renderProfile() {
   const stats = `<div class="pf-stats">${statTime}${statWhen}${statChanges}${statKeys}</div>`;
 
   const plays = lifetimePlays(data);
-  const ven = venueOf(plays);
-  /* 4.17.0: the player card. Louie in your finish, your venue (tap for the Tour Map), your chart, your level */
+  /* 4.17.0: the player card. Louie in your finish, your level (tap for the Tour Map), your chart */
   const lv = levelOf(data), ch = chartState(data), can = playableSongs(data), badges = badgesOf(data, p);
   const goal = STREAK_GOALS.find(g => g > p.streak) || p.streak, num = x => x.toLocaleString("en-US");
   const playerCard = `<section class="pf-player" aria-label="Your card">
       <div class="pf-pc-top"><div class="pf-pc-lou">${louie("happy", { pose: "wave", size: 104 })}</div>
         <div class="pf-pc-who"><small>${esc(since ? since.replace(/^Since/, "Playing since").toUpperCase() : "YOUR PLAYING")}</small>
-          <button class="pf-pc-venue" id="pf-map" aria-label="${esc(ven.name)}, venue ${ven.ring + 1}. Open the Tour Map"><b>${esc(ven.name)}</b><span>Venue ${ven.ring + 1} · Tour Map ${icon("chev", "chev")}</span></button>
+          <button class="pf-pc-venue" id="pf-map" aria-label="Level ${lv.level}. Open the Tour Map"><b>Level ${lv.level}</b><span>Tour Map ${icon("chev", "chev")}</span></button>
           <span class="pf-pc-chart">${esc(ch.name.toUpperCase())} CHART · ${ch.you.rank}${["ST", "ND", "RD"][ch.you.rank - 1] || "TH"}</span>
           </div></div>
       <div class="pf-pc-level"><div><b>LEVEL ${lv.level}</b><span>${num(lv.into)} / ${num(lv.need)} XP</span></div><i style="--w:${Math.round(lv.into / lv.need * 100)}%"></i></div>
     </section>
     <div class="pf-tiles">
-      <div class="pf-tile pf-tile-streak">${knobIcon(p.streak, goal, 46)}<div><span class="pf-tn">${guitarIcon(p.streak > 0)}<b>${p.streak}</b></span><small>${p.streak >= goal ? "NIGHTS IN A ROW" : `NIGHTS<span class="pf-goal">GOAL ${goal}</span>`}</small></div></div>
+      <div class="pf-tile pf-tile-streak">${knobIcon(p.streak, goal, 46)}<div><span class="pf-tn"><b>${p.streak}</b></span><small>${p.streak >= goal ? "DAYS IN A ROW" : `DAYS IN A ROW<span class="pf-goal">GOAL ${goal}</span>`}</small></div></div>
       <div class="pf-tile"><b>${num(plays)}</b><small>PLAYS</small></div>
       <div class="pf-tile"><b>${can.now} <span>of ${can.of}</span></b><small>SONGS YOU CAN PLAY</small></div>
     </div>`;

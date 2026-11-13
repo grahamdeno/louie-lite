@@ -2,6 +2,7 @@
 import { LANGS, SPEEDS, TRASH_DAYS, Tabs, VERSION, html, langChosen, langOf, looksOwned, merchWear, merchWorn, raw } from "./core.js";
 import { $, app, ask, esc, icon, toast } from "./ui.js";
 import { coverPut } from "./sets.js";
+import { louie } from "./louie.js";
 import { ago, backupNow, copyDiagnostics, problems, storageKept, where } from "./store.js";
 import { AI, aiError, aiKey, ownKey, applyTheme, askClaude, busy, data, go, metroPreview, mmss, openTuner, setData, BPM_STORE, bpmKey } from "./app.js";
 
@@ -68,9 +69,7 @@ function renderSettings() {
     </div>
     <div class="label">Louie's finish</div>
     <div class="set-group glass">
-      <div class="set"><span class="tile">${icon("amp")}</span><span class="name">Finish</span>
-        <div class="seg mini" id="s-fin" role="group" aria-label="Louie's finish">${[["amp", "Amp"], ["stock", "Stock blue"], ["pink", "Pink"], ["teal", "Teal"], ["tweed", "Tweed"], ["black", "Black"], ["mint", "Mint"], ["gold", "Gold"]].map(([k, n]) => `<button data-fin="${k}" class="${merchWorn(data) === k ? "on" : ""}" aria-pressed="${merchWorn(data) === k}">${n}</button>`).join("")}</div>
-      </div>
+      <div class="fin-grid" id="s-fin" role="group" aria-label="Louie's finish">${[["amp", "Amp"], ["stock", "Stock blue"], ["pink", "Pink"], ["teal", "Teal"], ["tweed", "Tweed"], ["black", "Black"], ["mint", "Mint"], ["gold", "Gold"]].map(([k, n]) => `<button data-fin="${k}" class="fin-pick${merchWorn(data) === k ? " on" : ""}" aria-pressed="${merchWorn(data) === k}"><span class="fin fin-${k}">${louie("happy", { size: 58, label: `Louie, ${n}` })}</span><span>${n}</span></button>`).join("")}
     </div>
     <p class="foot">Every finish is free. Amp is black tolex with copper and gold, and it's on unless you pick another.</p>
     <p class="foot">One look: the amp. Dark is the default. Light is the same materials on a warm paper ground. Auto follows your phone.</p>
