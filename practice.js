@@ -28,6 +28,7 @@ const lessonName = st => st.kind === "chord" ? `${st.chord} chord` : st.kind ===
 
 let live = null; /* the lesson running now: stopped when you leave */
 let drillQueue = []; /* 4.23.0: "Drill all three" in Rehearse: the switch lessons still to do, in order */
+let tapDrill = false; /* lesson of the day: the click, then I got it. No mic. */
 let backTo = "#/practice"; /* where a lesson's Back goes: Rehearse, or All lessons when it was opened there */
 function stopLive() {
   if (!live) return;
@@ -48,6 +49,7 @@ function startPart(l, i) {
   if (i === 0 || i === 1) {
     const p = i === 0 ? l.warm : l.learn;
     if (!chordSVG(p.a) || !chordSVG(p.b)) return toast("I don't have a shape for one of those chords yet.");
+    tapDrill = true;
     return go("#/practice/" + encodeURIComponent(p.id));
   }
   if (!data.songs.some(s => s.id === l.play.songId)) return toast("That song isn't in your Songbook any more. A new lesson comes tomorrow.");
@@ -72,7 +74,7 @@ function lessonCard(l) {
       ${louie(l.finished ? "cheer" : "happy", { pose: l.finished ? "thumb" : "point", size: 70 })}</div>
     <div class="ls-steps">
       ${stepRow(0, `Warm up: ${l.warm.a} to ${l.warm.b}`, l.warm.why, "1 min")}
-      ${stepRow(1, `Learn ${l.learn.a} to ${l.learn.b}`, "Slow, then on the click. The mic checks each landing", "2 min")}
+      ${stepRow(1, `Learn ${l.learn.a} to ${l.learn.b}`, "On the click. Tap I got it when you have it", "2 min")}
       ${stepRow(2, `Play ${where} at ${Math.round(l.play.rate * 100)}%`, `${l.play.title}, looped in Practice mode. ${l.play.sec >= 0 ? (LESSON_PASSES === 2 ? "Twice through" : `${LESSON_PASSES} times through`) : "Once through"} counts`, "1 min")}
     </div>
     <div class="ls-tags"><span class="ls-xp">${l.finished ? "Earned" : "+"}${l.xp} XP</span>${l.learn.inSongs > l.learn.times ? `<span class="ls-more">In more of your songs: ${l.learn.inSongs} times in all</span>` : ""}</div>
@@ -155,16 +157,33 @@ export function renderRehearse() {
   for (const c of yc.work) if (rows.length < 3 && !rows.some(r => key(r.a, r.b) === key(c.a, c.b))) rows.push(c);
   const shown = new Set(rows.map(r => key(r.a, r.b))), moreMissed = missed.filter(p => !shown.has(key(p.a, p.b))).slice(0, 8);
   const count = ["one", "two", "three"][rows.length - 1] || rows.length;
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const lastWhen = at => {
+    if (!at) return "";
+    const d = new Date(at), now = new Date();
+    const a = new Date(d.getFullYear(), d.getMonth(), d.getDate()), b = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const diff = Math.round((b - a) / 86400000);
+    if (diff <= 0) return "today";
+    if (diff === 1) return "yesterday";
+    if (diff < 7) return "last " + days[d.getDay()];
+    return days[d.getDay()];
+  };
+  const changeLine = c => {
+    const done = data.skills?.done?.[c.id] || {};
+    const n = done.n || 0;
+    const bits = [`in ${c.songCount || 0} of your songs`, n ? `drilled ${n} time${n === 1 ? "" : "s"}` : "not drilled yet"];
+    if (done.at) bits.push(lastWhen(done.at));
+    return bits.join(" · ");
+  };
   const changes = rows.length ? `<section class="rh-yc" aria-label="Your changes">
-      <div class="rh-yct"><div><b>Your changes</b><small>${scOn ? `Soundcheck: drill ${sc.pairs.length === 1 ? "the one marked" : "both marked"} for +${SOUNDCHECK_XP} XP` : sc.done ? "Soundcheck done for today" : "The ones your songs need most and you land least"}</small></div></div>
-      ${rows.map(c => `<div class="rh-ycr${c.sc ? " sc" : ""}${c.done ? " ok" : ""}"><div class="rh-ycx"><b>${esc(c.a)} <i>→</i> ${esc(c.b)}${c.sc ? `<em class="rh-scb">${c.done ? "Done" : "Soundcheck"}</em>` : ""}</b><small>${esc(c.why)}</small>
-          <span class="rh-ycm"><span><i style="width:${Math.max(4, Math.round((c.rate || 0) * 100))}%"></i></span><em>${c.tried ? `Landed ${c.landed} of ${c.of}` : "Not tried yet"}</em></span></div>
+      <div class="rh-yct"><div><b>Your changes</b><small>${scOn ? `Soundcheck: drill ${sc.pairs.length === 1 ? "the one marked" : "both marked"} for +${SOUNDCHECK_XP} XP` : sc.done ? "Soundcheck done for today" : "Changes your songs use"}</small></div></div>
+      ${rows.map(c => `<div class="rh-ycr${c.sc ? " sc" : ""}${c.done ? " ok" : ""}"><div class="rh-ycx"><b>${esc(c.a)} <i>→</i> ${esc(c.b)}${c.sc ? `<em class="rh-scb">${c.done ? "Done" : "Soundcheck"}</em>` : ""}</b><small>${esc(changeLine(c))}</small></div>
         <button class="btn sm rh-ycd" data-drill="${esc(c.id)}" aria-label="Drill ${esc(c.a)} to ${esc(c.b)}">Drill</button></div>`).join("")}
-      ${yc.solid && !shown.has(key(yc.solid.a, yc.solid.b)) ? `<p class="rh-ycs"><span class="ls-n">${icon("check")}</span>${esc(yc.solid.a)} to ${esc(yc.solid.b)} is solid: landed ${yc.solid.landed} of ${yc.solid.of} this week</p>` : ""}
+      ${yc.solid && !shown.has(key(yc.solid.a, yc.solid.b)) ? `<p class="rh-ycs"><span class="ls-n">${icon("check")}</span>${esc(yc.solid.a)} to ${esc(yc.solid.b)}: ${esc(changeLine(yc.solid))}</p>` : ""}
       ${moreMissed.length ? `<button class="rh-more" id="rh-missed">Other changes you dropped<span class="rh-n">${moreMissed.length}</span>${icon("chev", "chev")}</button>
       <div class="rh-pairs" id="rh-pairs" hidden>${moreMissed.map(p => `<button class="rh-pair" data-id="${esc(p.id)}"><b>${esc(p.a)} to ${esc(p.b)}</b><small>missed ${p.n}×</small></button>`).join("")}</div>` : ""}
       <button class="btn primary rh-ycall" id="rh-ycall">${icon("play")}Drill all ${count} · ${rows.length} min${scOn ? ` · +${SOUNDCHECK_XP} XP` : ""}</button>
-    </section>` : `<section class="rh-yc rh-yc-none" aria-label="Your changes"><div class="rh-yct"><div><b>Your changes</b><small>Add songs with chords and the changes they need show up here, with how often you land them in gigs.</small></div></div></section>`;
+    </section>` : `<section class="rh-yc rh-yc-none" aria-label="Your changes"><div class="rh-yct"><div><b>Your changes</b><small>Add songs with chords and the changes they use show up here.</small></div></div></section>`;
   const tile = (id, ic, t) => `<button class="rh-tile" id="${id}"><span class="rh-ic">${icon(ic)}</span><b>${t}</b></button>`;
   app.innerHTML = `<div class="rh">
     <div class="head"><button class="ib glass" id="back" aria-label="Back to the Library">${icon("back")}</button></div>
@@ -477,6 +496,8 @@ function scaleLesson(st) {
 
 /* switch lesson: two chords take turns on the beat */
 function switchLesson(st) {
+  const tapOnly = tapDrill;
+  tapDrill = false;
   const best = data.skills?.done?.[st.id]?.best || 0;
   let bpm = Math.max(50, Math.min(st.to - 10, best ? best : 50)), round = 0;
   const t0 = Date.now();
@@ -486,11 +507,11 @@ function switchLesson(st) {
       <section class="pf-card pk-lesson">
         <div class="pk-pair"><div class="pk-now" id="pk-now"><b id="pk-name">${esc(st.a)}</b><small id="pk-then">then ${esc(st.b)}</small></div><div class="pk-diag" id="pk-diag">${chordSVG(st.b, 1.4)}</div></div>
         <div class="pk-beats" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-        <div class="rd-say pk-say">${louie("happy", { pose: "point", size: 84 })}<p class="rd-bubble" id="pk-say" aria-live="polite">Hold the phone near the guitar. The first bar is a count-in: stay quiet so I can hear the beat.</p></div>
+        <div class="rd-say pk-say">${louie("happy", { pose: "point", size: 84 })}<p class="rd-bubble" id="pk-say" aria-live="polite">${tapOnly ? "The click plays. Switch on each 1, then tap I got it." : "Hold the phone near the guitar. The first bar is a count-in: stay quiet so I can hear the beat."}</p></div>
       </section>
-      <div class="s-dock"><button class="btn primary" id="pk-start">${icon("play")}Start round</button><button class="tb" id="pk-self">I can't hear it, I got it</button></div>`;
+      <div class="s-dock"><button class="${tapOnly ? "btn" : "btn primary"}" id="pk-start">${icon("play")}${tapOnly ? "Play the click" : "Start round"}</button><button class="${tapOnly ? "btn primary" : "tb"}" id="pk-self">${tapOnly ? "I got it" : "I can't hear it, I got it"}</button></div>`;
     $("back").onclick = () => go(backTo); bindTune();
-    $("pk-self").onclick = () => finish(bpm, "Marked as got.");
+    $("pk-self").onclick = () => finish(bpm, tapOnly ? "Got it." : "Marked as got.");
     $("pk-start").onclick = start;
   };
   const say = t => { const e = $("pk-say"); if (e) e.textContent = t; };
@@ -512,6 +533,20 @@ function switchLesson(st) {
   };
   const start = async () => {
     $("pk-start").disabled = true;
+    if (tapOnly) {
+      const audio = sound();
+      const track = beatTrack(bpm, (i, t) => {
+        live?.timeouts.push(setTimeout(() => {
+          const beat = i % 4;
+          document.querySelectorAll(".pk-beats i").forEach((e, n) => e.classList.toggle("on", n === beat));
+          if (beat === 0) show(Math.floor(i / 4) - 1);
+        }, Math.max(0, (t - (audio?.currentTime || 0)) * 1000)));
+      }, { hats: true });
+      if (!track) { $("pk-start").disabled = false; return say("The phone won't play sound here."); }
+      live = { at: Date.now(), stream: null, timeouts: [], track };
+      say("Switch on the 1. Tap I got it when you have it.");
+      return;
+    }
     let stream = null;
     try { stream = await mic(); } catch { say("I can't use the microphone, so I'll play the beat and you tell me how it went."); }
     const audio = sound();

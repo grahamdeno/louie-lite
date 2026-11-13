@@ -75,7 +75,8 @@ test("4.33.0 Your changes takes in the soundcheck: the changes you dropped come 
   assert.equal(await page.locator(".rh-sc").count(), 0, "no separate soundcheck card");
   const yc = await page.innerText(".rh-yc");
   assert.match(yc, /Soundcheck: drill both marked for \+20 XP/);
-  assert.match(yc, /C → F[\s\S]*Dropped 4× in your gigs this week[\s\S]*G → Em[\s\S]*Dropped 2×/);
+  assert.match(yc, /C → F[\s\S]*of your songs[\s\S]*G → Em[\s\S]*of your songs/);
+  assert.doesNotMatch(yc, /Landed/);
   assert.match(await page.innerText("#rh-ycall"), /\+20 XP/);
   await page.click(".rh-ycd >> nth=0"); await page.waitForSelector(".pk-pair");
   assert.match(await page.innerText("h1.title"), /C to F/, "C to F isn't on the neck, but it drills");
@@ -128,10 +129,11 @@ test("4.23.0 Your changes in Rehearse: three rows with why and landed, Drill, an
   await page.evaluate(() => { location.hash = "#/practice"; }); await page.waitForSelector(".rh-yc");
   assert.equal(await page.locator(".rh-ycr").count(), 2);
   const txt = await page.innerText(".rh-yc");
-  assert.match(txt, /Your changes[\s\S]*C\s*→\s*Dm[\s\S]*In Anger/);
-  assert.match(txt, /Not tried yet/);
-  assert.match(txt, /Em\s*→\s*Am[\s\S]*In Porch/);
-  assert.match(txt, /G to C is solid: landed 41 of 43 this week/);
+  assert.match(txt, /Your changes[\s\S]*C\s*→\s*Dm[\s\S]*of your songs/);
+  assert.match(txt, /not drilled yet/);
+  assert.match(txt, /Em\s*→\s*Am[\s\S]*of your songs/);
+  assert.match(txt, /G to C[\s\S]*of your songs/);
+  assert.doesNotMatch(txt, /Landed/);
   assert.match(await page.innerText("#rh-ycall"), /Drill all two/);
   await page.click("#rh-ycall"); await page.waitForSelector("#pk-self");
   assert.match(await page.innerText("h1.title"), /C to Dm/);
