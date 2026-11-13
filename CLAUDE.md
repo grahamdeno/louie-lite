@@ -1,167 +1,81 @@
-# Working on Tabs
+# Working on Louie Lite
 
-Louie: Learn Guitar (4.89.1; Louie on the home screen; called The Road from version 3, Tabs before that; the repo and storage keys keep the name tabs) is Graham's personal guitar PWA. The home tab and its path are still "the Road". Name rules (Graham, 2026-11-11): always the full name in listings and share text, never plain "Louie" as the app's listed name; Louie is a cartoon amp, never described as an AI assistant. It is plain ES modules, no build step, live on
-GitHub Pages from `main`. The README's Development section is the architecture
-map; docs/DATA.md describes every stored field. Read those before guessing.
+Louie Lite (version 3.0.0) is the song app: chord sheets, playing along and practice. The listed name is Louie. The full title is Louie: Learn Guitar. Louie is a cartoon amp, never an assistant.
 
-## Standing rules (from Graham)
+It is plain ES modules, no build step. Songs stay on the phone under storage keys that start with `louielite` (`louielite-v1`, `louielite.apikey.v1`). Louie's own app uses `tabs`. Never read or write those.
 
-- Versions: a feature is a minor release (2.15.0), a fix is a patch (2.16.1),
-  numbered from the release where the defect was found. Bump `VERSION` in
-  `core.js` and `CACHE` in `sw.js` together (a test checks they match).
-- When Graham asks for mockups or an explanation first, give those and wait
-  for a go before building.
-- Lyrics and the AI (Graham, 2026-10-22): the AI may read a song's lyrics
-  (from LRCLIB or Graham's own sheet) to do its job: place chords over the
-  right words, translate for language practice. It answers with positions and
-  translations, never with the lyrics themselves: it doesn't write lyrics from
-  memory (Claude won't reproduce them, and they come out wrong), and the phone
-  puts the words and chords together. Lyrics still come from LRCLIB or his sheet.
-- Keys (Louie Lite, Graham 2026-11-13): the shared Anthropic key lives only on the
-  server (Vercel environment variable ANTHROPIC_API_KEY, used by `api/ai.js`). A key
-  typed in Settings > Keys stays on the phone, is never in the code or a backup, and is
-  sent only to api.anthropic.com. Don't change how phone keys are stored.
-- He uses the phone one-handed, mostly right hand: put actions people reach
-  for mid-song in thumb reach (bottom of sheets, `pfoot`, the bar).
-- The Gig is words first (4.46.0): no Lines in a gig and no Full; the words fill the screen.
-- No ring controls (Graham, 3.19.0): on a phone the rectangular bar is out
-  while paused and folds into Play's corner while playing. Don't bring back
-  the hold-Play ring, the arc, the island or Play following the hand.
-- Writing he sees (UI text, README, commit messages, replies): plain and
-  direct, no em dashes.
-- Onboarding (2026-10-22): docs/ONBOARDING.md lists every hidden feature by
-  page, what teaches it (tip, Show me, listed, none) and the order to teach it.
-  A release that adds, moves or removes a hidden feature or a tip updates it.
+The Library is home. Routes `""` and `"road"` open the Library. There is no tab bar, no Opening night and no scored show. `canGig` stays false. `openingOn()` stays false.
 
-## Version 4: the gamified Road (agreed 2026-10-20)
+This release is built on branch `lite-3`. Push only to `lite-3`. Do not push to `main`, and do not merge into `main` unless Graham says ship. Do not commit or push on `lite-3-ai`.
 
-The guitar is how you play the game. Design system: four palettes (Light =
-Festival Poster, Dark = Neon Midnight, Green = Green Room, Headliner = black, gold and chrome with violet and blaze orange, a dark look that shares Neon's dark fixes, 4.77.0; 4.78.0: looks are on the Merch table, Light and Dark free, Green Room bought, Headliner earned by headlining a show), flat colour with no
-outlines, chunky buttons on a darker lip, Fredoka and Nunito, Louie the amp as
-the mascot (no guitar-pick mascot anywhere; 4.14.1 and 4.15.0 removed the last
-picks). Text in the accent colour uses `--accent-ink` (contrast in the light
-palettes). The mockup canvas artifact has the screens and the Friends board. The Road path (4.82.0) is a guitar neck per leg: stops are finger dots and fret inlays (a box is one, the headline the double), picks only in Opening night.
-Your guitarist (4.85.0): wherever the app means *you* (profile card and share card, chart row, rival battle, duel, Friends board) it shows a guitarist built from parts in Louie's style; Louie stays the mascot everywhere else (the Road, gig end, callouts, tips, Opening night's guide, the Band tab). The look follows the venue, patches are earned and the guitar is the Road guitar you're on, so none of those are picked or bought; only hats are on the Merch table. `docs/GUITARIST-PLAN.md`.
-Louie's friends (Graham's art, 2026-10-21), redrawn in Louie's style: Lola
-guitar, Jax pedal, Tilly tuner, Milo mic, Bex bass amp, Pip pick (rounder,
-yellow, never rainbow), Beat bass drum, Slide brass slide, Strap guitar strap
-(multicolor is fine), Key keyboard key, Metro metronome, Pickup single-coil,
-Whammy whammy bar, Shaker maraca, Reverb tank, Triangle, Looper pedal, Humb
-humbucker, Pick-Clip pick holder (the face is on the clip, not the pick), Vial vacuum tube, Bottle-Slide glass slide (4.37.0), Gig-Bag, Kazo kazoo, Tuk ukulele, Capo, Spool string spool, Peg tuning peg (4.38.0). Graham dropped Boomer, Cable and Reed. Drawings are in `friends.js`.
+The README is the map of what the app does now. `docs/LITE-PLAN.md` is the build plan, including Surprises. `docs/DATA.md` describes stored fields. `docs/lite-mockups` holds the approved screens (pictures and `mockups.html` with the exact colours).
 
-Built, one release each, stopping after each for Graham to try: the look, the
-Gig (4.1.0), one song screen (4.2.0), Full (4.4.0), Tour quests (4.5.0), Charts
-(4.6.0, 4.11.0), Your band (4.7.0), Rehearse (4.8.0), the Songbook (4.9.0),
-cover requests (4.10.0), song duels (4.12.0), Friends and the Friend quest
-(4.13.0), the Merch table (4.14.0: kept simple, fans are money, no 7th tab).
-The README describes each as it works today.
+## Standing rules
 
-## Open
+- Versions: a feature is a minor release, a fix is a patch, numbered from the release where the defect was found. Bump `VERSION` in `core.js` and `CACHE` in `sw.js` together. A test checks they match.
+- When Graham asks for mockups or an explanation first, give those and wait before building.
+- Lyrics and the AI: the AI may read a song's lyrics, from LRCLIB or his sheet, to place chords or to translate. It answers with positions and translations, never with the lyrics themselves. The phone puts the words and chords together.
+- Keys: the shared Anthropic key lives only on the server (`ANTHROPIC_API_KEY` in `api/ai.js`). A key typed in Settings > Keys stays on the phone, is never in the code or a backup, and is sent only to api.anthropic.com. Don't change how phone keys are stored.
+- He uses the phone one-handed, mostly the right hand. Put actions he reaches for mid-song in thumb reach (the bottom of sheets, the gold plate bar).
+- No ring controls. The rectangular bar is out while paused and folds into Play's corner while playing.
+- Writing he sees (UI text, README, commit messages, replies): plain and direct, no em dashes.
+- A new app `.js` file (root or `core/`) must be added to `SHELL` in `sw.js`. Topic files in `core/` must not read another file's values while loading, only inside functions.
+- The search bar stays as it is. Don't change how it opens or clears.
 
-- Real-player league (competition step 4, Graham 2026-10-21): real players at
-  your tier from a server at App Store launch, computer players filling empty
-  spots. Friends stay a separate layer.
-- Apple Music ideas not built yet (Apple Music features only work with Apple
-  Music turned on): playlists both ways; heavy rotation against the chords he
-  knows; other versions and music videos in the Recording sheet; Play together
-  on the recording; mic chord check during a play-along ("Chorus, 3rd chord
-  sounds like Em"), which also brings "learn from your playing"; small touches
-  (about this song, more from this artist, listened vs played).
+## Look
+
+One theme family, `amp`. Dark is the default. Light uses the same materials on warm paper. Buttons are copper and chrome, chips have lamps, cards have bronze piping, sheets are frosted, the song bar is the gold plate. Titles use New York (or the system serif). Body text uses the system sans. Festival, Neon, Green Room and Headliner are not offered.
+
+Louie's finishes are all free. Amp is the default: black tolex, gold face, copper cheeks. Stock blue, Pink, Teal, Tweed, Black, Mint and Gold are the others. Colours are in `docs/lite-mockups/mockups.html`.
 
 ## Where things are
 
 | Area | File |
 |---|---|
-| Pure logic (unit tested): storage, markup, backups, tuner maths, German, Strum it; re-exports every topic | `core.js` |
-| Core topics: chords, recording, sketch, playing, groove, turf, neck, game (4.15.1) | `core/*.js` (import from `core.js`, not these) |
-| Song page, playback, Find songs, router | `app.js` |
-| Songbook: search, filters, list, swipes, paste card | `library.js` |
-| The band: metronome, drums (the bass went in 4.42.0) | `audio.js` |
-| AI help: the request to Anthropic, errors, limits | `aihelp.js` |
-| Share links, opening a shared link, Play together | `share.js` |
-| Listen: recordings, previews, length from the recording | `listen.js` |
-| The bar folding into Play's corner while playing, pull down to go back | `fold.js` |
-| Settings menu and pages, Recently deleted | `settings.js` |
-| Tips, Show me demos, Tips & gestures | `coach.js` |
-| Opening night: the first leg that teaches by doing (the strip, the mic sheet, the Gig's hooks; the leg is drawn in `road.js`) | `opening.js` (steps: `OPENING`, `openingAdvance` in `core.js`) |
-| Play next, chord charts, Get the song | `findai.js` |
-| Tuner | `tuner.js` (+ `heads.js`) |
-| Your profile (profile page, share card) | `profile.js` (numbers: `profileOf` in `core.js`) |
-| Language practice (German, Spanish, Russian) | `german.js` |
-| Rehearse (hub), the neck: lessons, chord string check, switch drill, What I hear | `practice.js` (ladder, grading and the listening numbers `HEAR` in `core.js`) |
-| The Road (home, 4.0.0): path, Louie, the Songbook bar (4.9.0; the Songbook page is `renderLibrary` in `app.js`) | `road.js` (path logic `roadPath`, `fansOf`, `playableSongs` in `core.js`) |
-| The guitar necks on the Road (4.82.0): body shapes, headstocks, inlays, strings, one guitar per leg | `fretboard.js` (numbers: `GUITARS`, `fretLayout`, `guitarNew` in `core/game.js`) |
-| Your guitarist (4.85.0): the drawing (`you`, `rival`; the parts and looks) and the maker sheet (Opening night, the Road, Your profile) | `guitarist.js`, `maker.js` (numbers: `meOf`, `stageLook`, `patchesOf`, `meMood`, `rivalMe` in `core/game.js`) |
-| Stat bar, tab bar, More sheet | `hud.js` |
-| Tour quests: the month's tour, request line, tonight's setlist | `tour.js` (numbers: `questState`, `questsSettle` in `core.js`) |
-| Your band: the Band tab; Louie's friends drawn | `band.js`, `friends.js` (numbers: `bandState`, `bandParts` in `core.js`) |
-| Song duels: challenge links, the head-to-head | `duel.js` (numbers: `startDuel`, `takeDuel`, `duelRecord` in `core.js`) |
-| Support The Road: the Ko-fi page from More (an in-app tip jar at App Store launch) | `support.js` |
-| Merch table: gear, Louie's finishes, gig backdrops, Try it on | `merch.js` (numbers: `MERCH`, `merchBuy`, `rainSettle`, `secondTake` in `core.js`) |
-| Charts: weekly chart, records, rival battles | `charts.js` (numbers: `chartState`, `chartsSettle`, `battleFor`, `XP` in `core.js`) |
-| Version 4 look: palettes and materials | the "Version 4 look" section at the end of `styles.css` |
-| Pull-up drawers: the Tour Map's scene sheet | `drawer.js` (used by `playmap.js`) |
-| The Gig: the scored show over a playing song | `gig.js` (scoring: `gigChange` and friends in `core.js`) |
-| The stage (4.51.0): where the song is, the band, the lit chord and the beat dots drawn on the real sheet, the stage light | `stage.js` (used by `gig.js`) |
-| Guitar pictures (4.87.0): Gemini's pictures cut out and measured by `tools/guitars/pics.py` (sources in `docs/guitars/pics/`, a close-up headstock where there is one); the Road lays them out in `picLayout`/`picBase` in `fretboard.js` with a narrow neck (`NECK`). The guitarist's head and hair: traced by `tools/guitarist`. Check any art at phone resolution (deviceScaleFactor 3) before shipping | `art/guitars/*.webp`, `art/guitars/pics.js`, `art/guitarist.js` |
-| Offline copy; lists every app file | `sw.js` |
+| Pure logic, re-exported | `core.js` |
+| Chords, recording, sketch, playing, groove, turf, neck, game numbers | `core/*.js` (import from `core.js`) |
+| Song page, playback, router | `app.js` |
+| Library | `library.js` |
+| Metronome and drums | `audio.js` |
+| AI request, errors, own key or server | `aihelp.js` |
+| Search, paste, Get the song | `findai.js` |
+| AI server (token, limits, proxy) | `api/token.js`, `api/_lib.js`, `api/ai.js` |
+| Share links, Play together | `share.js` |
+| Recordings and previews | `listen.js` |
+| Bar folding into Play | `fold.js` |
+| Settings, Look, Recently deleted | `settings.js` |
+| Tips | `coach.js` |
+| Tuner | `tuner.js`, `heads.js` |
+| Your playing | `profile.js` |
+| Language practice | `german.js` |
+| Rehearse and lessons | `practice.js` |
+| Weekly chart | `charts.js` |
+| Tour Map | `playmap.js`, `drawer.js` |
+| Stage drawing on the sheet | `stage.js` |
+| Louie the amp | `louie.js` |
+| Support | `support.js` |
+| Callouts | `callout.js` |
+| Editor | `editor.js` |
+| Offline copy | `sw.js` |
 
-A new app `.js` file (root or `core/`) must be added to `SHELL` in `sw.js` (a test checks). Topic files in `core/` must not read another file's values while loading (only inside functions), since they import each other.
+`core/game.js` still has the old game numbers because unit tests and light progress (XP, the weekly chart, finishes, lessons) use them. No screen draws the Road, the band, duels, merch or the guitarist.
 
 ## Tests
 
-- Quick check while working: `node tests/quick.mjs` runs the unit tests plus
-  the browser tests that cover the files changed since `origin/main`.
-- Graham (2.26.0): don't run the full suite here, it costs too many tokens.
-  Before a push run only `node tests/quick.mjs`; the full suite runs in CI
-  on every push (`.github/workflows/test.yml`). Graham (2026-10-19): don't
-  check CI after every push or report it; look (`gh run list -L 1`) only
-  when he asks or something points to a failure there. Most long sleeps in the tests are real
-  timers being checked (Play settling after 5 s), so leave those.
-- Browser tests use `phone()` from `tests/e2e/harness.mjs`; mock network calls
-  with `page.route`. Wait for the thing the next line checks
-  (`waitForSelector` / `waitForFunction`), not a fixed `waitForTimeout`; a
-  sleep that tests a real timer stays, marked `/* real timer */` (4.15.3).
-  - Saves land after the screen changes: to check `localStorage`, wait on the
-    saved value itself.
-  - After a screen change, `settled(page)` before a tap (the cross-fade holds
-    taps off the new screen). `until(cond)` waits on the test's side.
-  - The Gig (the main Play path) has its own file, `gig.e2e.mjs`; elsewhere
-    `LIB` sets `plainPlay: true`.
-- Edit with exact, unique matches and check what changed: a find-and-replace
-  that hit the old ring instead of More shipped broken buttons in 3.13.0/3.14.0.
-- Screenshots for Graham: write a throwaway `tests/e2e/zz_*.e2e.mjs` that
-  saves to `$SHOT`, run it, then delete it.
-- Visual references: CI compares screens against `tests/visual/ci` in a step
-  that can't turn the run red (4.14.1), since a release that changes a screen
-  differs until they're remade. Graham (2026-10-21): remake them once the
-  clean-up plan's step 4 is in; after that, remake when he says. To remake:
-  `gh api -X POST repos/grahamdeno/tabs/actions/workflows/screens.yml/dispatches -f ref=main`.
-- CI's annotation lists every failing test with its location and message, and
-  the a11y test (axe) must pass. Read it with
-  `gh api repos/grahamdeno/tabs/commits/<sha>/check-runs` and the check run's
-  `/annotations` (the sandbox can't download logs).
-- Mockup screenshots cost tokens: make them only when Graham asks for a
-  mockup or a change can't be judged without one.
-- ESLint is installed here: run `eslint .` before a push (CI runs it too).
+- Before a push: `eslint .` and `node tests/quick.mjs`. Both must pass. Do not run the full suite locally. CI runs it on every push.
+- The AI server: `node --test tests/api.test.mjs`.
+- Browser tests use `phone()` from `tests/e2e/harness.mjs`. Wait for the next thing the test checks. A sleep that tests a real timer stays, marked `/* real timer */`.
+- After a screen change, `settled(page)` before a tap. Saves land after the screen changes: wait on the saved value itself.
+- `quick.mjs` compares the diff with `origin/main`, so on `lite-3` it runs essentially every browser test that still exists.
+- Delete tests for a screen you remove.
+- ESLint is `eslint.config.mjs`. Tests and `sw.js` are ignored by it.
 
-## Releasing
+## AI server
 
-1. Change, add or update tests, bump the version, update the README feature
-   list when behavior changes.
-2. Commit with a message that says what changed for Graham, in plain words.
-3. Quick test run, then `git fetch origin main && git rebase origin/main` and
-   push to `main`. The screenshot workflow commits to `main` too, so always
-   rebase first.
-4. The cloud sandbox can't delete branches or call GitHub's write APIs other
-   than workflow dispatch; ask Graham to do those on github.com.
+`api/ai.js` proxies Messages. `api/token.js` issues a device token. `api/_lib.js` holds `LIMITS` and the Upstash counters. `aiFetch` in `aihelp.js` sends a personal key straight to Anthropic, and everything else to `/api/ai` with the device token.
 
-## Larger jobs: plan with Opus, run with Sonnet
+Someone else sets, on Vercel: `ANTHROPIC_API_KEY`, `DEVICE_SECRET`, and the Upstash `KV_REST_API_URL` and `KV_REST_API_TOKEN`. Do not put those values in the repo. Do not rewrite the server to work around a missing variable.
 
-For a clean-up or a multi-release job, Opus writes a plan file (like
-docs/history/AUDIT-PLAN.md) with numbered steps, each marked [Sonnet] or [Opus] and
-any decisions Graham needs to make listed up top. Whoever runs a step: one
-task per commit, `eslint .` and `node tests/quick.mjs`, bump the patch at the
-end of a step that changes app files, rebase and push. When something doesn't
-match the plan, stop that task and write it under "Surprises" in the plan
-file. Tell Graham which model the next step wants. Don't use Haiku.
+## Not in this app
+
+The Road, Opening night, Chord Catch, scored shows, Wait for me, What I hear, the band, friends, duels, the Merch table, the guitarist maker, cover requests, rival battles, Sing it's guitar and strum modes, and the Festival, Neon, Green Room and Headliner palettes.
