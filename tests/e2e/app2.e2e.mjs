@@ -466,6 +466,20 @@ test("2.25.0 speed dial is a meter: the needle swings with the length, and whole
   assert.ok(after[1] < before[1], `faster points higher: ${before} then ${after}`);
 });
 
+for (const scheme of ["light", "dark"]) test(`3.2.0 focus while playing (${scheme}): lines away from the one you're on are dim, and the words fade toward the edges`, { skip: skip() }, async t => {
+  const page = await phone(t, { ...LIB, songs: LIB.songs.map((s, i) => i ? s : { ...s, body: (s.body + "\n\n").repeat(4) }) }, { colorScheme: scheme });
+  await page.evaluate(() => { location.hash = "#/song/a"; }); await page.waitForSelector("#play"); await settled(page);
+  await page.click("#play");
+  await page.waitForSelector("body.staged .sheet .st-now"); await page.waitForSelector("#st-fade");
+  const alpha = sel => page.evaluate(q => { const e = document.querySelector(q); if (!e) return null; const m = getComputedStyle(e).color.match(/[\d.]+/g); return m.length > 3 ? +m[3] : 1; }, sel);
+  const LATER = "body.staged .sheet > .pr:not(.st-now):not(.st-next):not(.st-past)";
+  await until(async () => (await alpha(LATER)) <= 0.6 && (await alpha("body.staged .sheet > .st-now.pr")) === 1); /* the colour eases over .25 s */
+  const now = await alpha("body.staged .sheet > .st-now.pr"), after = await alpha(LATER);
+  assert.equal(now, 1, "the line you're on is full strength");
+  assert.ok(after !== null && after <= 0.6, `a later line is dimmed (alpha ${after})`);
+  await page.click("#fp .play, #play").catch(() => {});
+});
+
 test("3.2.0 Songbook header: Louie opens Your playing with your days in a row; Just heard it leads the Today strip", { skip: skip() }, async t => {
   const now = Date.now();
   const songs = LIB.songs.map((s, i) => i ? s : { ...s, plays: [now - 36e5, now - 864e5] });

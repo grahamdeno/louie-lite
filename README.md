@@ -9,6 +9,8 @@ This is version 3.0.0. It started from Louie 4.89.1 and left the game behind: no
 ## What you can do
 
 ### Library
+While a song plays, the line you're on is full strength; lines further from it are dimmer and the words fade into the page toward the top and bottom of the screen.
+
 Home is the Library. The header has Louie (opens Your playing and shows your days in a row), Sets and Settings. Under that: the Today strip (Just heard it first for 3 hours after a song plays in Apple Music), one row of filters (All, Can play, Learning, Favorites), a count line, the search bar and a music-note button that opens Search or add. There is no tab bar and no back button on home.
 
 ### A song

@@ -82,11 +82,17 @@ export function stageStart() {
   bg.className = "st-bg"; bg.id = "st-bg"; bg.setAttribute("aria-hidden", "true");
   bg.innerHTML = '<i class="st-lamp"></i><i class="st-beam"></i>';
   document.body.prepend(bg);
+  /* 3.2.0, Graham: focus on the line you're on. The words fade into the page toward the top and bottom edges */
+  const fade = document.createElement("div");
+  fade.className = "st-fade"; fade.id = "st-fade"; fade.setAttribute("aria-hidden", "true");
+  fade.innerHTML = "<i></i><i></i>";
+  document.body.append(fade);
 }
 export function stageClear() {
   const sheet = $("sheet");
   sheet?.querySelectorAll(MARKS.map(m => "." + m).join(",")).forEach(e => e.classList.remove(...MARKS));
   $("st-bg")?.remove();
+  $("st-fade")?.remove();
   $("st-open")?.remove();
   document.body.classList.remove("staged");
   delete document.body.dataset.gel;

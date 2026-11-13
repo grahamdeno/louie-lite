@@ -4437,8 +4437,7 @@ body.covered .gc-tile b { background: rgba(20, 18, 24, .82); color: #FFFFFF; }
 /* Step 6: the rest of the list */
 /* The Gig: the lines you've sung and the ones coming stay readable; chord letters in the light looks are dark
    enough to read on the lit band; the idle crowd shows */
-:root[data-theme="light"], :root[data-look="festival"], :root[data-look="green"] { --dim-next: 94%; --dim-after: 86%; --dim-past: 80%; }
-body.covered { --dim-next: 86%; --dim-after: 74%; --dim-past: 66%; }
+/* 3.2.0: the Road's light-look values (94/86/80) are gone here; they undid the focus fade in light */
 :root[data-theme="light"] body.staged .sheet .c, :root[data-look="festival"] body.staged .sheet .c, :root[data-look="green"] body.staged .sheet .c { color: color-mix(in srgb, var(--gel) 48%, var(--fg)); }
 :root[data-theme="light"] body.covered.staged .sheet .c:not(.st-got):not(.st-miss), :root[data-look="festival"] body.covered.staged .sheet .c:not(.st-got):not(.st-miss), :root[data-look="green"] body.covered.staged .sheet .c:not(.st-got):not(.st-miss) { color: #FFFFFF; }
 .gg-status .gg-fans i { color: color-mix(in srgb, var(--fg) 22%, var(--bg)); }
@@ -4703,3 +4702,26 @@ body.staged .sheet > .sec.st-past { color: var(--muted); }
 /* earned badges read on the amp's cards (their old bright fills are gone) */
 :root[data-look="amp"] body .pf-badge:not(.locked) { color: var(--fg); border-color: var(--copper); }
 :root[data-look="amp"] body .pf-badge:not(.locked) b { color: var(--accent-ink, var(--copper)); }
+
+/* 3.2.0: focus on the line you're on, as on the Road's stage. The lines further from it are dimmer, and the
+   words fade into the page toward the top and bottom of the screen (the reading line sits 40% down).
+   The right edge stays clear so the song map's dots don't fade. Over a song's cover only the dimming applies. */
+:root { --dim-next: 72%; --dim-after: 40%; --dim-past: 32%; }
+:root[data-theme="light"] { --dim-next: 80%; --dim-after: 52%; --dim-past: 44%; }
+body.covered { --dim-next: 80%; --dim-after: 56%; --dim-past: 46%; }
+.st-fade { position: fixed; left: 0; right: 40px; top: 0; bottom: 0; z-index: 14; pointer-events: none; }
+.st-fade i { position: absolute; left: 0; right: 0; display: block; }
+.st-fade i:first-child { top: 0; height: 30%; background: linear-gradient(180deg, var(--bg) calc(var(--safe-t, 0px) + 24px), color-mix(in srgb, var(--bg) 70%, transparent) 45%, transparent); }
+.st-fade i:last-child { bottom: 0; height: 40%; background: linear-gradient(0deg, var(--bg) 18%, color-mix(in srgb, var(--bg) 75%, transparent) 50%, transparent); }
+body.covered .st-fade, body.cedit .st-fade { display: none; }
+/* 3.2.0: with Practice on, the song bar's gold plate spans the row and its words read on gold in both themes */
+:root[data-look="amp"] .app.viewer .dock .pw:has(.looprow.on) { flex: 1; min-width: 0; }
+:root[data-look="amp"] .app.viewer .dock .looprow { border-bottom-color: rgba(60, 38, 10, .25); color: #3b2610; }
+:root[data-look="amp"] .app.viewer .dock .looprow .lp-lbl { color: #6a3d12; }
+:root[data-look="amp"] .app.viewer .dock .looprow .chip { background: rgba(255, 250, 240, .82); color: #2b1c0c; border-color: rgba(60, 38, 10, .22); }
+:root[data-look="amp"] .app.viewer .dock .looprow .chip.on { background: var(--copper); color: #fff; }
+:root[data-look="amp"] .app.viewer .dock .looprow .sb { color: #3b2610; }
+:root[data-look="amp"] body.fold .app.viewer .dock .pw:has(.looprow.on) { margin-right: 58px; }
+:root[data-look="amp"] .app.viewer .dock .looprow .chip::before { display: none; }
+:root[data-look="amp"] body .app.viewer .dock { background: none; box-shadow: none; border: 0; padding: 0; }
+:root[data-look="amp"] body.fold .app.viewer .dock .looprow .lp-lbl { display: none; }
