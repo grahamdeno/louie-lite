@@ -5,10 +5,10 @@
 // the browser checks sw.js for changes on every launch. When it finds a new
 // version, install saves the whole app shell fresh from the server in one go,
 // so a release is never half old and half new. The page then offers a reload.
-const CACHE = "louielite-v2.49.4";
+const CACHE = "louielite-v3.0.0";
 const ART = "louielite-art";          // album art for covers, kept across releases
 const VENDOR = "louielite-vendor";    // libraries loaded on first use (vendor/), kept across releases
-const SHELL = ["./", "index.html", "styles.css", "app.js", "core.js", "ui.js", "store.js", "sets.js", "settings.js", "editor.js", "coach.js", "tuner.js", "findai.js", "german.js", "aitools.js", "crop.js", "sketch.js", "heads.js", "dial.js", "ring.js", "strum.js", "share.js", "listen.js", "profile.js", "playmap.js", "manifest.webmanifest", "icons/icon-192.png", "icons/apple-touch-icon.png"];
+const SHELL = ["./", "index.html", "styles.css", "app.js", "library.js", "audio.js", "aihelp.js", "core.js", "core/chords.js", "core/game.js", "core/groove.js", "core/neck.js", "core/playing.js", "core/recording.js", "core/sketch.js", "core/turf.js", "ui.js", "store.js", "sets.js", "settings.js", "editor.js", "coach.js", "tuner.js", "findai.js", "german.js", "aitools.js", "crop.js", "sketch.js", "heads.js", "dial.js", "fold.js", "share.js", "listen.js", "profile.js", "playmap.js", "stage.js", "charts.js", "support.js", "practice.js", "drawer.js", "louie.js", "rock.js", "scene.js", "callout.js", "tuneup.js", "manifest.webmanifest", "icons/icon-192.png", "icons/apple-touch-icon.png", "icons/favicon-32.png"];
 
 self.addEventListener("install", e => {
   // Fetch every file fresh: cache: "reload" skips the phone's HTTP cache, and
@@ -54,7 +54,7 @@ self.addEventListener("fetch", e => {
   const req = e.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
-  if (url.hostname === "api.anthropic.com") return; // never cache AI calls
+  if (url.hostname === "api.anthropic.com" || url.pathname.startsWith("/api/")) return; // never cache AI calls
   // Album art used for set covers: keep a copy so covers still show offline.
   // (Kept across releases; images only, from Apple's artwork servers.)
   if (/(^|\.)mzstatic\.com$/.test(url.hostname) && req.destination === "image") {

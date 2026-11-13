@@ -1,6 +1,6 @@
 // Tabs Listen : find a recording, keep its link,
 // play a preview, and take the song's length from the recording.
-import { Tabs, appleTrackId, fitLength, lengthChoice, linkService, rankTracks } from "./core.js";
+import { Tabs, VERSION, appleTrackId, bodyKey, cleanFeel, cleanTimed, feelOf, fitLength, lengthChoice, linkService, matchLines, parseLrc, rankTracks } from "./core.js";
 import { $, ask, esc, icon, layer, onLeave, toast } from "./ui.js";
 import { appleBlocksSearch, catalogBlocked, itunes } from "./sets.js";
 import { noteError } from "./store.js";
@@ -20,8 +20,7 @@ async function findTracks(song, q) {
 function saveListen(song, url, extra = {}) {
   song.listen = { url, service: linkService(url), ...extra };
   Tabs.save(data);
-  const chip = $("listen");
-  if (chip) chip.innerHTML = `${icon("note")}${esc(song.listen.service)}`;
+  feelArrived?.(song); /* the cover beside the title follows */
 }
 // The recording's length becomes the song's length (for song length speed) when
 // you haven't set one; if you have, it's offered instead of replacing yours.
@@ -59,8 +58,344 @@ async function recordingLength(song, url, opts) {
 let preview = null;
 function stopPreview() { if (preview) { preview.audio.pause(); preview = null; document.querySelectorAll(".ls-pv.on").forEach(b => { b.classList.remove("on"); b.innerHTML = icon("play"); }); } }
 onLeave(() => stopPreview());
+// Apple Music (optional, off unless turned on in Settings > Keys): a subscriber
+// hears the whole linked recording here. Nothing below runs while it's off.
+// MusicKit loads on first use; its developer token comes from the token
+// address (the Worker in worker/, which holds the MusicKit key).
+const MUSICKIT = "https://js-cdn.music.apple.com/musickit/v3/musickit.js";
+let musicKit = null, inst = null, playingId = "", mkStep = "";
+/* Apple's player may raise its own alert ("The operation was aborted."). Catch it, keep the stack that
+   shows who raised it, and show it as a banner with the step it came from (3.10.1). */
+function catchAlerts() {
+  if (window.alert.caught) return;
+  const real = window.alert.bind(window);
+  window.alert = msg => {
+    noteError(new Error(`alert at ${mkStep || "?"}: ${msg}`), { quiet: true, where: "apple music alert" });
+    toast(`Apple Music (${mkStep || "?"}): ${String(msg).slice(0, 80)}`);
+    void real;
+  };
+  window.alert.caught = true;
+}
+const step = (name, p) => { mkStep = name; return p; };
+function loadMusicKit() {
+  if (musicKit) return musicKit;
+  catchAlerts();
+  musicKit = (async () => {
+    const url = data.settings.appleMusicToken || "";
+    if (!/^https:\/\//.test(url)) throw new Error("No Apple Music token address");
+    const r = await step("token", fetch(url));
+    if (!r.ok) throw new Error(`Apple Music token: ${r.status}`);
+    const { token } = await r.json();
+    if (!window.MusicKit) await step("script", new Promise((ok, no) => {
+      document.addEventListener("musickitloaded", ok, { once: true });
+      const s = document.createElement("script");
+      s.src = MUSICKIT; s.async = true;
+      s.onload = () => { if (window.MusicKit) ok(); };
+      s.onerror = () => no(new Error("MusicKit didn't load"));
+      document.head.appendChild(s);
+    }));
+    await step("setup", window.MusicKit.configure({ developerToken: token, app: { name: "Louie: Learn Guitar", build: VERSION } }));
+    return window.MusicKit.getInstance();
+  })();
+  musicKit.then(m => { inst = m; }, () => { musicKit = null; });
+  return musicKit;
+}
+export async function playApple(song) {
+  const id = appleTrackId(song.listen.url);
+  try {
+    const music = await loadMusicKit();
+    if (!music.isAuthorized) return toast("Sign in to Apple Music to hear the whole song", null, { label: "Sign in", fn: () => step("sign-in", music.authorize()).then(() => playApple(song), e => { noteError(e, { quiet: true, where: "apple music sign-in" }); toast(`Apple Music sign-in stopped: ${String(e?.message || e).slice(0, 80)}`); }) });
+    if (playingId === id && music.isPlaying) { music.pause(); return; }
+    if (playingId === id) { await step("play", music.play()); return; }
+    await step("queue", music.setQueue({ song: id, startPlaying: true }));
+    playingId = id;
+  } catch (e) {
+    noteError(e, { quiet: true, where: `apple music ${mkStep}` });
+    toast(`Apple Music stopped at ${mkStep || "start"}: ${String(e?.message || e).slice(0, 70)}`, null, { label: "Open", fn: () => openLink(song.listen.url) });
+  }
+}
+onLeave(() => { if (playingId) { musicKit?.then(m => m.stop(), () => {}); playingId = ""; } });
+/* Play starts the recording with the scroll (3.10.0). Opening a song gets MusicKit and the queue ready
+   (paused), so Play only has to say play; if Apple Music isn't ready, signed in or linked, nothing
+   happens and the song scrolls as before. Pausing the scroll pauses the recording. */
+let readyId = "", askedSignIn = 0;
+/* Not signed in to Apple Music inside the app: every recording feature would do nothing, so say so (3.24.1). */
+function signInPrompt(music, song) {
+  if (Date.now() - askedSignIn < 30000) return;
+  askedSignIn = Date.now();
+  toast("Sign in to Apple Music to play the recording with the page", null, { label: "Sign in", fn: () => step("sign-in", music.authorize()).then(() => { readyId = ""; prepareMusic(song); }, e => noteError(e, { quiet: true, where: "apple music sign-in" })) });
+}
+const wanted = song => !!(data.settings.appleMusic && song?.listen && appleTrackId(song.listen.url));
+export const hasMusic = wanted;
+export function prepareMusic(song) {
+  if (!wanted(song)) return;
+  fetchDetails(song);
+  listenToPreview(song);
+  const id = appleTrackId(song.listen.url);
+  loadMusicKit().then(async music => {
+    if (!music.isAuthorized) return signInPrompt(music, song);
+    if (playingId === id || readyId === id) return;
+    await step("queue", music.setQueue({ song: id, startPlaying: false }));
+    readyId = id;
+  }).catch(e => noteError(e, { quiet: true, where: "apple music ready" }));
+}
+/* `at` is where in the recording to start, in seconds: the scroll's place, so Play from the middle of
+   the sheet starts the music there. A resume from a pause that is already about right is left alone. */
+export async function startMusic(song, at = 0, rate = 1) {
+  if (!wanted(song)) return;
+  const id = appleTrackId(song.listen.url);
+  try {
+    const music = await loadMusicKit();
+    if (!music.isAuthorized) return signInPrompt(music, song);
+    if (readyId !== id && playingId !== id) { await music.setQueue({ song: id, startPlaying: false }); readyId = id; }
+    const cur = playingId === id ? music.currentPlaybackTime || 0 : 0;
+    if (Math.abs(cur - at) > 1.5) { try { await music.seekToTime(Math.max(0, at)); } catch { /* a fresh queue is already at the start */ } }
+    const t0 = performance.now(), from = music.currentPlaybackTime || 0;
+    await step("play", music.play());
+    playingId = id;
+    setMusicRate(rate);
+    /* 4.68.0: how long the recording takes to start sounding, so the count-in can ask for it that much early */
+    const watch = () => {
+      const t = music.currentPlaybackTime || 0, ms = performance.now() - t0;
+      if (t > from + 0.02) { const lag = Math.min(1500, Math.max(0, ms - (t - from) * 1000)); musicLag = Math.round(musicLag * 0.6 + lag * 0.4); try { localStorage.setItem(LAG_KEY, String(musicLag)); } catch {} return; }
+      if (ms < 3000) requestAnimationFrame(watch);
+    };
+    requestAnimationFrame(watch);
+  } catch (e) { noteError(e, { quiet: true, where: `apple music start (${mkStep})` }); }
+}
+/* 4.68.0: the recording's start delay in ms (measured on each start, remembered on this phone) */
+const LAG_KEY = "louielite.musiclag.v1";
+let musicLag = (() => { try { return Math.min(1500, Math.max(0, +localStorage.getItem(LAG_KEY) || 300)); } catch { return 300; } })();
+export const musicLead = () => musicLag;
+/* Slowing the recording (3.14.0), for practice: Apple Music's own player setting. A build that doesn't
+   offer the speed stays at full speed, and rateWorks() says so. */
+export const rateWorks = () => !inst || "playbackRate" in inst;
+export function setMusicRate(rate) {
+  if (!inst || !("playbackRate" in inst)) return false;
+  try { inst.playbackRate = Math.min(1, Math.max(0.5, rate || 1)); return true; } catch (e) { noteError(e, { quiet: true, where: "apple music speed" }); return false; }
+}
+/* Song details and recent plays from Apple Music's catalog (3.15.0): genre, year, composer and the album's
+   own color, kept on the song's listen link; and what you played lately, for Find songs. Both go through
+   the MusicKit session, so they need Apple Music turned on and you signed in. */
+const cleanHex = v => /^[0-9a-f]{6}$/i.test(String(v || "")) ? String(v).toLowerCase() : "";
+async function apiGet(path, params) {
+  const music = await loadMusicKit();
+  if (!music.isAuthorized) return null;
+  const r = await music.api.music(path, params);
+  return r?.data?.data || null;
+}
+const detailJobs = new Set();
+let detailsArrived = null; /* the open Recording sheet repaints when the details come in */
+export async function fetchDetails(song) {
+  if (!wanted(song) || song.listen.det || detailJobs.has(song.id)) return;
+  detailJobs.add(song.id);
+  try {
+    const music = await loadMusicKit();
+    const rows = await apiGet(`/v1/catalog/${music.storefrontId || "us"}/songs/${appleTrackId(song.listen.url)}`);
+    const a = rows?.[0]?.attributes;
+    if (!a) return;
+    const l = { ...song.listen, det: 1 };
+    const genre = (a.genreNames || []).find(g => g && g !== "Music");
+    if (genre) l.genre = String(genre).slice(0, 40);
+    const year = +String(a.releaseDate || "").slice(0, 4);
+    if (year >= 1900 && year <= 2100) l.year = year;
+    if (a.composerName) l.composer = String(a.composerName).slice(0, 80);
+    const tint = cleanHex(a.artwork?.bgColor);
+    if (tint) l.tint = tint;
+    song.listen = l; Tabs.save(data);
+    if (viewing === song) detailsArrived?.(song);
+  } catch (e) { noteError(e, { quiet: true, where: "apple music details" }); }
+  finally { detailJobs.delete(song.id); }
+}
+/* Line timing (3.17.0). A song with a linked recording asks LRCLIB once for that recording's synced
+   lyrics (same title and artist, length within 3 seconds), matches its lines to the sheet's, and keeps
+   only the times: song.timed = { h, id, at: [[line, seconds]] }, or { h, none } when there are none.
+   It asks again after the sheet's words change. readLines() gives the sheet's lines as [{ i, text }]. */
+const timeJobs = new Set();
+export async function timeLines(song, readLines) {
+  if (!wanted(song) || !song.body) return;
+  const h = bodyKey(song.body), len = song.listen.length || 0;
+  if (song.timed?.h === h || timeJobs.has(song.id) || !(len > 0)) return;
+  timeJobs.add(song.id);
+  try {
+    const title = song.listen.title || song.title, artist = song.listen.artist || song.artist || "";
+    const q = `track_name=${encodeURIComponent(title)}&artist_name=${encodeURIComponent(artist)}`;
+    const fits = x => x?.syncedLyrics && Math.abs((x.duration || 0) - len) <= 3;
+    const get = async url => { const r = await fetch(url, { cache: "no-store" }); return r.ok ? r.json() : null; };
+    let hit = await get(`https://lrclib.net/api/get?${q}&duration=${Math.round(len)}`).catch(() => null);
+    if (!fits(hit)) hit = ((await get(`https://lrclib.net/api/search?${q}`).catch(() => null)) || []).find(fits) || null;
+    const rows = hit ? parseLrc(hit.syncedLyrics) : [], pairs = hit ? matchLines(readLines(), rows) : [];
+    const at = pairs.map(([i, sec]) => [i, sec]), w = {};
+    for (const [i, , j] of pairs) if (rows[j]?.[2]) w[i] = rows[j][2]; /* word times, when the lyrics have them */
+    /* fewer than four lines matched: probably a different sheet or version, so don't trust it */
+    song.timed = cleanTimed(at.length >= 4 ? { h, id: hit.id, at, w } : { h, none: 1 });
+    Tabs.save(data);
+    if (viewing === song) detailsArrived?.(song);
+  } catch (e) { noteError(e, { quiet: true, where: "line timing" }); }
+  finally { timeJobs.delete(song.id); }
+}
+/* Listening to the preview (3.18.0). Apple's 30-second preview of the linked track is read once and
+   measured: tempo, swing and key, kept as song.listen.feel. Preview files may not allow a web page to
+   read them, so it tries directly and then through the token Worker's /preview route (worker/README.md);
+   if neither works it tries again next time the app opens. A song with no tempo takes the measured one. */
+const feelJobs = new Set(), feelFailed = new Set();
+async function previewBytes(url) {
+  try { const r = await fetch(url, { mode: "cors" }); if (r.ok) return await r.arrayBuffer(); } catch { /* not readable directly */ }
+  const base = String(data.settings.appleMusicToken || "").replace(/\/token\/?$/, "");
+  if (!/^https:\/\//.test(base)) return null;
+  const r = await fetch(`${base}/preview?u=${encodeURIComponent(url)}`);
+  return r.ok ? r.arrayBuffer() : null;
+}
+export async function listenToPreview(song) {
+  const id = appleTrackId(song?.listen?.url || "");
+  if (!wanted(song) || song.listen.feel || feelJobs.has(id) || feelFailed.has(id)) return;
+  feelJobs.add(id);
+  try {
+    const hit = ((await itunes("lookup", { id, entity: "song" }))?.results || []).find(x => x.previewUrl);
+    if (!hit) throw new Error("no preview");
+    const bytes = await previewBytes(hit.previewUrl);
+    if (!bytes) throw new Error("preview not readable (the Worker needs the /preview route)");
+    const Off = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const buf = await new Off(1, 44100, 44100).decodeAudioData(bytes);
+    const mono = new Float32Array(buf.length);
+    for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c); for (let i = 0; i < d.length; i++) mono[i] += d[i] / buf.numberOfChannels; }
+    const feel = cleanFeel(feelOf(mono, buf.sampleRate) || { none: 1 });
+    if (!feel || !song.listen || appleTrackId(song.listen.url) !== id) return;
+    song.listen = { ...song.listen, feel };
+    if (!song.bpm && feel.bpm && (feel.sure || 0) >= 0.1) song.bpm = feel.bpm;
+    Tabs.save(data);
+    if (viewing === song) { detailsArrived?.(song); feelArrived?.(song); }
+  } catch (e) { feelFailed.add(id); noteError(e, { quiet: true, where: "preview listening" }); }
+  finally { feelJobs.delete(id); }
+}
+let feelArrived = null;
+export const onFeel = f => { feelArrived = f; };
+/* 4.49.8: searching Apple's catalog through MusicKit. An iPhone can't use the iTunes search (Apple redirects it
+   into the Music app), so the search screen asks MusicKit instead: [{ title, artist, year }], or null when
+   Apple Music is off. A catalog search needs the developer token only, not a sign-in. */
+export async function searchApple(term, limit = 5) {
+  if (!data.settings.appleMusic || !data.settings.appleMusicToken) return null;
+  const music = await loadMusicKit();
+  const r = await music.api.music(`/v1/catalog/${music.storefrontId || "us"}/search`, { term, types: "songs", limit });
+  /* shaped like iTunes' results, so the same ranking works; 4.57.0 adds the link, length and cover */
+  return (r?.data?.results?.songs?.data || []).map(x => {
+    const a = x.attributes || {}, art = String(a.artwork?.url || "").replace("{w}x{h}", "100x100").replace("{f}", "jpg");
+    return { trackName: a.name, artistName: a.artistName, collectionName: a.albumName, releaseDate: a.releaseDate, trackId: x.id,
+      ...(/^https:\/\/music\.apple\.com\//.test(a.url || "") ? { trackViewUrl: a.url } : {}), ...(a.durationInMillis ? { trackTimeMillis: a.durationInMillis } : {}),
+      ...(/^https:\/\//.test(art) ? { artworkUrl100: art } : {}), ...(/^https:\/\//.test(a.previews?.[0]?.url || "") ? { previewUrl: a.previews[0].url } : {}) };
+  });
+}
+/* 4.57.0: a recording found while the song is fetched (Get the song) is saved with the song as if it had been
+   linked in Listen: the link and cover, and its length for song length speed. */
+export function attachRecording(song, rec) {
+  if (!rec?.url) return;
+  saveListen(song, rec.url, { ...(rec.title ? { title: rec.title } : {}), ...(rec.artist ? { artist: rec.artist } : {}), ...(rec.art ? { art: rec.art } : {}) });
+  if (rec.length > 0) useRecordingLength(song, rec.length, { quiet: true });
+}
+/* What you played lately in Apple Music: [{ title, artist }], newest first. */
+let recentCache = null; /* { at, rows }: Tonight asks each time it opens; Apple is asked at most every 2 minutes */
+export async function recentApple() {
+  if (!data.settings.appleMusic || !data.settings.appleMusicToken) return [];
+  if (recentCache && Date.now() - recentCache.at < 120000) return recentCache.rows;
+  const rows = await recentFetch();
+  recentCache = { at: Date.now(), rows };
+  return rows;
+}
+async function recentFetch() {
+  try {
+    const rows = await apiGet("/v1/me/recent/played/tracks", { limit: 10, types: "songs" });
+    const seen = new Set(), out = [];
+    for (const r of rows || []) {
+      const a = r.attributes, key = `${a?.name}|${a?.artistName}`.toLowerCase();
+      if (!a?.name || seen.has(key)) continue;
+      const art = String(a.artwork?.url || "").replace("{w}x{h}", "600x600").replace("{f}", "jpg");
+      seen.add(key); out.push({ title: String(a.name).slice(0, 100), artist: String(a.artistName || "").slice(0, 100),
+        ...(/^https:\/\/music\.apple\.com\//.test(a.url || "") ? { url: a.url } : {}), ...(/^https:\/\//.test(art) ? { art } : {}) });
+    }
+    return out.slice(0, 8);
+  } catch (e) {
+    /* 4.42.7 (#76): offline, there's nothing to fix, so nothing is logged; otherwise the log says which step failed */
+    if (navigator.onLine !== false) noteError(new Error(`${mkStep || "Apple's API"}: ${e?.message || e}`), { quiet: true, where: "apple music recent" });
+    return [];
+  }
+}
+/* The recording's own clock, in seconds, while it is playing; null otherwise. Play scrolls by it (3.12.0). */
+export const musicPlaying = song => !!(inst && playingId && song?.listen && playingId === appleTrackId(song.listen.url) && inst.isPlaying);
+// ---- The Recording sheet (3.16.0; 4.20.0 redone) ----
+// Tap the recording button beside Play: the cover and the song's details, the recording's facts as chips,
+// what Play starts as two big choices (a tap saves and closes), Listen first (the recording without the
+// page moving), what the page has learned of the song, and Change recording. The app passes in how to
+// read and change those.
+//  o.mode() "music" | "band", o.setMode(m), o.reset(), o.changed(),
+//  o.spots() { auto, mine }: where the timed lines and your nudges sit down the sheet (0 to 1),
+//  o.notes() { key, bpm }: how the sheet differs from the measured recording; o.matchKey(), o.matchBpm()
+/* About this song (4.31.0, it was the Recording sheet): opened from the cover or "about this song" under
+   the title. The recording's cover with a preview, Tempo, Length and Key, a word when the sheet doesn't
+   match the recording, When you press Play, Timing and Change recording. With no recording linked the
+   same sheet offers Find a recording. Done is at the bottom, in thumb reach. */
+export function aboutSheet(song, o) {
+  let showTiming = false;
+  const close = () => { detailsArrived = null; layer.innerHTML = ""; o.changed?.(); };
+  const paint = () => {
+    const l = song.listen || {}, music = o.music(), band = o.mode() === "band", marks = song.syncs || [], on = music && musicPlaying(song);
+    const timed = song.timed?.at?.length || 0, spots = o.spots?.() || { auto: [], mine: marks.map(m => m[0]) };
+    const f = music && l.feel && !l.feel.none ? l.feel : null, look = f ? o.notes?.() || {} : {};
+    const keyNote = look.key ? `<div class="rs-look"><span>The recording sounds ${Math.abs(look.key)} half step${Math.abs(look.key) === 1 ? "" : "s"} ${look.key > 0 ? "higher" : "lower"} than your sheet.</span><button class="btn sm" id="rs-key">Match it</button></div>` : "";
+    const bpmNote = look.bpm ? `<div class="rs-look"><span>Your tempo is ${song.bpm}. The recording is ${f.bpm}.</span><button class="btn sm" id="rs-bpm">Use ${f.bpm}</button></div>` : "";
+    const details = [l.genre, l.year, music ? "Apple Music" : l.service, l.composer && `Written by ${l.composer}`].filter(Boolean).join(" · ");
+    const bpm = song.bpm || f?.bpm || 0, swing = f?.swing && f.swing !== "straight" ? ({ light: "Light swing", full: "Swung" })[f.swing] : "";
+    const len = o.length?.() || 0, key = o.key?.() || "";
+    const tile = (cap, val, sub, id) => `<${id ? `button id="${id}" aria-label="${cap} ${esc(val)}. Change it"` : "div"} class="ab-tile"><span class="ab-cap">${cap}</span><b>${val ? esc(val) : "–"}${sub ? ` <small>${sub}</small>` : ""}</b></${id ? "button" : "div"}>`;
+    const row = (id, ic, t, sub) => `<button class="ab-row" id="${id}"><span class="ab-ic">${icon(ic)}</span><span class="ab-rt"><b>${t}</b>${sub ? `<small>${sub}</small>` : ""}</span>${icon("chev", "ab-chev")}</button>`;
+    const timing = timed ? `${timed} lines timed to the recording${marks.length ? ` · ${marks.length} fixed` : ""}` : marks.length ? `${marks.length} spot${marks.length === 1 ? "" : "s"} learned` : "Nothing learned yet";
+    const sync = `<div class="rs-row"><div class="rs-l">Sync<b>${timing}${marks.length ? `<button class="rs-reset" id="rs-reset">Start over</button>` : ""}</b></div>
+        <div class="rs-track" aria-hidden="true">${spots.auto.map(w => `<b style="left:${(w * 100).toFixed(1)}%"></b>`).join("")}${spots.mine.map(w => `<i style="left:${(w * 100).toFixed(1)}%"></i>`).join("")}</div>
+        ${timed ? `<p class="rs-note">Each line is timed to the recording${f?.bpm ? ", and its chords land on the beat" : ""}. Nudge the page to fix a spot. <a href="https://lrclib.net" target="_blank" rel="noopener">Timing from LRCLIB</a></p>` : `<p class="rs-note">Nudge the page while it plays and it learns where the lines fall.</p>`}</div>`;
+    const recRows = music
+      ? `<div class="rs-h">WHEN YOU PRESS PLAY</div>
+        <div class="seg ab-mode" role="group" aria-label="When you press Play">${[["music", "With the recording"], ["band", "With the band"]].map(([m, t]) => `<button data-mode="${m}" class="${(m === "band") === band ? "on" : ""}" aria-pressed="${(m === "band") === band}">${t}</button>`).join("")}</div>
+        <div class="ab-rows">${band ? "" : row("ab-timing", "metro", "Timing", timing)}${band || !showTiming ? "" : sync}${row("rs-change", "note", "Change recording", "Pick another version")}</div>`
+      : `<div class="ab-rows">${song.listen ? row("ab-open", "play", `Listen on ${esc(l.service || "the web")}`, "Opens the recording") : ""}${row("ab-find", "note", song.listen ? "Change recording" : "Find a recording", "Pick the recording you play along with")}</div>`;
+    const side = music ? `<button class="ab-pv" id="rs-listen" aria-label="${on ? "Pause the recording" : "Listen without the page moving"}">${icon(on ? "pause" : "play")}</button>` : "";
+    layer.innerHTML = `<div class="scrim" id="rs-scrim"></div><div class="panel card rs ab" id="rs" role="dialog" aria-label="About this song">
+      <div class="grab" aria-hidden="true"></div>
+      ${coverHead({ art: l.art, title: song.title, artist: song.artist || l.artist, details, tint: l.tint, side, tile: o.tile?.() })}
+      <div class="rs-body">
+        <div class="ab-tiles">${tile("Tempo", bpm ? String(bpm) : "", bpm ? "BPM" : "")}${tile("Length", len ? mmss(len) : "", "")}${tile("Key", key, "", key && o.changeKey ? "ab-key" : "")}</div>
+        ${swing ? `<p class="ab-swing">${swing}</p>` : ""}${keyNote}${bpmNote}
+        ${recRows}
+      </div>
+      <div class="pfoot ab-foot"><button class="btn" id="rs-done">Done</button></div></div>`;
+    $("rs-scrim").onclick = close;
+    $("rs-done").onclick = close;
+    $("rs-listen")?.addEventListener("click", () => playApple(song).then(() => setTimeout(paint, 150)));
+    layer.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { if (b.dataset.mode === o.mode()) return; o.setMode(b.dataset.mode); o.changed?.(); paint(); });
+    $("ab-timing")?.addEventListener("click", () => { showTiming = !showTiming; paint(); });
+    $("ab-key")?.addEventListener("click", () => { close(); o.changeKey(); });
+    $("rs-reset")?.addEventListener("click", () => { o.reset(); paint(); });
+    $("rs-key")?.addEventListener("click", () => { o.matchKey?.(); paint(); });
+    $("rs-bpm")?.addEventListener("click", () => { o.matchBpm?.(); paint(); });
+    $("rs-change")?.addEventListener("click", () => { close(); listenSheet(song, true); });
+    $("ab-find")?.addEventListener("click", () => { close(); listenSheet(song, true); });
+    $("ab-open")?.addEventListener("click", () => openLink(l.url));
+  };
+  detailsArrived = s2 => { if (s2 === song && $("rs")) paint(); };
+  if (o.music()) { fetchDetails(song); listenToPreview(song); }
+  paint();
+}
+export function musicClock(song) {
+  if (!inst || !playingId || !song?.listen || playingId !== appleTrackId(song.listen.url) || !inst.isPlaying) return null;
+  const t = inst.currentPlaybackTime;
+  return Number.isFinite(t) ? t : null;
+}
+/* Jump the recording to a place in it, after a hand moved the page. */
+export function seekMusic(song, sec) {
+  if (!inst || !playingId || !song?.listen || playingId !== appleTrackId(song.listen.url)) return;
+  Promise.resolve(inst.seekToTime(Math.max(0, sec))).catch(e => noteError(e, { quiet: true, where: "apple music seek" }));
+}
+export function pauseMusic() { if (playingId) musicKit?.then(m => m.pause(), () => {}); }
 function listenSheet(song, force) {
-  if (song.listen && !force) return openLink(song.listen.url);
+  if (song.listen && !force) return data.settings.appleMusic && appleTrackId(song.listen.url) ? playApple(song) : openLink(song.listen.url);
   if (appleBlocksSearch()) return listenApple(song);
   const first = `${song.title} ${song.artist || ""}`.trim();
   let state = { busy: true, tracks: [], error: false, q: first, all: false };
@@ -72,8 +407,8 @@ function listenSheet(song, force) {
   const results = () => {
     const best = state.tracks[0], sure = state.q === first && best && best.score >= 5 && !state.all;
     if (state.busy) return `<div class="easy-wait">${busy("Looking in Apple Music")}</div>`;
-    if (state.error && catalogBlocked()) return `<p class="easy-note">Tabs updated in the background. Restart it to finish, then search again.</p>
-      <div class="ls-other"><button class="btn primary" id="ls-restart">Restart Tabs</button></div>`;
+    if (state.error && catalogBlocked()) return `<p class="easy-note">Louie updated in the background. Restart it to finish, then search again.</p>
+      <div class="ls-other"><button class="btn primary" id="ls-restart">Restart Louie</button></div>`;
     if (state.error) return `<p class="easy-note">Couldn't reach Apple Music's catalog just now.</p>
       <div class="ls-other"><button class="linkbtn" id="ls-retry">Try again</button><button class="linkbtn" id="ls-apple">Search in Apple Music</button></div>`;
     if (!state.tracks.length) return `<p class="easy-note">No match. Try fewer words, or the artist's name.</p>`;
@@ -117,7 +452,7 @@ function listenSheet(song, force) {
       .catch(() => { if (n === seq) { state = { ...state, busy: false, tracks: [], error: true }; paintResults(); } });
   };
   layer.innerHTML = `<div class="scrim" id="ls-scrim"></div><div class="panel card" id="ls-panel" role="dialog" aria-label="Listen">
-    <div class="pc-head">${icon("note")}<span>Listen · ${esc(song.title)}</span></div>
+    ${listenHead(song)}
     <form class="ls-q" id="ls-form" role="search"><span class="ls-qi">${icon("search")}</span>
       <input id="ls-q" type="search" value="${esc(first)}" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Search Apple Music"></form>
     <div id="ls-res"></div>
@@ -173,7 +508,7 @@ async function pasteListen(song, close, { apple = false } = {}) {
 }
 function clearListen(song, close) {
   delete song.listen; Tabs.save(data); close();
-  const c = $("listen"); if (c) c.innerHTML = `${icon("note")}Listen`;
+  feelArrived?.(song);
   toast("Link removed");
 }
 // iPhone: Apple's catalog can't be searched from a web page there (see sets.js),
@@ -183,7 +518,7 @@ onLeave(() => document.querySelector(".bp-listen")?.remove());
 function listenApple(song) {
   const close = () => { layer.innerHTML = ""; };
   layer.innerHTML = `<div class="scrim" id="ls-scrim"></div><div class="panel card" id="ls-panel" role="dialog" aria-label="Listen">
-    <div class="pc-head">${icon("note")}<span>Listen · ${esc(song.title)}</span></div>
+    ${listenHead(song)}
     <p class="easy-note">Find the recording in Apple Music, tap ••• or Share, then Copy Link. Come back and tap Paste.</p>
     ${song.listen ? `<p class="foot" style="margin:0 2px 10px">Saved: ${esc(song.listen.service)}${song.listen.title ? ` · ${esc(song.listen.title)}` : ""}</p>` : ""}
     <div class="ls-other" style="margin:0 0 12px"><button class="linkbtn" id="ls-paste">Paste a link</button>
@@ -208,3 +543,14 @@ document.addEventListener("visibilitychange", () => {
 });
 
 export { appleSearchURL, listenSheet, openLink, recordingLength };
+
+/* The cover header (3.16.0, shared in 3.23.0): album art, title, artist and a line of details over a wash
+   of the album's colour. Used by the Recording, Listen and Get the song sheets. side is a button on the right. */
+export function coverHead({ art, title, artist, details, tint, side = "", tile = null }) {
+  const wash = /^[0-9a-f]{6}$/i.test(tint || "") ? ` style="--album:#${tint}"` : "";
+  const img = /^https:\/\//.test(art || "");
+  return `<div class="rs-head cover-head"${wash}><div class="rs-art${!img && tile ? " ab-lt" : ""}"${!img && tile ? ` style="--tile:${tile.hue}"` : ""}>${img ? `<img src="${esc(art)}" alt="">` : tile ? `<span>${tile.letter}</span>` : icon("note")}</div>
+    <div class="rs-txt"><div class="rs-t">${esc(title || "")}</div>${artist ? `<div class="rs-a">${esc(artist)}</div>` : ""}${details ? `<div class="rs-d">${esc(details)}</div>` : ""}</div>${side}</div>`;
+}
+const listenHead = song => coverHead({ art: song.listen?.art || song.art, title: song.title, artist: song.artist, tint: song.listen?.tint,
+  details: song.listen ? `Listening on ${song.listen.service}` : "Pick the recording you play along with" });

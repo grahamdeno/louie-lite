@@ -1,0 +1,17 @@
+// Support The Road (4.39.0): from More, a thank-you page with the Ko-fi link; nothing in the app changes.
+import test from "node:test";
+import assert from "node:assert/strict";
+import { skip, LIB, phone, settled, useBrowser } from "./harness.mjs";
+useBrowser();
+
+test("Support opens from Settings, the Ko-fi link opens outside the app, Tell a friend shares the app", { skip: skip() }, async t => {
+  const page = await phone(t, LIB, { home: true });
+  await page.evaluate(() => { location.hash = "#/settings"; }); await page.waitForSelector("#s-support");
+  await page.click("#s-support"); await page.waitForSelector("#sp-kofi"); await settled(page);
+  assert.equal(await page.evaluate(() => location.hash), "#/support");
+  assert.equal(await page.getAttribute("#sp-kofi", "href"), "https://ko-fi.com/louieguitar");
+  assert.equal(await page.getAttribute("#sp-kofi", "target"), "_blank", "opens outside the app");
+  assert.match(await page.innerText(".sp"), /Everything stays free/);
+  await page.evaluate(() => { navigator.share = undefined; });
+  await page.click("#sp-share"); await page.waitForFunction(() => /grahamdeno\.github\.io\/tabs/.test(document.querySelector(".ask input, .ask textarea")?.value || ""));
+});

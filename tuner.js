@@ -5,13 +5,16 @@
 // few cents are easy to see.
 import { Tabs, TUNINGS, TUNE, noteFreq, nearestNote, nearestString, octaveFix, centsOff, tuneAdvice, guidedTarget, heldInTune, meterPos, detectPitch, journalTune } from "./core.js";
 import { HEADS } from "./heads.js";
-import { sound } from "./ui.js";
+import { getMic, haptic, sound } from "./ui.js";
+import { louie } from "./louie.js";
 import { $, data, icon, layer, esc, coach, markUsed, toast } from "./app.js";
 
 const noteLabel = n => n.replace(/-?\d$/, "").replace("b", "♭").replace("#", "♯");
 /* String names on the headstock: the top string is "e" when it doubles the low E. */
 const stringName = (notes, i) => { const n = noteLabel(notes[i]); return i === 5 && n === noteLabel(notes[0]) ? n.toLowerCase() : n; };
 const octave = n => (/(-?\d)$/.exec(n) || [])[1] || "";
+/* where the nut sits on each drawing, for its cream bar */
+const NUT = { acoustic: [449, 1036], electric: [444, 950] };
 const MODES = [["acoustic", "Acoustic"], ["electric", "Electric"], ["chromatic", "Chromatic"]];
 let tunerState = null;
 
@@ -45,32 +48,67 @@ function tone(freq, { len = 2.1, gain = 0.35, harm = [0.5, 0.18, 0.08] } = {}) {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(gain, t + 0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, t + len);
-    g.connect(audio.destination);
+    g.connect(limiter(audio));
   } catch {}
 }
-/* All six in tune: a rising E major arpeggio (E, G#, B, E). */
-const doneChime = () => [659.3, 830.6, 987.8, 1318.5].forEach((f, i) => setTimeout(() => tone(f, { len: i === 3 ? 0.9 : 0.4, gain: 0.07, harm: [0.6] }), i * 120));
-const chime = () => { tone(1318.5, { len: 0.5, gain: 0.08, harm: [0.6] }); setTimeout(() => tone(1760, { len: 0.7, gain: 0.07, harm: [0.6] }), 90); };
+/* 4.42.7: every tuner sound goes through one limiter, so the louder chimes never clip when they overlap */
+const limits = new WeakMap();
+function limiter(audio) {
+  let l = limits.get(audio);
+  if (!l) {
+    l = audio.createDynamicsCompressor();
+    l.threshold.value = -3; l.knee.value = 0; l.ratio.value = 20; l.attack.value = 0.002; l.release.value = 0.12;
+    l.connect(audio.destination); limits.set(audio, l);
+  }
+  return l;
+}
+/* All six in tune: a rising E major arpeggio (E, G#, B, E), then the chord rings out.
+   4.42.7 (#81): about two and a half times louder than before, fuller than a string's chime, and longer. */
+export const CHIME = { string: n => 0.26 + 0.02 * Math.min(5, Math.max(1, n)), done: 0.34, chord: 0.16, harm: [1, 0.35] };
+const doneChime = () => {
+  [659.3, 830.6, 987.8, 1318.5].forEach((f, i) => setTimeout(() => tone(f, { len: i === 3 ? 1.1 : 0.45, gain: CHIME.done, harm: CHIME.harm }), i * 120));
+  setTimeout(() => [659.3, 830.6, 987.8, 1318.5].forEach(f => tone(f, { len: 1.4, gain: CHIME.chord, harm: CHIME.harm })), 520);
+};
+/* One string in tune: two bright notes, a little louder with each string you finish (1 of 6 up to 5 of 6). */
+const chime = n => { tone(1318.5, { len: 0.55, gain: CHIME.string(n), harm: CHIME.harm }); setTimeout(() => tone(1760, { len: 0.75, gain: CHIME.string(n) * 0.9, harm: CHIME.harm }), 90); };
+/* All six: a small party over the headstock, confetti in the palette and Louie with his horns up. */
+const PARTY = ["var(--accent)", "var(--good)", "var(--tn-lit)", "#EE5C9F", "#7ADCF6", "#FFD23F"];
+function party(stage) {
+  if (!stage || stage.querySelector(".tn-party")) return;
+  const bits = Array.from({ length: 18 }, (_, i) => `<i style="--x:${Math.round(Math.cos(i * 2.1) * 140)}px;--y:${-60 - Math.round(Math.abs(Math.sin(i * 1.7)) * 160)}px;--r:${(i * 47) % 360}deg;background:${PARTY[i % PARTY.length]};animation-delay:${(i % 6) * 30}ms"></i>`).join("");
+  stage.insertAdjacentHTML("beforeend", `<div class="tn-party" aria-hidden="true">${bits}<span class="tn-louie">${louie("happy", { pose: "hornsUp", size: 86 })}</span></div>`);
+}
 
 // ---- The headstock: the drawing, plus the lit key, post and string ----
 function headSVG(kind, t, { mini = false } = {}) {
   const H = HEADS[kind], notes = TUNINGS[t.tuning].notes;
   const pad = mini ? 10 : 230;
   const cur = mini ? -1 : t.cur, good = !mini && t.good;
-  const col = good ? "var(--good)" : "var(--tune)"; /* green: the string in hand; brighter when in tune */
-  let s = `<svg viewBox="${-pad} 0 ${H.w + pad * 2} ${mini ? 1760 : H.h}" ${mini ? 'aria-hidden="true"' : `role="img" aria-label="${esc(MODES.find(m => m[0] === kind)[1])} headstock"`}><path d="${H.d}" fill="var(--head)" fill-rule="evenodd"/>`;
-  if (mini) return s + "</svg>";
+  const col = good ? "var(--good)" : "var(--tn-lit)"; /* 4.17.2: the string in hand in a colour that stands out on the headstock; green when in tune */
+  let s = `<svg viewBox="${-pad} 0 ${H.w + pad * 2} ${mini ? 1760 : H.h}" ${mini ? 'aria-hidden="true"' : `role="img" aria-label="${esc(MODES.find(m => m[0] === kind)[1])} headstock"`}>`;
+  if (mini) return s + `<path d="${H.d}" fill="var(--head)" fill-rule="evenodd"/></svg>`;
+  /* 4.25.0: the headstock in colour, flat with no outlines. The face and a darker right half, clipped to the
+     drawing; acoustic adds a dark veneer along the top, electric a highlight stripe. The colours are CSS
+     variables on .tuner2[data-kind], and the electric one follows Louie's finish (body[data-wear]). */
+  s += `<defs><clipPath id="tn-clip"><path d="${H.d}" clip-rule="evenodd"/></clipPath></defs><g clip-path="url(#tn-clip)" class="tn-face"><rect x="${-pad}" y="0" width="${H.w + pad * 2}" height="${H.h}" fill="var(--tn-face)"/><rect x="${H.w / 2}" y="0" width="${H.w / 2 + pad}" height="${H.h}" fill="var(--tn-side)"/>`
+    + (kind === "acoustic" ? `<rect x="${-pad}" y="0" width="${H.w + pad * 2}" height="150" fill="var(--tn-vein)"/>` : `<rect x="${H.w * 0.3}" y="0" width="70" height="${H.h}" rx="35" fill="var(--lv-hi)" opacity=".45"/>`) + `</g>`;
+  const [n0, n1] = NUT[kind];
+  s += `<rect x="${n0}" y="${H.nutY - 24}" width="${n1 - n0}" height="40" rx="12" fill="var(--tn-post)"/>`;
   H.strings.forEach((g, i) => {
     const [kx, ky, kw, kh] = g.key, on = i === cur, done = !!t.ok[i];
+    s += `<circle cx="${g.px}" cy="${g.py}" r="${g.r}" fill="var(--tn-post)"/><rect x="${kx}" y="${ky + 14}" width="${kw}" height="${kh}" rx="44" fill="${done && !on ? "var(--good)" : "var(--tn-keylip)"}" opacity="${done && !on ? 0.55 : 1}"/><rect x="${kx}" y="${ky}" width="${kw}" height="${kh}" rx="44" fill="${done && !on ? "var(--good)" : "var(--tn-key)"}"/>`;
     if (on) {
-      s += `<line x1="${g.px}" y1="${g.py}" x2="${g.nx}" y2="${H.nutY}" stroke="${col}" stroke-width="12" stroke-linecap="round"/>`;
-      s += `<line x1="${g.nx}" y1="${H.nutY}" x2="${g.nx}" y2="${H.h - 40}" stroke="${col}" stroke-width="12"/>`;
+      /* the string itself wavers while the mic hears it (.ringing on the stage, styles.css) */
+      /* 4.29.2: a dark lip under the lit string and its post, so yellow reads on a light finish (Tweed, Gold, the wood) */
+      s += `<g class="tn-lip" fill="none" stroke="rgba(20,17,13,.5)" stroke-linecap="round"><line x1="${g.px + 6}" y1="${g.py + 6}" x2="${g.nx + 6}" y2="${H.nutY}" stroke-width="30"/><line x1="${g.nx + 6}" y1="${H.nutY}" x2="${g.nx + 6}" y2="${H.h - 40}" stroke-width="30"/></g><circle cx="${g.px + 6}" cy="${g.py + 8}" r="${g.r + 8}" fill="rgba(20,17,13,.5)"/>`;
+      s += `<g class="tn-lit"><line x1="${g.px}" y1="${g.py}" x2="${g.nx}" y2="${H.nutY}" stroke="${col}" stroke-width="18" stroke-linecap="round"/>`;
+      s += `<line x1="${g.nx}" y1="${H.nutY}" x2="${g.nx}" y2="${H.h - 40}" stroke="${col}" stroke-width="18"/></g>`;
       s += `<circle cx="${g.px}" cy="${g.py}" r="${g.r}" fill="${col}"/><rect x="${kx}" y="${ky}" width="${kw}" height="${kh}" rx="44" fill="${col}"/>`;
     } else if (done) s += `<circle cx="${g.px}" cy="${g.py}" r="${g.r * 0.55}" fill="var(--good)"/>`;
     /* The note is printed on its key, so changing the tuning relabels the
        keys; a tuned string gets a check beside its key. */
     const name = stringName(notes, i);
-    s += `<text x="${kx + kw / 2}" y="${ky + kh / 2 + 34}" text-anchor="middle" font-size="${name.length > 1 ? 80 : 98}" font-weight="${on ? 700 : 600}" fill="${on ? "#14110d" : "var(--bg)"}">${name}</text>`;
+    s += `<text x="${kx + kw / 2}" y="${ky + kh / 2 + 34}" text-anchor="middle" font-size="${name.length > 1 ? 80 : 98}" font-weight="${on ? 800 : 700}" style="font-family: var(--display)"${on ? ' class="on"' : ""} fill="${on || done ? "#14110d" : "var(--tn-ink)"}">${name}</text>`;
     if (done && !on) s += `<text x="${g.side < 0 ? kx - 30 : kx + kw + 30}" y="${ky + kh / 2 + 32}" text-anchor="${g.side < 0 ? "end" : "start"}" font-size="92" font-weight="600" fill="var(--good)">✓</text>`;
     // a generous tap target over the key and its name
     const hx = g.side < 0 ? kx - 230 : kx;
@@ -128,12 +166,16 @@ export function openTuner(tuning = "standard", onClose, opts = {}) {
   layer.innerHTML = `
     <div class="tuner2" role="dialog" aria-label="Tuner">
       <div class="tn-top">
-        <label class="tn-chip">Tuning <b id="tn-tname"></b>${icon("chev", "chev")}<select id="tn-tuning" aria-label="Tuning">${Object.entries(TUNINGS).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join("")}</select></label>
+        <button class="tn-menubtn" id="tn-menubtn" aria-haspopup="true" aria-expanded="false" aria-controls="tn-menu"><b id="tn-tname"></b>${icon("chev", "chev")}</button>
         <button class="tb go" id="tn-done">Done</button>
+      <div class="tn-menu" id="tn-menu" hidden>
+        <div class="cap" id="tn-ihd">Instrument</div>
+        <div class="tn-seg" role="tablist" aria-labelledby="tn-ihd">${MODES.map(([k, n]) => `<button class="tn-opt" role="tab" data-mode="${k}">${n}</button>`).join("")}</div>
+        <label class="tn-menurow" id="tn-tuning-row"><span class="cap">Tuning</span><b id="tn-tname2"></b>${icon("chev", "chev")}<select id="tn-tuning" aria-label="Tuning">${Object.entries(TUNINGS).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join("")}</select></label>
       </div>
-      <div class="tn-tiles" role="tablist" aria-label="Instrument">${MODES.map(([k, n]) => `<button class="tn-tile" role="tab" data-mode="${k}"><span>${n}</span><i>${k === "chromatic" ? `<svg viewBox="0 0 80 40" aria-hidden="true">${[-3, -2, -1, 0, 1, 2, 3].map(j => `<rect x="${39 + j * 10}" y="${j === 0 ? 2 : j % 2 ? 14 : 9}" width="${j === 0 ? 3 : 1.8}" height="${j === 0 ? 36 : j % 2 ? 22 : 28}" rx="1" fill="currentColor" opacity="${j === 0 ? 1 : 0.55}"/>`).join("")}</svg>` : headSVG(k, t, { mini: true })}</i></button>`).join("")}</div>
+      </div>
       <div class="tn-read">
-        <div class="tn-note"><b id="tn-n">·</b><sub id="tn-o"></sub></div>
+        <div class="tn-note"><b id="tn-n">–</b><sub id="tn-o"></sub></div>
         <div class="tn-sayrow"><i class="tn-lamp" id="tn-lamp" aria-hidden="true"></i><span class="tn-say" id="tn-say" role="status">Starting the microphone…</span></div>
         <div class="tn-c" id="tn-c"></div>
       </div>
@@ -149,11 +191,16 @@ export function openTuner(tuning = "standard", onClose, opts = {}) {
   $("tn-done").onclick = closeTuner;
   const sel = $("tn-tuning");
   sel.value = t.tuning;
-  sel.onchange = () => { t.tuning = sel.value; t.ok = []; t.lock = -1; t.finished = false; t.cur = t.guided ? 0 : -1; paint(); };
+  /* 4.25.0: one pill, "Standard · Acoustic", opens the menu with the instrument and the tuning */
+  const menu = $("tn-menu"), menuBtn = $("tn-menubtn");
+  const openMenu = on => { menu.hidden = !on; menuBtn.setAttribute("aria-expanded", on); };
+  menuBtn.onclick = () => openMenu(menu.hidden);
+  sel.onchange = () => { t.tuning = sel.value; t.ok = []; t.lock = -1; t.finished = false; t.cur = t.guided ? 0 : -1; openMenu(false); paint(); };
   layer.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => {
     t.mode = b.dataset.mode; st.tunerMode = t.mode; Tabs.save(data);
-    t.finished = t.finished && t.mode !== "chromatic"; paint();
+    t.finished = t.finished && t.mode !== "chromatic"; openMenu(false); paint();
   });
+  layer.querySelector(".tuner2").addEventListener("click", e => { if (!menu.hidden && !e.target.closest("#tn-menu, #tn-menubtn")) openMenu(false); });
 
   const paintHead = () => {
     const stage = $("tn-stage");
@@ -172,8 +219,11 @@ export function openTuner(tuning = "standard", onClose, opts = {}) {
   // Everything that changes with the mode, the tuning or the string in hand.
   const paint = () => {
     const chrom = t.mode === "chromatic";
-    $("tn-tname").textContent = TUNINGS[t.tuning].name;
-    layer.querySelector(".tn-top label").hidden = chrom;
+    const kindName = MODES.find(m => m[0] === t.mode)[1];
+    $("tn-tname").textContent = chrom ? kindName : `${TUNINGS[t.tuning].name} · ${kindName}`;
+    $("tn-tname2").textContent = TUNINGS[t.tuning].name;
+    $("tn-tuning-row").hidden = chrom;
+    layer.querySelector(".tuner2").dataset.kind = t.mode;
     layer.querySelectorAll("[data-mode]").forEach(b => { const on = b.dataset.mode === t.mode; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
     layer.querySelector(".tuner2").classList.toggle("chrom", chrom);
     if (t.guided && !chrom && !t.finished && t.cur < 0) t.cur = guidedTarget(t.ok);
@@ -190,6 +240,7 @@ export function openTuner(tuning = "standard", onClose, opts = {}) {
       $("tn-say").textContent = ""; $("tn-c").textContent = `${TUNINGS[t.tuning].name} · 6 of 6`;
       layer.querySelector(".tn-note").classList.add("done", "glow");  /* success glows */
       t.cur = -1; paintHead();
+      if (t.party) { t.party = false; party(stage); }
       foot.innerHTML = `<button class="btn" id="tn-again">Tune again</button><button class="btn primary" id="tn-back">${back}</button>`;
       $("tn-again").onclick = () => { t.ok = []; t.finished = false; t.cur = t.guided ? 0 : -1; layer.querySelector(".tn-note").classList.remove("done"); paint(); };
       $("tn-back").onclick = closeTuner;
@@ -198,7 +249,11 @@ export function openTuner(tuning = "standard", onClose, opts = {}) {
       $("tn-meter").hidden = false;
       paintHead();
       const left = t.ok.filter(Boolean).length;
-      foot.innerHTML = `<label class="tn-switch"><input type="checkbox" id="tn-guided" ${t.guided ? "checked" : ""}><i></i>Guided</label><span class="tn-status" id="tn-status">${t.guided || left ? `${left} of 6 in tune` : "Follows the string you play"}</span>`;
+      /* 4.19.0 (from Your profile's old Tuning card): the string that drifts most, before you start */
+      const jt = data.journal?.tune, names = ["low E", "A", "D", "G", "B", "high e"];
+      const worst = !left && jt?.checked ? jt.checked.map((c, i) => ({ i, rate: c >= 3 ? (jt.drift?.[i] || 0) / c : 0 })).sort((a, b) => b.rate - a.rate)[0] : null;
+      const tip = worst?.rate > 0 && t.tuning === "standard" ? `Your ${names[worst.i]} drifts most · ` : "";
+      foot.innerHTML = `<label class="tn-switch"><input type="checkbox" id="tn-guided" ${t.guided ? "checked" : ""}><i></i>Guided</label><span class="tn-status" id="tn-status">${tip}${t.guided || left ? `${left} of 6 in tune` : "Follows the string you play"}</span>`;
       $("tn-guided").onchange = e => { t.guided = e.target.checked; st.tunerGuided = t.guided; Tabs.save(data); t.lock = -1; t.cur = t.guided ? guidedTarget(t.ok) : -1; t.inTuneSince = 0; paint(); };
     }
   };
@@ -210,11 +265,11 @@ export function openTuner(tuning = "standard", onClose, opts = {}) {
   t.say = say;
   const fail = e => {
     const denied = e && (e.name === "NotAllowedError" || e.name === "SecurityError");
-    say(denied ? "Tabs can't hear your guitar: the microphone is off for it. To turn it on, open your iPhone's Settings, then Apps > Safari > Microphone, and choose Ask. Then open the tuner again. Meanwhile, tap a key to hear its note."
+    say(denied ? "Louie can't hear your guitar: the microphone is off for it. To turn it on, open your iPhone's Settings, then Apps > Safari > Microphone, and choose Ask. Then open the tuner again. Meanwhile, tap a key to hear its note."
       : "The microphone isn't available here. Tap a key to hear its note.", "warn");
   };
   if (!navigator.mediaDevices?.getUserMedia) return fail();
-  const listenNow = () => navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }).then(stream => {
+  const listenNow = () => (sound({ mic: true }), getMic()).then(stream => {
     if (tunerState !== t) { stream.getTracks().forEach(tr => tr.stop()); return; }
     t.stream = stream;
     t.ctx = sound();
@@ -239,7 +294,7 @@ export function openTuner(tuning = "standard", onClose, opts = {}) {
     box.classList.add("asking");
     const card = document.createElement("div");
     card.className = "tn-mic";
-    card.innerHTML = `<span class="tn-mic-ic">${icon("fork")}</span><b>Tabs listens to tune your guitar</b>
+    card.innerHTML = `<span class="tn-mic-ic">${icon("fork")}</span><b>Louie listens to tune your guitar</b>
       <p>The microphone is on only while the tuner is open. Nothing is recorded or sent anywhere.</p>
       <button class="btn primary" id="tn-allow">Allow microphone</button><button class="tb" id="tn-skip">Not now</button>`;
     box.querySelector(".tn-read").after(card);
@@ -259,8 +314,8 @@ function idle(t) {
   $("tn-lamp")?.classList.remove("on");
   if ($("tn-pill")) $("tn-pill").textContent = "";
   if (t.finished && t.mode !== "chromatic") return;
-  $("tn-n").textContent = "·"; $("tn-o").textContent = ""; $("tn-c").textContent = "";
-  layer.querySelector(".tn-note")?.classList.remove("glow");
+  $("tn-n").textContent = "–"; $("tn-o").textContent = ""; $("tn-c").textContent = "";
+  layer.querySelector(".tn-note")?.classList.remove("glow", "live");
   if (t.mode === "chromatic") return t.say("Play a note");
   const notes = TUNINGS[t.tuning].notes;
   t.say(t.guided && t.cur >= 0 ? `Play the ${stringName(notes, t.cur)} string` : t.lock >= 0 ? `Play the ${stringName(notes, t.lock)} string` : "Play a string");
@@ -300,10 +355,12 @@ function listen(t, an, buf) {
   }
   /* A dropped reading or two while the string rings doesn't reset anything. */
   if (f < 0) {
+    if (now - t.quietSince > 300) document.getElementById("tn-stage")?.classList.remove("ringing");
     if (now - t.quietSince > 2000 && t.hits.length) idle(t);
     return;
   }
   t.quietSince = now;
+  document.getElementById("tn-stage")?.classList.add("ringing");
   /* Octave slips: fold toward the string being tuned, or any string. */
   if (t.mode !== "chromatic") f = octaveFix(f, t.tuning, t.a4, t.guided ? t.cur : t.lock);
   /* Smooth over the last three readings: steady, but quick to follow the peg. */
@@ -335,8 +392,8 @@ function listen(t, an, buf) {
   const adv = tuneAdvice(cents);
   const good = adv.tone === "good";
   if (!t.guided && t.lock < 0 && idx !== t.cur) { t.cur = idx; t.good = good; t.paintHead(); }
-  if (good !== t.good) { t.good = good; t.paintHead(); }
-  $("tn-n").textContent = stringName(notes, idx); $("tn-o").textContent = octave(notes[idx]);
+  if (good !== t.good) { t.good = good; t.paintHead(); if (good && !t.ok[idx]) haptic(1); /* in the zone: hold it */ }
+  $("tn-n").textContent = stringName(notes, idx); $("tn-o").textContent = octave(notes[idx]); layer.querySelector(".tn-note")?.classList.add("live");
   layer.querySelector(".tn-note")?.classList.toggle("glow", good); /* in tune: the letter glows */
   $("tn-c").textContent = `${cents > 0 ? "+" : ""}${cents} cents · ${fs.toFixed(1)} Hz`;
   const name = stringName(notes, idx);
@@ -357,10 +414,11 @@ function listen(t, an, buf) {
   if (t.ok.filter(Boolean).length === 6) {
     /* Guided goes E, A, D, G, B, e; after the last: success. */
     t.finished = true; data.settings.lastTuned = Date.now(); Tabs.save(data);
-    doneChime();
+    doneChime(); haptic(3);
     toast("All six strings in tune");
+    t.party = true;
   } else {
-    chime();
+    chime(t.ok.filter(Boolean).length); haptic(2);
     if (t.guided) t.cur = guidedTarget(t.ok);
   }
   t.hits = [];
@@ -382,7 +440,7 @@ function readChromatic(t, fs) {
   if (!t.shown || n.name + n.octave !== t.shown.key) t.shown = { key: n.name + n.octave, n, f: fs * Math.pow(2, -n.cents / 1200) };
   const good = Math.abs(n.cents) <= TUNE.good;
   $("tn-lamp")?.classList.add("on");
-  $("tn-n").textContent = n.name.replace("b", "♭").replace("#", "♯"); $("tn-o").textContent = n.octave;
+  $("tn-n").textContent = n.name.replace("b", "♭").replace("#", "♯"); $("tn-o").textContent = n.octave; layer.querySelector(".tn-note")?.classList.add("live");
   layer.querySelector(".tn-note")?.classList.toggle("glow", good);
   $("tn-c").textContent = `${n.cents > 0 ? "+" : ""}${n.cents} cents · ${fs.toFixed(1)} Hz`;
   const a = Math.abs(n.cents);

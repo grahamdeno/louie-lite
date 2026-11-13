@@ -1,17 +1,26 @@
 // Tabs — core logic
 // Personal chord sheet and tab library. All data stays in localStorage.
+// Topics live in core/ (4.15.1); everything is re-exported here, so the rest of the app imports from core.js.
+import { addSync, bodyKey, cleanFeel, cleanSyncs, cleanTimed, feelOf, keyGap, keyOfChroma, keyParts, matchLines, mergeSyncs, parseLrc, spotTimes, syncSeconds, syncWhere, wordTimes } from "./core/recording.js";
+import { LEAD_GAP, WIDE_GAP, SECTION_RE, buildWords, chordShape, dashChords, detectPaste, guessKey, isChord, isChordLine, isTabLine, looksLikeTab, parseBlocks, parseSheet, prefersFlats, secName, transposeChord, transposeKey, wrapTab } from "./core/chords.js";
+import { beatsOf, chartOfSheet, chordFit, chordLine, chordName, chordWords, detectKey, harmonize, keyConfidence, keyFamily, lineHint, lineOptions, lyricStanzas, melodyNotes, cleanPlaced, chartChord, liningDue, SPOTS_V, looksGuessed, lyricsOfSheet, mergeWords, nameRepeats, numberLyrics, placedSheet, midiOfHz, notesUnder, packNotes, pickVersions, pitchShares, restyle, richName, setSungLine, sketchKey, sketchSong, splitTake, takeLines, sungLines, syllables, tempoPick, unpackNotes } from "./core/sketch.js";
+import { PASSPORT, PRACTICE_PLAY, STREAK_GOALS, isBarre, journalGot, journalOf, journalPlay, journalPractice, journalTime, journalTune, profileOf, streakMoment } from "./core/playing.js";
+import { DRUM_BEATS, DRUM_PARTS, DRUM_SWING, GROOVE, barHits, cleanDrums, cleanGroove, drumBeatName, drumHits, drumLevelBar, drumStyle, grooveOf, grooveText, partOf, soundOffset } from "./core/groove.js";
+import { GUITAR_SHARE, HEX_KM2, HEX_M, HOLD_DAYS, PRACTICE_MEDIAN, PRACTICE_SPREAD, VENUES, cellsOutline, claimCells, cleanTour, coarseSpot, densityAt, edgePressure, hexNeighbours, hexSpiral, lifetimePlays, localBar, percentileOf, playsForCells, rng, sceneMap, seedOf, simulateRivals, takeoverPlan, territory, tourDay, userAvg7, venueName, venueOf, zOf, cornersSettle } from "./core/turf.js";
+import { CHORD_EXTRA, CHORD_FIT, HEAR, SCALES, chordLead, chordLeadOver, SKILL_LEVELS, bleedProfile, buzzRms, strumFit, chordNotes, chordTargets, chromaOf, cleanSkills, gradeSwitches, judgeTarget, pitchRms, practiceRate, practicing, scaleTargets, skillDone, skillState, roadNote, chordPlays, songsWith, KNOW_PLAYS, stringRange, strumDetector, strumLine, trackFloor } from "./core/neck.js";
+import { COMBO_STEPS, CALLOUT_LOOKS, achSettle, castFor, pickLook, CHANGES_DAYS, changesToWork, LESSON_PASSES, LESSON_XP, lessonDone, lessonKeep, lessonOfDay, lessonPartOf, BAND, BOX_EVERY, GUITARS, guitarFor, guitarNew, guitarsEarned, fretLayout, FRET_STEPS, FRET_MIN, FRET_HEAD, FRET_BODY, cleanGuitars, ME_STARTERS, ME_DEFAULT, ME_HAIR, ME_HAIR_COL, ME_TOP_COL, ME_BEARD, ME_HATS, ME_PATCHES, PATCH_COLOR, STAGE_LOOKS, cleanMe, meOf, meMood, rivalMe, stageLook, stageLookOf, patchesAll, patchesOf, boxesSeed, cleanBoxes, openBox, CHART_DEMOTE, CHART_PROMOTE, COVER_MULT, FANS, FRIEND_QUEST, MERCH, OPENING, QUEST, SOUNDCHECK_XP, XP, addXP, bandMeet, bandParts, bandState, battleFor, chartRivals, chartState, chartsSettle, cleanBand, cleanCharts, cleanDuelLink, cleanDuels, cleanGig, cleanMerch, cleanFame, cleanOpening, cleanQuests, cleanRehearse, cleanXP, coverState, duelRecord, duelWon, fansOf, fansNow, fansToSpend, fameSettle, venueNow, tipsOf, gigTips, tipsMigrate, FADE, friendQuest, friendQuestPick, friendQuestSettle, friendsOf, gelOf, gigCrowd, gigDone, gigFans, gigPct, gigStart, catchScore, relativeOf, catchTargets, targetAt, catchStart, catchAt, catchOpen, catchHear, catchClose, FOLLOW, tempoStep, followAhead, beatsLate, knownChords, merchBuy, merchState, merchTip, merchWear, merchWorn, headlined, looksOwned, lookOfTheme, missedChanges, noteHeard, openingAdvance, openingOn, openingReplay, openingSkip, openingStep, openingView, playableSongs, questState, questsSettle, rainSettle, rehearseMisses, requestSong, roadPath, secondTake, sheetChords, soundcheck, soundcheckDone, startBattle, startDuel, takeDuel, weekOf, weekXP, badgesOf, levelOf, levelStart, xpTotal } from "./core/game.js";
 
 // Release version: MAJOR.MINOR.PATCH. Must match the service worker cache name.
-export const VERSION = "2.49.4";
+export const VERSION = "3.0.0";
 
 const STORAGE_KEY = "louielite-v1";
-const DAY = 86400000;
+export const DAY = 86400000;
 export const TRASH_DAYS = 30;
 
 export const SPEEDS = { slow: 20, medium: 45, fast: 75 };
 
 const DEFAULT_SETTINGS = {
-  theme: "auto", transpose: 0, /* theme: "auto" follows the phone, or "dark" / "light" */ diagrams: false, focus: "always", pauseDiagrams: true,
+  theme: "auto", transpose: 0, /* theme: "auto" follows the phone, or "dark" / "light" / "green" (Green Room, 4.0.0) / "headliner" (4.77.0) */ diagrams: false, focus: "always",
   speedMode: "length",   // "length" (song length, mm:ss) or "multiplier" (1x style)
   startSpeed: 45,        // 1x-style starting speed for new songs
   startLength: 210,      // song-length starting value, seconds (3:30)
@@ -20,11 +29,8 @@ const DEFAULT_SETTINGS = {
   tunerGuided: true,     // guitar tuner walks the strings low to high
   a4: 440,               // pitch reference for the tuner, Hz
   micExplained: false,   // the tuner has said why it needs the microphone
-  controls: "ring",      // phone upright: "ring" (hold Play) or "bar"
-  follow: "hand",        // ring: Play rises with "hand" (motion), "touch", or stays in the "corner"
-  songMap: true,          // the section rail on the right edge of a song
   nudge: true,            // the library's Today line: practice streak and a song for today
-  arcSweep: "song",      // ring: a full sweep of the arc covers the whole "song" (speed-sensitive) or one "screen"
+  gigScore: true,        // a gig starts listening for your chord changes (4.2.0)
   lastBackup: null, backupSnooze: null, tipsSeen: false,
   v: 6
 };
@@ -50,6 +56,12 @@ export function migrate(data) {
   if (v < 6 && settings.theme !== "light") settings.theme = "auto";
   settings.v = 6;
   delete settings.scrollSpeed;
+  delete settings.arcSweep; /* the ring is gone (3.19.0) */
+  delete settings.stage; delete settings.songMap; delete settings.pauseDiagrams; /* retired in 4.15.0: the Gig is the stage; the rail and paused diagrams are always on */
+  delete settings.bass; delete settings.bassVol; delete settings.bassStyle; delete settings.bassOnly; /* the bass went in 4.42.0 */
+  delete settings.gigTime; /* 4.54.0: Chord Catch scores the chord, not the timing */
+  delete settings.instrument; delete settings.tpLevel; delete settings.tpPart; /* trumpet came out in 4.88.0 */
+  delete settings.gigLines; /* 4.43.0: the Gig shows the words first, as many lines as fit; Lines in a gig and Full went */
   const songs = data.songs.map(s => {
     const song = { ...s };
     if (song.body === undefined) {
@@ -69,7 +81,7 @@ export function migrate(data) {
   const all = Array.isArray(data.trash) ? data.trash : [];
   const trash = all.filter(t => t && t.item && Date.parse(t.deletedAt) > cutoff);
   const kept = keepPlays(data.kept, all.filter(t => t && t.item && !(Date.parse(t.deletedAt) > cutoff))); /* a song that expires from Recently deleted leaves its plays behind */
-  return { songs, sets, trash, settings, ...(data.journal && typeof data.journal === "object" ? { journal: data.journal } : {}), ...(kept ? { kept } : {}) };
+  return { songs, sets, trash, settings, ...(data.journal && typeof data.journal === "object" ? { journal: data.journal } : {}), ...(kept ? { kept } : {}), ...(cleanTour(data.tour) ? { tour: cleanTour(data.tour) } : {}), ...(cleanSkills(data.skills) ? { skills: cleanSkills(data.skills) } : {}), ...(cleanGig(data.gig) ? { gig: cleanGig(data.gig) } : {}), ...(cleanQuests(data.quests) ? { quests: cleanQuests(data.quests) } : {}), ...(cleanCharts(data.charts) ? { charts: cleanCharts(data.charts) } : {}), ...(cleanXP(data.xp) ? { xp: cleanXP(data.xp) } : {}), ...(cleanBand(data.band) ? { band: cleanBand(data.band) } : {}), ...(cleanRehearse(data.rehearse) ? { rehearse: cleanRehearse(data.rehearse) } : {}), ...(cleanDuels(data.duels) ? { duels: cleanDuels(data.duels) } : {}), ...(cleanMerch(data.merch) ? { merch: cleanMerch(data.merch) } : {}), ...(cleanOpening(data.opening) ? { opening: cleanOpening(data.opening) } : {}), ...(cleanBoxes(data.boxes) ? { boxes: cleanBoxes(data.boxes) } : {}), ...(cleanGuitars(data.guitars) ? { guitars: cleanGuitars(data.guitars) } : {}), ...(cleanFame(data.fame) ? { fame: cleanFame(data.fame) } : {}), ...(cleanMe(data.me) ? { me: cleanMe(data.me) } : {}) };
 }
 
 const SAVE_DELAY = 150;
@@ -260,11 +272,11 @@ export const Tabs = {
 // relies on is checked: wrong types are dropped (the app falls back to its
 // defaults), songs without words or an id are skipped, and only https links and
 // image data survive. Unknown fields are kept for newer versions of the app.
-const isObj = v => !!v && typeof v === "object" && !Array.isArray(v);
+export const isObj = v => !!v && typeof v === "object" && !Array.isArray(v);
 const SONG_TYPES = {
-  title: "string", artist: "string", key: "string", body: "string", format: "string", tuning: "string", created: "string", gotAt: "string",
+  title: "string", artist: "string", key: "string", body: "string", format: "string", tuning: "string", backing: "string", recRate: "number", practice: "object", drums: "object", created: "string", gotAt: "string",
   transpose: "number", size: "number", speed: "number", duration: "number", recLength: "number", bpm: "number",
-  favorite: "boolean", capoOff: "boolean", easier: "object", groove: "object", loop: "object", listen: "object", playLog: "object", tone: "object"
+  favorite: "boolean", capoOff: "boolean", easier: "object", groove: "object", loop: "object", listen: "object", playLog: "object", tone: "object", syncs: "array", timed: "object"
 };
 const fit = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 export function cleanSong(raw) {
@@ -275,13 +287,30 @@ export function cleanSong(raw) {
   if (s.body === undefined && typeof s.tab === "string") { s.body = s.tab; delete s.tab; }
   for (const [k, type] of Object.entries(SONG_TYPES)) {
     if (s[k] === undefined) continue;
-    const ok = type === "object" ? isObj(s[k]) : typeof s[k] === type && (type !== "number" || Number.isFinite(s[k]));
+    const ok = type === "array" ? Array.isArray(s[k]) : type === "object" ? isObj(s[k]) : typeof s[k] === type && (type !== "number" || Number.isFinite(s[k]));
     if (!ok) delete s[k];
   }
   if (typeof s.body !== "string") return null;
   if (!s.title?.trim()) s.title = "Untitled";
   if (s.format !== "chords" && s.format !== "tab") delete s.format;
   if (s.tuning && !TUNINGS[s.tuning]) delete s.tuning;
+  if (s.backing !== undefined && s.backing !== "band") delete s.backing;
+  if (s.spots !== undefined && !["placed", "guess", "mine"].includes(s.spots)) delete s.spots; /* 4.41.0: how the chords got over the words */
+  if (s.spotsTried !== undefined && !(Number.isFinite(s.spotsTried) && s.spotsTried > 0)) delete s.spotsTried;
+  if (s.spotsV !== undefined && !(Number.isInteger(s.spotsV) && s.spotsV > 0)) delete s.spotsV; /* 4.49.6: how the chords were placed (SPOTS_V) */
+  delete s.playAs; /* Gig or Sheet per song (4.3.0) gave way to Full in the Gig (4.4.0) */
+  delete s.tpMel; delete s.tpEar; delete s.tpHardSeen; /* trumpet came out in 4.88.0 */
+  /* Practice mode (3.21.0): { on?, rate? }. The recording's own speed (3.14.0) became the practice speed. */
+  if (s.recRate !== undefined) { if (!(s.practice?.rate > 0)) s.practice = { ...(s.practice || {}), rate: s.recRate }; delete s.recRate; }
+  if (s.practice) {
+    const pr = {};
+    if (typeof s.practice.on === "boolean") pr.on = s.practice.on;
+    if (Number.isFinite(s.practice.rate) && s.practice.rate < 1) pr.rate = Math.round(fit(s.practice.rate, 0.5, 1) * 100) / 100;
+    if (Object.keys(pr).length) s.practice = pr; else delete s.practice;
+  }
+  if (s.syncs) { s.syncs = cleanSyncs(s.syncs); if (!s.syncs.length) delete s.syncs; }
+  if (s.timed) { s.timed = cleanTimed(s.timed); if (!s.timed) delete s.timed; }
+  if (s.drums) { s.drums = cleanDrums(s.drums); if (!s.drums) delete s.drums; }
   if (s.transpose !== undefined) s.transpose = fit(Math.round(s.transpose), -5, 6);
   if (s.size !== undefined) s.size = fit(s.size, 0.6, 1.6);
   if (s.duration !== undefined) s.duration = fit(s.duration, 10, 3600);
@@ -290,6 +319,14 @@ export function cleanSong(raw) {
   if (s.listen) {
     if (!/^https:\/\//.test(s.listen.url || "")) delete s.listen;
     else if (s.listen.art !== undefined && !/^https:\/\//.test(String(s.listen.art))) { s.listen = { ...s.listen }; delete s.listen.art; }
+    if (s.listen) {
+      const l = s.listen = { ...s.listen };
+      if (typeof l.genre !== "string") delete l.genre; else l.genre = l.genre.slice(0, 40);
+      if (typeof l.composer !== "string") delete l.composer; else l.composer = l.composer.slice(0, 80);
+      if (!Number.isInteger(l.year) || l.year < 1900 || l.year > 2100) delete l.year;
+      if (!/^[0-9a-f]{6}$/i.test(String(l.tint || ""))) delete l.tint;
+      if (l.feel !== undefined) { const f = cleanFeel(l.feel); if (f) l.feel = f; else delete l.feel; }
+    }
   }
   if (s.art !== undefined && !/^https:\/\//.test(String(s.art))) delete s.art; /* album art for set covers: https only */
   if (s.loop && !(Number.isInteger(s.loop.a) && Number.isInteger(s.loop.b))) delete s.loop;
@@ -332,7 +369,8 @@ export function cleanImport(parsed) {
     if (d === undefined || d === null || typeof d === typeof v) settings[k] = v;
   }
   if (!["auto", "dark", "light"].includes(settings.theme)) delete settings.theme;
-  const data = migrate({ songs, sets, trash, settings, ...(isObj(parsed.journal) && parsed.journal.v === 1 ? { journal: parsed.journal } : {}), ...(cleanKept(parsed.kept) ? { kept: cleanKept(parsed.kept) } : {}) });
+  /* A Louie backup keeps songs, sets, recordings and timing. Game fields are dropped. */
+  const data = migrate({ songs, sets, trash, settings, ...(isObj(parsed.journal) && parsed.journal.v === 1 ? { journal: parsed.journal } : {}), ...(cleanKept(parsed.kept) ? { kept: cleanKept(parsed.kept) } : {}), ...(cleanTour(parsed.tour) ? { tour: cleanTour(parsed.tour) } : {}), ...(cleanSkills(parsed.skills) ? { skills: cleanSkills(parsed.skills) } : {}), ...(cleanRehearse(parsed.rehearse) ? { rehearse: cleanRehearse(parsed.rehearse) } : {}), ...(cleanXP(parsed.xp) ? { xp: cleanXP(parsed.xp) } : {}) });
   const setIds = new Set(data.sets.map(x => x.id));
   const covers = {};
   for (const [id, url] of Object.entries(isObj(parsed.covers) ? parsed.covers : {})) {
@@ -344,9 +382,9 @@ export function cleanImport(parsed) {
 // ---------- Play history ----------
 // { total, last, days: { "2026-10-13": 2, ... } }, keeping the last 60 days of counts.
 // (Older saves had plays: [timestamps]; the helpers read both.)
-const dayKey = t => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+export const dayKey = t => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 const KEEP_DAYS = 60;
-function pruneDays(days, now) {
+export function pruneDays(days, now) {
   const cut = dayKey(now - KEEP_DAYS * DAY);
   for (const k of Object.keys(days)) if (k < cut) delete days[k];
   return days;
@@ -485,6 +523,20 @@ export function riffNotes(notes) {
 // (phrases, verbs, real grammar). Level 4 (Fluent) sings the whole line.
 // Translations never travel: SHARE_FIELDS leaves them out, and so do backups.
 export const DE_LEVELS = ["Off", "Basic", "Common", "Intermediate", "Fluent"];
+// One language for every song (4.36.0): German, Spanish or Russian, in settings.lang (German when
+// missing, so a German library is unchanged). song.de keeps its name for whichever language is on and
+// carries a lang tag. Nouns carry their gender: the article for German and Spanish, m/f/n for Russian.
+// Russian lines are written with stress marks and come with the sound in Latin letters ("tr").
+export const LANGS = {
+  de: { name: "German", own: "Deutsch", short: "DE", speech: "de-DE", genders: ["der", "die", "das"], sample: "Der Fluss, the river" },
+  es: { name: "Spanish", own: "Español", short: "ES", speech: "es-ES", genders: ["el", "la"], sample: "El río, the river" },
+  ru: { name: "Russian", own: "Русский", short: "RU", speech: "ru-RU", genders: ["m", "f", "n"], sample: "Река́, the river" }
+};
+export const langOf = data => LANGS[data?.settings?.lang] ? data.settings.lang : "de";
+/* picked, or already in use (a library translated before 4.36.0 is German) */
+export const langChosen = data => !!LANGS[data?.settings?.lang] || (data?.songs || []).some(s => s.de);
+/* a song's translation is in the language that's on */
+export const deLangOk = (song, data) => !!song?.de && (song.de.lang || "de") === langOf(data);
 const deWords = w => w.parts.map(p => p.text).join("");
 // The sung lines, in order, as the AI sees them (words split by spaces).
 export function sungText(blocks) {
@@ -501,16 +553,18 @@ export function deSource(lines) {
   return h.toString(36);
 }
 // The AI's reply, checked: swaps inside the line, levels 1-3, short strings.
-export function cleanGerman(j, lines) {
+export function cleanGerman(j, lines, lang = "de") {
   const str = (v, n = 120) => String(v ?? "").replace(/[<>]/g, "").trim().slice(0, n);
+  const genders = (LANGS[lang] || LANGS.de).genders, ru = lang === "ru";
   const byI = new Map((Array.isArray(j?.lines) ? j.lines : []).map(l => [+l?.i, l]));
   return lines.map((ln, i) => {
     const l = byI.get(i) || {};
     const s = (Array.isArray(l.s) ? l.s : []).map(x => ({
       w: Math.floor(+x?.w), n: Math.max(1, Math.floor(+x?.n || 1)), l: Math.floor(+x?.l), de: str(x?.de, 80).replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ""),
-      g: ["der", "die", "das"].includes(x?.g) ? x.g : "", lemma: str(x?.lemma, 60), en: str(x?.en, 60), pl: str(x?.pl, 60), built: str(x?.built, 120), note: str(x?.note, 200)
+      g: genders.includes(x?.g) ? x.g : "", lemma: str(x?.lemma, 60), en: str(x?.en, 60), pl: str(x?.pl, 60), built: str(x?.built, 120), note: str(x?.note, 200),
+      ...(ru ? { tr: str(x?.tr, 80) } : {})
     })).filter(x => x.de && x.w >= 0 && x.l >= 1 && x.l <= 3 && x.w + x.n <= ln.tokens.length);
-    return { de: str(l.de, 300), s };
+    return { de: str(l.de, 300), s, ...(ru ? { tr: str(l.tr, 300) } : {}) };
   });
 }
 // Which swaps show at a level: Intermediate phrases first (longest first),
@@ -533,14 +587,14 @@ const edge = t => { const m = /^([^\p{L}\p{N}]*)([\s\S]*?)([^\p{L}\p{N}]*)$/u.ex
 // their word (a swap keeps the first word's chords; the words it covers keep
 // theirs, without text). Fluent spreads the German line under the chords by
 // position. Each German part carries { k: "line.swap", g } for its card.
-export function germanBlocks(blocks, de, level, { english = false } = {}) {
+export function germanBlocks(blocks, de, level, { english = false, translit = false } = {}) {
   if (!de?.lines || !level) return blocks;
   const lines = sungText(blocks), at = new Map(lines.map((l, i) => [l.bi, i]));
   return blocks.map((b, bi) => {
     const i = at.get(bi), t = i == null ? null : de.lines[i];
     if (!t) return b;
     const en = english ? lines[i].text : "";
-    if (level >= 4 && t.de) return fluentBlock(b, t.de, i, en);
+    if (level >= 4 && t.de) return { ...fluentBlock(b, t.de, i, en), tr: translit && t.tr ? t.tr : "" };
     const spans = deSpans(t.s || [], level);
     if (!spans.length) return b;
     if (b.kind === "lyric") {
@@ -580,10 +634,11 @@ function fluentBlock(b, line, i, en) {
   const enN = Math.max(1, real.length), chordsAt = new Map();
   real.forEach((w, j) => w.parts.forEach(p => { if (p.chord) { const k = Math.min(dw.length - 1, Math.round(j * dw.length / enN)); (chordsAt.get(k) || chordsAt.set(k, []).get(k)).push(p); } }));
   /* Chords in the line that sit on no word (a chord row inside the pair) ride along at the end. */
-  const loose = b.words.filter(w => !w.space && !deWords(w).trim()).flatMap(w => w.parts.filter(p => p.chord));
-  const words = [];
+  const loose = b.words.filter(w => !w.space && !w.lead && !deWords(w).trim()).flatMap(w => w.parts.filter(p => p.chord));
+  /* Chords played before the singing (4.49.6) stay in front of the words. */
+  const words = b.words.filter(w => w.lead).flatMap(w => [w, { space: true }]);
   dw.forEach((d, k) => {
-    if (k) words.push({ space: true });
+    if (k && !words[words.length - 1]?.space) words.push({ space: true });
     const cs = chordsAt.get(k) || [];
     words.push({ parts: cs.length ? [...cs.slice(0, -1).map(p => ({ ...p, text: "" })), { ...cs[cs.length - 1], text: d, de: { k: `${i}.f`, g: "" } }] : [{ text: d, de: { k: `${i}.f`, g: "" } }] });
   });
@@ -596,11 +651,12 @@ export const withoutGerman = data => ({ ...data, songs: (data.songs || []).map(s
 // ---------- Today: practice streak and a nudge ----------
 // A day counts when any song was played to its end (the play log). The streak
 // runs back from today, or from yesterday while today has no play yet.
-const playDays = songs => {
+export const playDays = songs => {
   const set = new Set();
   for (const s of songs || []) {
     if (Array.isArray(s.plays)) s.plays.forEach(t => typeof t === "number" && set.add(dayKey(t)));
     Object.entries(s.playLog?.days || {}).forEach(([k, n]) => n > 0 && set.add(k));
+    if (Array.isArray(s.rainDays)) s.rainDays.forEach(k => set.add(k)); /* nights a rain check covered (4.14.0) */
   }
   return set;
 };
@@ -620,6 +676,15 @@ export function weatherMood(code, tmax) {
   if (!isNaN(tmax) && tmax >= 32) return "hot";
   if (code <= 1 && tmax >= 15) return "clear";
   return "";
+}
+/* Tune up first (4.72.0): the air now against the air at your last play. Strings drift when humidity or
+   temperature swing, so a big change since then (25 points of humidity, or 15°F / 8°C) is worth a tune-up.
+   wx: { hum, temp, unit: "F" | "C", day }. Returns { hum: [then, now], temp: [then, now], day } or null. */
+export function tuneUpDue(then, now) {
+  if (!then || !now || then.unit !== now.unit || !(then.hum >= 0) || !(now.hum >= 0) || !Number.isFinite(then.temp) || !Number.isFinite(now.temp)) return null;
+  const dh = Math.abs(now.hum - then.hum), dt = Math.abs(now.temp - then.temp), big = now.unit === "F" ? 15 : 8;
+  if (dh < 25 && dt < big) return null;
+  return { hum: [Math.round(then.hum), Math.round(now.hum)], temp: [Math.round(then.temp), Math.round(now.temp)], day: then.day, unit: now.unit };
 }
 // One suggestion for today, or null. Nothing on a gig day (Up next has it) or
 // once you've played today. In the evening a streak worth keeping comes first;
@@ -672,457 +737,6 @@ export function pickNudge({ songs = [], now = Date.now(), mood = "", gigToday = 
   return out("idle", "It's been a while", pick(songs.filter(s => s.favorite && last(s) && idle(s, 21))));
 }
 
-// ---------- Chords ----------
-
-const SHARPS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-const FLATS = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
-const NOTE_INDEX = {
-  C: 0, "B#": 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, Fb: 4, "E#": 5, F: 5,
-  "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11, Cb: 11
-};
-// Keys conventionally written with flats (majors, then relative minors).
-const FLAT_KEYS = new Set(["F", "Bb", "Eb", "Ab", "Db", "Gb", "Dm", "Gm", "Cm", "Fm", "Bbm", "Ebm"]);
-
-const CHORD_RE =
-  /^([A-G][#b]?)((?:maj|min|m|M|dim|aug|sus|add|°|ø|\+|-)?(?:\d{1,2})?(?:(?:sus|add|maj|b|#|\+|-)?\d{1,2}|sus)*(?:\([^)\s]*\))?)(?:\/([A-G][#b]?))?$/;
-
-// Tokens that may sit on a chord line without making it a lyric line.
-const FILLER_RE = /^(\||\|\||[x×]\d+|\d+[x×]|N\.?C\.?|\(|\)|[-–—]+|\/|%|\.+)$/i;
-
-export function isChord(token) {
-  return CHORD_RE.test(token);
-}
-
-export function isChordLine(line) {
-  const tokens = line.trim().split(/\s+/).filter(Boolean);
-  if (!tokens.length) return false;
-  let chords = 0;
-  for (const t of tokens) {
-    const bare = t.replace(/^\(|\)$/g, "");
-    if (isChord(bare)) chords++;
-    else if (!FILLER_RE.test(t) && !FILLER_RE.test(bare)) return false; /* "(x2)" counts as filler too */
-  }
-  return chords > 0;
-}
-
-const TAB_LINE_RE = /^\s*[A-Ga-g][#b]?\s*\|?[-0-9hpbr\/\\~x|().\s]{6,}$/;
-
-export function looksLikeTab(text) {
-  const lines = text.split("\n").filter(l => l.trim());
-  if (!lines.length) return false;
-  const tabLines = lines.filter(l => TAB_LINE_RE.test(l) && (l.match(/-/g) || []).length >= 6);
-  return tabLines.length >= 4 && tabLines.length / lines.length > 0.4;
-}
-
-function shiftNote(note, steps, flats) {
-  const i = NOTE_INDEX[note];
-  if (i === undefined) return note;
-  const n = (((i + steps) % 12) + 12) % 12;
-  return (flats ? FLATS : SHARPS)[n];
-}
-
-export function transposeChord(chord, steps, flats = false) {
-  if (!steps) return chord;
-  const m = chord.match(CHORD_RE);
-  if (!m) return chord;
-  const [, root, quality, bass] = m;
-  return shiftNote(root, steps, flats) + quality + (bass ? "/" + shiftNote(bass, steps, flats) : "");
-}
-
-// Decide sharps vs flats from where the song ends up after transposing.
-export function prefersFlats(key, steps) {
-  if (!key) return false;
-  const m = key.match(/^([A-G][#b]?)(m|min)?/);
-  if (!m) return false;
-  const root = shiftNote(m[1], steps, true);
-  return FLAT_KEYS.has(root + (m[2] ? "m" : ""));
-}
-
-// First chord in a sheet, used as a key guess when none is set.
-export function guessKey(text) {
-  for (const line of text.split("\n")) {
-    const inline = line.match(/\[([^\]\s]+)\]/);
-    if (inline && isChord(inline[1])) return simpleKey(inline[1]);
-    if (isChordLine(line)) {
-      const first = line.trim().split(/\s+/).map(t => t.replace(/^\(|\)$/g, "")).find(isChord);
-      if (first) return simpleKey(first);
-    }
-  }
-  return "";
-}
-
-function simpleKey(chord) {
-  const m = chord.match(/^([A-G][#b]?)(m(?!aj))?/);
-  return m ? m[1] + (m[2] ? "m" : "") : "";
-}
-
-export function transposeKey(key, steps) {
-  if (!key || !steps) return key;
-  const m = key.match(/^([A-G][#b]?)(.*)$/);
-  if (!m) return key;
-  return shiftNote(m[1], steps, prefersFlats(key, steps)) + m[2];
-}
-
-// Rewrite a chord line, keeping each chord at its original column where possible.
-function transposeChordLine(line, steps, flats) {
-  let out = "";
-  const re = /\S+/g;
-  let m;
-  while ((m = re.exec(line))) {
-    const tok = m[0];
-    const lead = tok.startsWith("(") ? "(" : "";
-    const trail = tok.endsWith(")") && tok.length > 1 ? ")" : "";
-    const bare = tok.slice(lead.length, tok.length - trail.length);
-    const next = isChord(bare) ? lead + transposeChord(bare, steps, flats) + trail : tok;
-    const pad = m.index - out.length;
-    out += (pad > 0 ? " ".repeat(pad) : out.length ? " " : "") + next;
-  }
-  return out;
-}
-
-// Turn "[G]Blackbird [C]singing" into a chord line over a lyric line.
-function expandInline(line) {
-  let chords = "";
-  let lyric = "";
-  let i = 0;
-  const re = /\[([^\]]+)\]/g;
-  let m;
-  while ((m = re.exec(line))) {
-    lyric += line.slice(i, m.index);
-    i = m.index + m[0].length;
-    const col = Math.max(lyric.length, chords.length ? chords.length + 1 : 0);
-    if (col > lyric.length) lyric += " ".repeat(col - lyric.length);
-    chords += " ".repeat(col - chords.length) + m[1];
-  }
-  lyric += line.slice(i);
-  return { chords, lyric };
-}
-
-// A section label, optionally with a repeat mark: "[Chorus]", "Verse 2:", "[Chorus] (x2)", "Chorus x2".
-const SECTION_RE = /^\s*(?:\[([^\]]+)\]|((?:intro|verse|pre-?chorus|chorus|bridge|outro|solo|interlude|instrumental|tag|refrain|coda|ending|break|hook)(?:\s*\d+)?)\s*:?)\s*(?:[(\[]?\s*[x×]\s*(\d+)\s*[)\]]?)?\s*$/i;
-const secName = m => (m[1] || m[2]).trim() + (m[3] ? ` ×${m[3]}` : "");
-
-// Read a pasted block: format, key, section count, and a title/artist header if present.
-export function detectPaste(text) {
-  let lines = text.replace(/\r\n?/g, "\n").split("\n");
-  while (lines.length && !lines[0].trim()) lines.shift();
-  let title = "", artist = "";
-  const first = (lines[0] || "").trim();
-  const isHeader = first && !isChordLine(first) && !SECTION_RE.test(first) && !TAB_LINE_RE.test(first) &&
-    !/\[[^\]]+\]/.test(first) && first.length <= 80;
-  const next = (lines[1] || "").trim();
-  if (isHeader && (!next || isChordLine(next) || SECTION_RE.test(next) || /^(artist|by)\b/i.test(next))) {
-    const by = first.match(/^(.*?)\s+(?:chords|tabs?|lyrics)?\s*by\s+(.+)$/i);
-    const dash = first.match(/^(.+?)\s+[-–]\s+(.+)$/);
-    if (by) { title = by[1].trim(); artist = by[2].trim(); }
-    else if (dash) { artist = dash[1].trim(); title = dash[2].trim(); }
-    else title = first;
-    lines.shift();
-    const a = (lines[0] || "").trim().match(/^(?:artist:|by)\s*(.+)$/i);
-    if (a) { artist = a[1].trim(); lines.shift(); }
-    while (lines.length && !lines[0].trim()) lines.shift();
-  }
-  const body = lines.join("\n").replace(/\s+$/, "");
-  const format = looksLikeTab(body) ? "tab" : "chords";
-  const sections = body.split("\n").filter(l => SECTION_RE.test(l) && !isChord((l.match(/\[([^\]]+)\]/) || [])[1] || "")).length;
-  return { title, artist, body, format, key: format === "chords" ? guessKey(body) : "", sections };
-}
-
-// ---------- Wrapping layout ----------
-
-const isTabLine = l => TAB_LINE_RE.test(l) && (l.match(/-/g) || []).length >= 6;
-
-function xposeToken(tok, steps, flats) {
-  const lead = tok.startsWith("(") ? "(" : "";
-  const trail = tok.endsWith(")") && tok.length > 1 ? ")" : "";
-  const bare = tok.slice(lead.length, tok.length - trail.length);
-  return isChord(bare) ? lead + transposeChord(bare, steps, flats) + trail : tok;
-}
-
-// Split a lyric into words, attaching each chord to the character it sits over.
-// Returns items: { space: true } or { parts: [{ chord, text }] }.
-// A word is never split, so a line can only wrap between words.
-export function buildWords(lyric, chordsAt) {
-  const positions = [...chordsAt.keys()].sort((a, b) => a - b);
-  const last = positions.length ? positions[positions.length - 1] : -1;
-  let text = lyric;
-  if (text.length <= last) text += " ".repeat(last + 1 - text.length);
-  const items = [];
-  const re = /\S+|\s+/g;
-  const NBSP = " ";
-  let pending = ""; // chord written over the gap before a word rides on that word
-  let pendingPos = -1;
-  // A chord may hang past its syllable when the next chord is far enough away.
-  const free = (pos, chord, from = pos) => {
-    const next = positions.find(q => q > pos);
-    return next === undefined || next - from > chord.length + 1;
-  };
-  let m;
-  while ((m = re.exec(text))) {
-    const s = m.index, e = s + m[0].length;
-    const inside = positions.filter(p => p >= s && p < e);
-    if (!m[0].trim()) {
-      // Chords over a gap: all but the last stand alone; the last waits for the next word.
-      if (pending) items.push({ parts: [{ chord: pending, text: NBSP }] });
-      for (const p of inside.slice(0, -1)) items.push({ parts: [{ chord: chordsAt.get(p), text: NBSP }] }, { space: true });
-      pending = inside.length ? chordsAt.get(inside[inside.length - 1]) : "";
-      pendingPos = inside.length ? inside[inside.length - 1] : -1;
-      items.push({ space: true });
-      continue;
-    }
-    const cuts = [s, ...inside.filter(p => p > s), e];
-    const parts = [];
-    for (let i = 0; i < cuts.length - 1; i++) {
-      const chord = chordsAt.get(cuts[i]) || "";
-      parts.push({ chord, text: text.slice(cuts[i], cuts[i + 1]), free: !!chord && free(cuts[i], chord) });
-    }
-    if (pending) {
-      if (parts[0].chord) items.push({ parts: [{ chord: pending, text: NBSP }] }, { space: true });
-      else { parts[0].chord = pending; parts[0].free = free(pendingPos, pending, s); }
-      pending = "";
-    }
-    items.push({ parts });
-  }
-  if (pending) items.push({ parts: [{ chord: pending, text: NBSP }] });
-  // Tidy runs of spaces left by chords over gaps.
-  return items.filter((it, i) => !(it.space && (i === 0 || items[i - 1].space)));
-}
-
-// Display blocks for the song view. Unlike parseSheet, these are built to wrap:
-//   { kind: "section" | "blank" | "lyric" | "chords" | "pair" | "tab", ... }
-export function parseBlocks(text, steps = 0, flats = false) {
-  const lines = text.replace(/\r\n?/g, "\n").replace(/\t/g, "    ").split("\n").map(l => l.replace(/\s+$/, ""));
-  const out = [];
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (!line.trim()) { out.push({ kind: "blank" }); continue; }
-
-    if (isTabLine(line) && isTabLine(lines[i + 1] || "")) {
-      const sys = [];
-      while (i < lines.length && isTabLine(lines[i])) sys.push(lines[i++]);
-      i--;
-      out.push({ kind: "tab", lines: sys });
-      continue;
-    }
-
-    const sec = line.match(SECTION_RE);
-    if (sec && !(sec[1] && isChord(sec[1]))) { out.push({ kind: "section", text: secName(sec) }); continue; }
-
-    const inline = [...line.matchAll(/\[([^\]]+)\]/g)];
-    if (inline.length && inline.every(x => isChord(x[1]))) {
-      const chordsAt = new Map();
-      let lyric = "", idx = 0;
-      for (const x of inline) {
-        lyric += line.slice(idx, x.index);
-        const label = transposeChord(x[1], steps, flats);
-        chordsAt.set(lyric.length, chordsAt.has(lyric.length) ? chordsAt.get(lyric.length) + " " + label : label);
-        idx = x.index + x[0].length;
-      }
-      lyric += line.slice(idx);
-      out.push(lyric.trim() ? { kind: "pair", words: buildWords(lyric, chordsAt) }
-                            : { kind: "chords", items: [...chordsAt.values()] });
-      continue;
-    }
-
-    if (isChordLine(line)) {
-      const chordsAt = new Map();
-      const re = /\S+/g;
-      let m;
-      while ((m = re.exec(line))) chordsAt.set(m.index, xposeToken(m[0], steps, flats));
-      const next = lines[i + 1];
-      const nextIsLyric = next && next.trim() && !isChordLine(next) && !SECTION_RE.test(next) && !isTabLine(next) &&
-        !(/\[[^\]]+\]/.test(next) && [...next.matchAll(/\[([^\]]+)\]/g)].every(x => isChord(x[1])));
-      if (nextIsLyric) {
-        out.push({ kind: "pair", words: buildWords(next, chordsAt) });
-        i++;
-      } else out.push({ kind: "chords", items: [...chordsAt.values()] });
-      continue;
-    }
-
-    out.push({ kind: "lyric", text: line });
-  }
-  // Collapse repeated blanks.
-  return out.filter((b, i) => !(b.kind === "blank" && (i === 0 || out[i - 1].kind === "blank")));
-}
-
-// Wrap a tab system (all strings together) to `cols` characters, breaking at
-// bar lines shared by every string and repeating the string names on each row.
-export function wrapTab(lines, cols) {
-  const width = Math.max(...lines.map(l => l.length));
-  const ls = lines.map(l => l.padEnd(width, " "));
-  if (width <= cols) return [ls];
-  const bars = [];
-  for (let p = 0; p < width; p++) if (ls.every(l => l[p] === "|")) bars.push(p);
-  const labelEnd = bars.length && bars[0] <= 4 ? bars[0] + 1 : 0;
-  const label = ls.map(l => l.slice(0, labelEnd));
-  const room = Math.max(8, cols - labelEnd);
-
-  // Measures: label end → each shared bar (inclusive), then any tail.
-  const cuts = [labelEnd, ...bars.filter(b => b >= labelEnd).map(b => b + 1)];
-  if (cuts[cuts.length - 1] < width) cuts.push(width);
-  const measures = [];
-  for (let k = 0; k < cuts.length - 1; k++) {
-    let a = cuts[k];
-    const b = cuts[k + 1];
-    while (b - a > room) { measures.push([a, a + room]); a += room; } // over-long measure: hard split
-    if (b > a) measures.push([a, b]);
-  }
-
-  const rows = [];
-  let cur = null, len = 0;
-  for (const [a, b] of measures) {
-    if (cur && len + (b - a) > room) { rows.push(cur); cur = null; }
-    if (!cur) { cur = label.slice(); len = 0; }
-    cur = cur.map((r, j) => r + ls[j].slice(a, b));
-    len += b - a;
-  }
-  if (cur) rows.push(cur);
-  return rows.map(r => r.map(l => l.replace(/\s+$/, "")));
-}
-
-// Parse a chord sheet into display lines.
-// Each line: { kind: "chords" | "lyric" | "section" | "blank", text }
-export function parseSheet(text, steps = 0, flats = false) {
-  const out = [];
-  for (const raw of text.replace(/\r\n?/g, "\n").replace(/\t/g, "    ").split("\n")) {
-    const line = raw.replace(/\s+$/, "");
-    if (!line.trim()) { out.push({ kind: "blank", text: "" }); continue; }
-
-    const sec = line.match(SECTION_RE);
-    if (sec && !(sec[1] && isChord(sec[1]))) {
-      out.push({ kind: "section", text: secName(sec) });
-      continue;
-    }
-
-    const inline = [...line.matchAll(/\[([^\]]+)\]/g)];
-    if (inline.length && inline.every(x => isChord(x[1]))) {
-      const { chords, lyric } = expandInline(line);
-      out.push({ kind: "chords", text: transposeChordLine(chords, steps, flats) });
-      if (lyric.trim()) out.push({ kind: "lyric", text: lyric });
-      continue;
-    }
-
-    if (isChordLine(line)) out.push({ kind: "chords", text: transposeChordLine(line, steps, flats) });
-    else out.push({ kind: "lyric", text: line });
-  }
-  return out;
-}
-
-// ---------- Chord fingerings ----------
-// Strings run low E → high e. Frets: -1 muted, 0 open, n fretted. Fingers: 0 none, 1-4.
-
-const OPEN = {
-  "C": ["x32010", "032010"], "C7": ["x32310", "032410"], "Cmaj7": ["x32000", "032000"], "Cadd9": ["x32030", "021030"],
-  "Csus4": ["x33011", "034011"],
-  "D": ["xx0232", "000132"], "Dm": ["xx0231", "000231"], "D7": ["xx0212", "000213"], "Dm7": ["xx0211", "000211"],
-  "Dmaj7": ["xx0222", "000111"], "Dsus2": ["xx0230", "000130"], "Dsus4": ["xx0233", "000134"], "D6": ["xx0202", "000102"],
-  "E": ["022100", "023100"], "Em": ["022000", "023000"], "E7": ["020100", "020100"], "Em7": ["020000", "020000"],
-  "Emaj7": ["021100", "031200"], "Esus4": ["022200", "023400"], "E5": ["022xxx", "012000"],
-  "G": ["320003", "210003"], "G7": ["320001", "320001"], "Gmaj7": ["320002", "320001"], "G6": ["320000", "210000"],
-  "Gsus4": ["330013", "230014"], "Gadd9": ["300203", "200103"],
-  "A": ["x02220", "001230"], "Am": ["x02210", "002310"], "A7": ["x02020", "002030"], "Am7": ["x02010", "002010"],
-  "Amaj7": ["x02120", "002130"], "Asus2": ["x02200", "001200"], "Asus4": ["x02230", "001230"], "A5": ["x022xx", "001200"],
-  "B7": ["x21202", "021304"], "Bm7": ["x20202", "010203"], "Fmaj7": ["xx3210", "003210"]
-};
-
-// Movable shapes as fret offsets from the root fret (null = muted) with fingers.
-const E_SHAPE = {
-  "":     [[0, 2, 2, 1, 0, 0], [1, 3, 4, 2, 1, 1], true],
-  "m":    [[0, 2, 2, 0, 0, 0], [1, 3, 4, 1, 1, 1], true],
-  "7":    [[0, 2, 0, 1, 0, 0], [1, 3, 1, 2, 1, 1], true],
-  "m7":   [[0, 2, 0, 0, 0, 0], [1, 3, 1, 1, 1, 1], true],
-  "maj7": [[0, null, 1, 1, 0, null], [1, 0, 3, 4, 2, 0], false],
-  "sus4": [[0, 2, 2, 2, 0, 0], [1, 2, 3, 4, 1, 1], true],
-  "7sus4": [[0, 2, 0, 2, 0, 0], [1, 3, 1, 4, 1, 1], true],
-  "5":    [[0, 2, 2, null, null, null], [1, 3, 4, 0, 0, 0], false]
-};
-const A_SHAPE = {
-  "":     [[null, 0, 2, 2, 2, 0], [0, 1, 2, 3, 4, 1], true],
-  "m":    [[null, 0, 2, 2, 1, 0], [0, 1, 3, 4, 2, 1], true],
-  "7":    [[null, 0, 2, 0, 2, 0], [0, 1, 3, 1, 4, 1], true],
-  "m7":   [[null, 0, 2, 0, 1, 0], [0, 1, 3, 1, 2, 1], true],
-  "maj7": [[null, 0, 2, 1, 2, 0], [0, 1, 3, 2, 4, 1], true],
-  "sus2": [[null, 0, 2, 2, 0, 0], [0, 1, 3, 4, 1, 1], true],
-  "sus4": [[null, 0, 2, 2, 3, 0], [0, 1, 2, 3, 4, 1], true],
-  "7sus4": [[null, 0, 2, 0, 3, 0], [0, 1, 3, 1, 4, 1], true],
-  "dim":  [[null, 0, 1, 2, 1, null], [0, 1, 2, 4, 3, 0], false],
-  "m7b5": [[null, 0, 1, 0, 1, null], [0, 1, 3, 2, 4, 0], false],
-  "6":    [[null, 0, 2, 2, 2, 2], [0, 1, 3, 3, 3, 3], false],
-  "5":    [[null, 0, 2, 2, null, null], [0, 1, 3, 4, 0, 0], false]
-};
-
-// Reduce a chord's quality to one of the shapes above.
-function quality(q) {
-  q = q.replace(/\(([^)]*)\)/g, "$1");
-  if (/^(m7b5|ø7?|min7b5|-7b5)/.test(q)) return "m7b5";
-  if (/^(dim|°)/.test(q)) return "dim";
-  if (/^(maj7|M7|maj9|Δ)/.test(q)) return "maj7";
-  if (/^(m7|min7|-7|m9|m11)/.test(q)) return "m7";
-  if (/^(m6|min6)/.test(q)) return "m";
-  if (/^(m|min|-)(?!aj)/.test(q)) return "m";
-  if (/^(7sus4|7sus)/.test(q)) return "7sus4";
-  if (/^(sus2)/.test(q)) return "sus2";
-  if (/^(sus4|sus)/.test(q)) return "sus4";
-  if (/^(7|9|11|13)/.test(q)) return "7";
-  if (/^6/.test(q)) return "6";
-  if (/^5$/.test(q)) return "5";
-  if (/^add9|^add2/.test(q)) return "add9";
-  return "";
-}
-
-const ROOTS = { C: 0, "B#": 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, Fb: 4, "E#": 5, F: 5, "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11, Cb: 11 };
-const SHARP_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-
-function fromStrings(frets, fingers) {
-  return { frets: [...frets].map(c => c === "x" ? -1 : +c), fingers: [...fingers].map(Number) };
-}
-
-function finish(shape) {
-  const played = shape.frets.filter(f => f > 0);
-  const max = played.length ? Math.max(...played) : 0;
-  const min = played.length ? Math.min(...played) : 0;
-  // A barre is the index finger on every string at the lowest fret.
-  if (!shape.barre) {
-    const idx = shape.fingers.map((f, i) => f === 1 && shape.frets[i] === min ? i : -1).filter(i => i >= 0);
-    if (idx.length >= 3) shape.barre = { fret: min, from: idx[0], to: idx[idx.length - 1] };
-  }
-  // Barre chords up the neck show their fret number; open shapes show the nut.
-  shape.base = max <= 4 && !(shape.barre && min > 1) ? 1 : min;
-  return shape;
-}
-
-// Fingering for a chord name such as "F#m", "Bb7", "D/F#". Returns null if unknown.
-export function chordShape(name) {
-  const m = String(name).match(/^([A-G][#b]?)([^/]*)(?:\/.*)?$/);
-  if (!m || ROOTS[m[1]] === undefined) return null;
-  const root = ROOTS[m[1]];
-  let q = quality(m[2]);
-  const sharpRoot = SHARP_NAMES[root];
-  const flatRoot = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"][root];
-  const qName = { "": "", m: "m", "7": "7", m7: "m7", maj7: "maj7", sus2: "sus2", sus4: "sus4", "7sus4": "7sus4", dim: "dim", m7b5: "m7b5", "6": "6", "5": "5", add9: "add9" }[q];
-  for (const r of [sharpRoot, flatRoot, m[1]]) {
-    const hit = OPEN[r + qName];
-    if (hit) return finish(fromStrings(hit[0], hit[1]));
-  }
-  if (q === "add9") q = "";
-  if (q === "sus2" && !A_SHAPE.sus2) q = "";
-  const options = [];
-  const eFret = ((root - 4) + 12) % 12 || 12;
-  const aFret = ((root - 9) + 12) % 12 || 12;
-  if (E_SHAPE[q]) options.push([E_SHAPE[q], eFret]);
-  if (A_SHAPE[q]) options.push([A_SHAPE[q], aFret]);
-  if (!options.length) options.push([E_SHAPE[q.startsWith("m") ? "m" : ""], eFret]);
-  options.sort((a, b) => a[1] - b[1]);
-  const [[offs, fingers, barre], r] = options[0];
-  const frets = offs.map(o => o === null ? -1 : o + r);
-  const shape = { frets, fingers: fingers.slice() };
-  if (barre) {
-    const strings = offs.map((o, i) => o === 0 ? i : -1).filter(i => i >= 0);
-    shape.barre = { fret: r, from: strings[0], to: 5 };
-  }
-  return finish(shape);
-}
-
 // ---------- Sharing ----------
 // A shared song or set travels inside the link itself (no server): the fields
 // worth sharing, as JSON, compressed where the browser can, in base64url.
@@ -1165,9 +779,10 @@ export async function unpackShare(code) {
     const p = JSON.parse(new TextDecoder().decode(bytes));
     const ok = s => s && typeof s.title === "string" && typeof s.body === "string";
     // Play together: a start time and tempo ride along with the song.
-    const duet = p.duet && Number.isFinite(p.duet.at) && p.duet.at > 1.6e12 && p.duet.at < 4e12
-      ? { at: Math.round(p.duet.at), bpm: Math.min(300, Math.max(30, +p.duet.bpm || 90)) } : null;
-    if (p.song && ok(p.song)) return duet ? { song: shareable(p.song), duet } : { song: shareable(p.song) };
+    /* Play together: 4.29.0 links carry only the tempo (a clap starts both phones); an older link's start time is dropped */
+    const duet = p.duet && typeof p.duet === "object" ? { bpm: Math.min(300, Math.max(30, +p.duet.bpm || 90)) } : null;
+    const duel = cleanDuelLink(p.duel);
+    if (p.song && ok(p.song)) return duet ? { song: shareable(p.song), duet } : duel ? { song: shareable(p.song), duel } : { song: shareable(p.song) };
     if (p.set && Array.isArray(p.set.songs) && p.set.songs.every(ok))
       return { set: { name: String(p.set.name || "Shared set"), songs: p.set.songs.map(shareable) } };
   } catch {}
@@ -1273,13 +888,15 @@ export function octaveFix(freq, tuning = "standard", a4 = 440, idx = -1) {
 // then a neural or natural voice in other browsers; Germany's German first.
 // The playful novelty voices are left for last. null when there's none.
 const NOVELTY = /^(Eddy|Flo|Grandma|Grandpa|Reed|Rocko|Sandy|Shelley|Bahh|Bells|Boing|Bubbles|Cellos|Wobble|Good News|Bad News|Jester|Organ|Superstar|Trinoids|Whisper|Zarvox|Albert|Fred|Junior|Kathy|Ralph)\b/i;
-export function bestGermanVoice(voices = []) {
-  const score = v => (/premium/i.test(v.name) ? 40 : 0) + (/enhanced|erweitert|verbessert/i.test(v.name) ? 25 : 0)
-    + (/neural|natural|online/i.test(v.name) ? 15 : 0) + (/^de[-_]DE/i.test(v.lang) ? 3 : 0) + (v.default ? 1 : 0)
+export function bestVoice(voices = [], lang = "de") {
+  const region = (LANGS[lang] || LANGS.de).speech.replace("-", "[-_]");
+  const score = v => (/premium/i.test(v.name) ? 40 : 0) + (/enhanced|erweitert|verbessert|mejorad|улучш/i.test(v.name) ? 25 : 0)
+    + (/neural|natural|online/i.test(v.name) ? 15 : 0) + (new RegExp("^" + region, "i").test(v.lang) ? 3 : 0) + (v.default ? 1 : 0)
     - (NOVELTY.test(v.name) ? 50 : 0);
-  const de = voices.filter(v => /^de/i.test(v.lang || ""));
-  return de.length ? de.reduce((a, b) => (score(b) > score(a) ? b : a)) : null;
+  const mine = voices.filter(v => new RegExp("^" + lang, "i").test(v.lang || ""));
+  return mine.length ? mine.reduce((a, b) => (score(b) > score(a) ? b : a)) : null;
 }
+export const bestGermanVoice = (voices = []) => bestVoice(voices, "de");
 // ---------- Tuner guidance ----------
 // In tune within 3 cents; a reading has to drift past 5 before a string that
 // was in tune stops counting, so one shaky reading doesn't start the hold over.
@@ -1363,7 +980,7 @@ export function detectPitch(buf, sampleRate, minRms = 0.01, clarity = 0.35, rang
 
 // ---------- Listening links ----------
 // Rank Apple Music search results against a song's title and artist.
-const norm = s => String(s || "").toLowerCase()
+export const norm = s => String(s || "").toLowerCase()
   .replace(/\(.*?\)|\[.*?\]/g, " ")                 /* (Remastered 2011), [Live] */
   .replace(/\s+-\s+.*$/, " ")                        /* " - Single Version" */
   .replace(/&/g, " and ").replace(/^the\s+/, "")
@@ -1378,6 +995,15 @@ export function rankTracks(results, title, artist) {
     return s;
   };
   return results.filter(r => r.trackViewUrl).map(r => ({ r, s: score(r) })).sort((x, y) => y.s - x.s).map(x => ({ ...x.r, score: x.s }));
+}
+// Just heard it (3.24.0): the newest song in Apple Music's recently played, offered on Tonight for 3 hours
+// from when the app first sees it, until you act on it or close it. seen is { k, at, done? } from last time.
+// Returns { seen, offer } where offer is { track, song } (song: the library song it matches, or null).
+export function heardMatch(songs, track) {
+  const t = norm(track?.title), a = norm(track?.artist);
+  if (!t) return null;
+  const same = s => norm(s.title) === t && (!a || !s.artist || norm(s.artist) === a || norm(s.artist).includes(a) || a.includes(norm(s.artist)));
+  return (songs || []).find(same) || null;
 }
 // A link someone pasted: which service is it?
 // ---------- Song length from the recording ----------
@@ -1396,7 +1022,9 @@ export function appleTrackId(url) {
 // chosen (so the recording is the best guess), "offer" when you set your own and
 // it differs, "none" when they already match. Lengths are kept to 1:00 to 8:00,
 // the slider's range.
-export const fitLength = sec => Math.min(480, Math.max(60, Math.round(sec)));
+/* A song's length runs from 1:00 to 15:00 (3.19.0; it was 8:00, which cut long live takes short). */
+export const MAX_LENGTH = 900;
+export const fitLength = sec => Math.min(MAX_LENGTH, Math.max(60, Math.round(sec)));
 export function lengthChoice(song, seconds, settings = {}) {
   if (!(seconds > 0)) return "none";
   const rec = fitLength(seconds);
@@ -1493,13 +1121,171 @@ export function setChordAt(body, i, pos, chord) {
   } else if (row) lines.splice(i, 0, row);
   return lines.join("\n");
 }
+/* ---- Placing chords anywhere (4.63.0, Graham, 2026-10-24: "I can't place multiple chords right next to one
+   another, and I can't put chords over spaces with no lyrics") ----
+   A lyric line's chords sit in slots, read the way the page draws them (buildWords in core/chords.js):
+     - lead: before the first word, when the words are indented 2 or more (LEAD_GAP); drawn stacked before the words
+     - on a word: inside it (cutting it into syllables) or over a narrow space just before it (it rides the word)
+     - after a word: over a wide space (4 or more, WIDE_GAP) before the next word, or after the last word
+   slots(text, chords) reads them; layoutSlots writes text and positions back, keeping every chord where it was
+   unless it has to move to make room. Room is made only by widening spaces, which the page draws as one space,
+   so the words never change. */
+const sepOf = inline => c => (inline ? 1 : c.length + 1);
+function lineSlots(text, chords) {
+  const words = [...text.matchAll(/\S+/g)].map(m => ({ s: m.index, e: m.index + m[0].length, t: m[0] }));
+  const n = words.length;
+  const out = { words, lead: [], on: words.map(() => []), after: words.map(() => []) };
+  if (!n) return out;
+  for (const c of [...chords].sort((a, b) => a.pos - b.pos)) {
+    if (c.pos < words[0].s) {
+      if (words[0].s >= LEAD_GAP) out.lead.push({ chord: c.chord, rel: c.pos });
+      else out.on[0].push({ chord: c.chord, rel: c.pos - words[0].s });
+      continue;
+    }
+    const k = words.findIndex(w => c.pos < w.e);
+    if (k < 0) { out.after[n - 1].push({ chord: c.chord, rel: c.pos - words[n - 1].e }); continue; }
+    if (c.pos >= words[k].s) { out.on[k].push({ chord: c.chord, rel: c.pos - words[k].s }); continue; }
+    if (words[k].s - words[k - 1].e >= WIDE_GAP) out.after[k - 1].push({ chord: c.chord, rel: c.pos - words[k - 1].e });
+    else out.on[k].push({ chord: c.chord, rel: c.pos - words[k].s });
+  }
+  return out;
+}
+/* Every chord of a lyric line in reading order, each with its slot: { chord, word, part } where part is "lead",
+   "on" or "after" (word -1 for lead). The editor draws chips from this. */
+export function chordSlots(text, chords) {
+  const sl = lineSlots(text, chords), list = [];
+  sl.lead.forEach(c => list.push({ chord: c.chord, word: -1, part: "lead" }));
+  sl.words.forEach((w, k) => { sl.on[k].forEach(c => list.push({ chord: c.chord, word: k, part: "on" })); sl.after[k].forEach(c => list.push({ chord: c.chord, word: k, part: "after" })); });
+  return { words: sl.words.map(w => w.t), list };
+}
+function layoutSlots(text, sl, inline, was) {
+  const sep = sepOf(inline), words = sl.words, n = words.length;
+  /* place a slot's chords from `start`: a chord keeps its place if it's clear of the one before, else it moves right */
+  const place = (list, start) => { let at = start; return list.map(c => { const rel = c.rel !== undefined && c.rel >= at ? c.rel : at; at = rel + sep(c.chord); return { ...c, rel }; }); };
+  /* lead chords take over any chord over the space before the first word */
+  if (sl.lead.length && sl.on[0].some(c => c.rel < 0)) sl.on[0] = sl.on[0].map(c => (c.rel < 0 ? { chord: c.chord } : c));
+  const lead = place(sl.lead, 0);
+  let t, out = [];
+  if (lead.length) {
+    /* the words start where the last lead chord ends (as a chart writes it), at least LEAD_GAP in */
+    const last = lead[lead.length - 1], end = last.rel + (inline ? 1 : last.chord.length);
+    t = " ".repeat(Math.max(end, LEAD_GAP, words[0].s));
+    lead.forEach(c => out.push({ pos: c.rel, chord: c.chord }));
+  } else t = was.lead ? "" : text.slice(0, words[0].s);
+  for (let k = 0; k < n; k++) {
+    if (k > 0) {
+      let gap = text.slice(words[k - 1].e, words[k].s);
+      const after = sl.after[k - 1];
+      if (after.length) {
+        /* the chords after a word need a wide space; a chord riding the next word moves onto it */
+        const pl = place(after, 1), end = pl[pl.length - 1].rel + sep(pl[pl.length - 1].chord);
+        pl.forEach(c => out.push({ pos: t.length + c.rel, chord: c.chord })); /* t ends with word k-1 here */
+        gap = " ".repeat(Math.max(gap.length, end + 1, WIDE_GAP));
+        if (sl.on[k].some(c => c.rel < 0)) sl.on[k] = sl.on[k].map(c => (c.rel < 0 ? { chord: c.chord } : c));
+      } else if (was.after[k - 1] && gap.length >= WIDE_GAP) gap = " ";
+      t += gap;
+    }
+    const s = t.length, w = words[k];
+    t += w.t;
+    /* chords on the word: those that don't fit inside it move to just after it */
+    const gapBefore = sl.on[k].filter(c => c.rel !== undefined && c.rel < 0);
+    const inside = place(sl.on[k].filter(c => !(c.rel !== undefined && c.rel < 0)), 0);
+    const fit = inside.filter(c => c.rel < w.t.length), spill = inside.filter(c => c.rel >= w.t.length);
+    gapBefore.forEach(c => out.push({ pos: s + c.rel, chord: c.chord }));
+    fit.forEach(c => out.push({ pos: s + c.rel, chord: c.chord }));
+    if (spill.length) sl.after[k] = spill.map(c => ({ chord: c.chord })).concat(sl.after[k]);
+    if (k === n - 1 && sl.after[k].length) place(sl.after[k], 1).forEach(c => out.push({ pos: t.length + c.rel, chord: c.chord }));
+  }
+  out.sort((a, b) => a.pos - b.pos);
+  return { text: t, chords: out };
+}
+/* Write a lyric line's chords back into the body, as a chord line above or inline [G]. */
+function writeLine(body, ln, text, chords) {
+  const lines = String(body || "").replace(/\r\n?/g, "\n").split("\n");
+  if (ln.inline) {
+    const padded = text.padEnd(chords.length ? chords[chords.length - 1].pos : 0, " ");
+    let s = "", idx = 0;
+    for (const c of chords) { s += padded.slice(idx, c.pos) + `[${c.chord}]`; idx = c.pos; }
+    lines[ln.i] = (s + padded.slice(idx)).replace(/\s+$/, "");
+    return lines.join("\n");
+  }
+  let row = "";
+  for (const c of chords) row = row.padEnd(Math.max(c.pos, row.length ? row.length + 1 : 0), " ") + c.chord;
+  lines[ln.i] = text.replace(/\s+$/, "");
+  if (ln.chordLine >= 0) { if (row) lines[ln.chordLine] = row; else lines.splice(ln.chordLine, 1); }
+  else if (row) lines.splice(ln.i, 0, row);
+  return lines.join("\n");
+}
+/* Change the chords of lyric line i (its line number in the body) with fn(list) on the reading-order list from
+   chordSlots, returning the new list. Each item is { chord, word, part }; keep the others as they are. */
+function editSlots(body, i, fn) {
+  const ln = chordModel(body).find(l => l.kind === "lyric" && l.i === i);
+  if (!ln) return body;
+  const sl = lineSlots(ln.text, ln.chords);
+  const old = [];
+  sl.lead.forEach(c => old.push({ ...c, word: -1, part: "lead" }));
+  sl.words.forEach((w, k) => { sl.on[k].forEach(c => old.push({ ...c, word: k, part: "on" })); sl.after[k].forEach(c => old.push({ ...c, word: k, part: "after" })); });
+  const next = fn(old.map(c => ({ ...c })));
+  const was = { lead: sl.lead.length > 0, after: sl.after.map(a => a.length > 0) };
+  const ns = { words: sl.words, lead: [], on: sl.words.map(() => []), after: sl.words.map(() => []) };
+  for (const c of next) {
+    const item = { chord: c.chord, ...(c.rel !== undefined ? { rel: c.rel } : {}) };
+    if (c.part === "lead" || c.word < 0) ns.lead.push(item);
+    else ns[c.part === "after" ? "after" : "on"][Math.min(c.word, sl.words.length - 1)].push(item);
+  }
+  const { text, chords } = layoutSlots(ln.text, ns, ln.inline, was);
+  return writeLine(body, ln, text, chords);
+}
+/* Set the n-th chord of a line (reading order) to `chord`, or remove it with null. */
+export function setChordNth(body, i, n, chord) {
+  return editSlots(body, i, list => {
+    if (n < 0 || n >= list.length) return list;
+    if (!chord) list.splice(n, 1);
+    else list[n] = { ...list[n], chord }; /* it keeps its place; the ones after it move right only if they must */
+    return list;
+  });
+}
+/* Add `chord` right after the n-th chord of a line, in the same slot (n = -1: before the words, at their start).
+   `at` instead names an empty slot: { word, part } ("lead", "on" or "after"). */
+export function addChordNear(body, i, n, chord, at = null) {
+  return editSlots(body, i, list => {
+    if (at) {
+      /* the slot's chords sit together in reading order: add after the slot's last one, or where the slot begins */
+      const order = c => (c.part === "lead" ? -1 : c.word * 2 + (c.part === "after" ? 1 : 0));
+      const key = at.part === "lead" ? -1 : at.word * 2 + (at.part === "after" ? 1 : 0);
+      let k = list.findIndex(c => order(c) > key);
+      if (k < 0) k = list.length;
+      list.splice(k, 0, { chord, word: at.part === "lead" ? -1 : at.word, part: at.part });
+      return list;
+    }
+    if (n < 0) { list.unshift({ chord, word: -1, part: "lead" }); return list; }
+    const ref = list[n];
+    if (!ref) return list;
+    list.splice(n + 1, 0, { chord, word: ref.word, part: ref.part });
+    return list;
+  });
+}
+/* A row of chords with no words (an intro, an interlude): set its chords, or remove it with an empty list. */
+export function setChordLine(body, i, chords) {
+  const lines = String(body || "").replace(/\r\n?/g, "\n").split("\n");
+  if (i < 0 || i >= lines.length) return body;
+  if (!chords.length) lines.splice(i, 1);
+  else lines[i] = chords.join("   ");
+  return lines.join("\n");
+}
+/* Add a row of chords with no words after line `after` (-1: at the top). */
+export function addChordLine(body, after, chords = ["C"]) {
+  const lines = String(body || "").replace(/\r\n?/g, "\n").split("\n");
+  lines.splice(Math.max(0, Math.min(lines.length, after + 1)), 0, chords.join("   "));
+  return lines.join("\n");
+}
 // Chords used in a sheet, in order of first use.
 export function chordsUsed(body) {
   const seen = [];
   /* Chords over words, and lines of chords alone (a chart without its words yet). */
   for (const l of chordModel(body)) {
     const cs = l.kind === "lyric" ? (l.chords || []).map(c => c.chord) : l.kind === "chords" ? String(l.text || "").split(/\s+/).map(t => t.replace(/^\(|\)$/g, "")) : (l.chords || []).map(c => c.chord);
-    for (const c of cs) if (c && isChord(c) && !seen.includes(c)) seen.push(c);
+    for (const c of cs.flatMap(c => (c && dashChords(c)) || [c])) if (c && isChord(c) && !seen.includes(c)) seen.push(c); /* 4.83.0: "C-G" is C and G */
   }
   return seen;
 }
@@ -1550,28 +1336,6 @@ export function nextSet(sets, now = Date.now()) {
 // "today", "tomorrow", "in 3 days", "in 2 weeks", or "now" for a set under way.
 // Gig day: the time left until a set starts, as h:mm:ss, on its own calendar
 // day and only before it starts. Anything else: "" (no countdown).
-// The ring's arc: where a sweep puts the song. The pace comes from how
-// far the thumb has swept, not how fast, so it's steady: near where the thumb
-// landed it's fine (about a screen per arc), and it picks up smoothly so that
-// reaching the end of the arc reaches the end of the song (or the start, going
-// down). Moving back retraces the same path. A sweep that starts close to an
-// end of the arc gets at least a third of the arc's room, so the rest of the
-// song is never squeezed into a few degrees.
-// a, from: angles (180 left, 270 up); a0, a1: the arc's ends; y0: the scroll
-// position when the sweep began; max: the furthest scroll; fine: px per degree.
-export function arcMap({ a, from, a0, a1, y0, max, fine, whole = true }) {
-  const clamp = y => Math.min(max, Math.max(0, y));
-  if (!whole) return clamp(y0 + (a - from) * fine);
-  const span = a1 - a0, up = a >= from;
-  /* Within 2 degrees of an end counts as the end (a thumb rarely hits it exactly). */
-  const room = Math.max((up ? a1 - from : from - a0) - 2, span / 3);
-  const dist = up ? max - y0 : y0;
-  if (dist <= 0) return clamp(y0);
-  const u = Math.min(1, Math.abs(a - from) / room);
-  const c = Math.min(1, fine * room / dist);           /* the starting pace, as a share of the straight line */
-  const g = c * u + (1 - c) * u * u;                   /* fine at first, then picks up evenly; g(1) = 1 */
-  return clamp(up ? y0 + dist * g : y0 - dist * g);
-}
 export function gigCountdown(when, now = Date.now()) {
   const t = Date.parse(when);
   if (isNaN(t) || t <= now) return "";
@@ -1670,7 +1434,7 @@ export function changesOf(songs, now = Date.now()) {
     const [d] = Object.entries(c.dir).sort((x, y) => y[1] - x[1])[0]; // a tie: the way it first comes up
     const [a, b] = d.split(">");
     c.songs.sort((x, y) => y.n - x.n || (x.title < y.title ? -1 : 1));
-    return { key: c.key, a, b, week: c.week, inSongs: c.inSongs, best: c.songs[0] };
+    return { key: c.key, a, b, week: c.week, inSongs: c.inSongs, songCount: c.songs.length, best: c.songs[0] };
   });
   const most = list.filter(c => c.week > 0).sort((x, y) => y.week - x.week || y.inSongs - x.inSongs).slice(0, 4);
   const top = most[0]?.week || 0;
@@ -1705,826 +1469,6 @@ export function chordCounts(songs) {
   return [...n.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c);
 }
 
-// ---------- Song sketch: from a sung melody to chords ----------
-// Sing a line, give its words; the melody's notes give the key, chords that
-// hold those notes, and where each chord falls in the words. A first draft to
-// adjust, not the one right answer: a melody fits more than one set of chords.
-const NOTE_SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-const NOTE_FLAT = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
-const median = xs => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[s.length >> 1] : 0; };
-export const midiOfHz = hz => 69 + 12 * Math.log2(hz / 440);
-
-// Pitch frames ({ t: seconds, hz, -1 when nothing was heard }) into notes: a
-// steady pitch held at least minDur, vibrato and scoops smoothed out.
-export function melodyNotes(frames, { minDur = 0.09, tol = 0.7 } = {}) {
-  if (!frames.length) return [];
-  const step = median(frames.slice(1).map((f, i) => f.t - frames[i].t)) || 0.02;
-  const v = frames.map(f => (f.hz > 0 ? midiOfHz(f.hz) : null));
-  const sm = v.map((x, i) => {
-    if (x === null) return null;
-    return median(v.slice(Math.max(0, i - 2), i + 3).filter(y => y !== null));
-  });
-  const notes = [];
-  let cur = null;
-  const close = () => {
-    if (cur && cur.end - cur.start + step >= minDur) notes.push({ midi: Math.round(median(cur.vals)), start: cur.start, dur: cur.end - cur.start + step });
-    cur = null;
-  };
-  frames.forEach((f, i) => {
-    const m = sm[i];
-    if (m === null) return close();
-    if (cur && Math.abs(m - median(cur.vals)) <= tol) { cur.vals.push(m); cur.end = f.t; }
-    else { close(); cur = { start: f.t, end: f.t, vals: [m] }; }
-  });
-  close();
-  return notes;
-}
-
-// The key that best fits the notes (Krumhansl-Kessler key profiles, weighted by
-// how long each note is held; the last note leans toward home).
-const MAJOR_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
-const MINOR_PROFILE = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
-const MAJOR_NAMES = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
-const MINOR_NAMES = ["Cm", "C#m", "Dm", "Ebm", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "Bbm", "Bm"];
-export function detectKey(notes) {
-  const h = new Array(12).fill(0);
-  notes.forEach(n => { h[((n.midi % 12) + 12) % 12] += n.dur; });
-  const last = notes[notes.length - 1];
-  if (!notes.length || !h.some(Boolean)) return null;
-  const corr = (p, t) => {
-    const r = i => p[(i - t + 12) % 12], mx = h.reduce((a, b) => a + b) / 12, mp = p.reduce((a, b) => a + b) / 12;
-    let num = 0, dx = 0, dp = 0;
-    for (let i = 0; i < 12; i++) { num += (h[i] - mx) * (r(i) - mp); dx += (h[i] - mx) ** 2; dp += (r(i) - mp) ** 2; }
-    return dx && dp ? num / Math.sqrt(dx * dp) : 0;
-  };
-  const all = [];
-  for (let t = 0; t < 12; t++) {
-    const home = last && ((last.midi % 12) + 12) % 12 === t ? 0.08 : 0;
-    all.push({ tonic: t, minor: false, name: MAJOR_NAMES[t], score: corr(MAJOR_PROFILE, t) + home });
-    all.push({ tonic: t, minor: true, name: MINOR_NAMES[t], score: corr(MINOR_PROFILE, t) + home - 0.02 });
-  }
-  all.sort((a, b) => b.score - a.score);
-  const margin = all[0].score - all[1].score;
-  return { ...all[0], margin, sure: margin > 0.05 && all[0].score > 0.5 };
-}
-
-// Chords in the key: [semitones above the tonic, minor?]. Minor keys use a
-// major V (it pulls home). The order follows how often songs use them.
-const MAJOR_CHORDS = [[0, false], [5, false], [7, false], [9, true], [2, true], [4, true]];
-const MINOR_CHORDS = [[0, true], [8, false], [3, false], [10, false], [7, false], [5, true]];
-// How naturally one chord follows another (by degree in the lists above).
-const MOVE = { "0>1": 0.3, "0>2": 0.3, "0>3": 0.25, "1>2": 0.3, "1>0": 0.25, "2>0": 0.4, "2>3": 0.2, "3>1": 0.3, "3>4": 0.2, "4>2": 0.35, "5>3": 0.2, "3>2": 0.1, "1>3": 0.1, "0>4": 0.1 };
-export function chordName(pc, minor, flats) { return (flats ? NOTE_FLAT : NOTE_SHARP)[((pc % 12) + 12) % 12] + (minor ? "m" : ""); }
-
-// The chords of a key, each with its tones (pitch classes).
-function keyChords(key) {
-  const flats = FLAT_KEYS.has(key.name);
-  return (key.minor ? MINOR_CHORDS : MAJOR_CHORDS).map(([s, m], deg) => {
-    const root = (key.tonic + s) % 12;
-    return { deg, root, minor: m, tones: [root, (root + (m ? 3 : 4)) % 12, (root + 7) % 12], name: chordName(root, m, flats) };
-  });
-}
-// How much of the sung time in a stretch is spent on each pitch class; a note
-// starting the stretch counts a little extra (it's where the ear lands).
-function weightsIn(ns, a, b) {
-  const w = new Array(12).fill(0);
-  ns.forEach((n, i) => {
-    const over = Math.min(b, n.start + n.dur) - Math.max(a, n.start);
-    if (over > 0) w[((n.midi % 12) + 12) % 12] += over + (n.start >= a - 0.01 && (i === 0 || ns[i - 1].start < a) ? 0.15 : 0);
-  });
-  return w;
-}
-// How well a chord holds the notes: chord tones count, others count against.
-function fitOf(c, w) {
-  const tot = w.reduce((x, y) => x + y, 0);
-  if (!tot) return 0;
-  let sc = 0;
-  w.forEach((x, pc) => { if (x) sc += (c.tones.includes(pc) ? 1 : -0.6) * x + (pc === c.root ? 0.2 * x : 0); });
-  return sc / tot;
-}
-// A line cut into 1 to 4 equal parts by length.
-function slotsOf(ns) {
-  if (!ns.length) return [{ at: 0, w: null }];
-  const t0 = ns[0].start, t1 = ns[ns.length - 1].start + ns[ns.length - 1].dur;
-  const k = Math.max(1, Math.min(4, Math.round((t1 - t0) / 2)));
-  return Array.from({ length: k }, (_, j) => {
-    const a = t0 + (t1 - t0) * j / k, b = t0 + (t1 - t0) * (j + 1) / k;
-    return { at: a, end: b, w: weightsIn(ns, a, b), lineEnd: j === k - 1 };
-  });
-}
-const moveScore = (p, c, sameLine) => (p.deg === c.deg ? (sameLine ? 0.05 : 0.15) : MOVE[`${p.deg}>${c.deg}`] || 0);
-
-// Rich style: a chord gains a 7th or 9th the melody sings, and the V chord
-// becomes a V7 (it leads home more strongly).
-const SHARE = 0.15;
-export function richName(c, w, key) {
-  const tot = (w || []).reduce((x, y) => x + y, 0) || 1, has = s => (w ? w[(c.root + s) % 12] / tot : 0) >= SHARE;
-  const isV = c.deg === (key.minor ? 4 : 2);
-  if (c.minor) return c.name + (has(10) ? "7" : "");
-  if (has(11) && !isV) return c.name + "maj7";
-  if (has(10) || isV) return c.name + "7";
-  if (has(2)) return c.name + "add9";
-  return c.name;
-}
-
-// lines: [{ notes }] (note times from the start of that line). Each part of a
-// line gets the chord whose notes it holds best, with smooth moves between
-// chords preferred (a Viterbi path over the whole song). style: "simple" (the
-// three-note chords) or "rich". Returns, per line, [{ chord, at }] in seconds.
-export function harmonize(lines, key, { style = "simple" } = {}) {
-  if (!key) return lines.map(() => []);
-  const cands = keyChords(key);
-  const slots = lines.flatMap((ln, li) => slotsOf(ln.notes || []).map(s => ({ ...s, li })));
-  const N = slots.length, C = cands.length;
-  const best = slots.map(() => new Array(C).fill(-Infinity)), from = slots.map(() => new Array(C).fill(0));
-  slots.forEach((s, i) => cands.forEach((c, ci) => {
-    let e = (s.w ? fitOf(c, s.w) : 0) - c.deg * 0.02;
-    if (i === 0 && c.deg === 0) e += 0.4;
-    if (i === N - 1 && c.deg === 0) e += 0.5;
-    if (s.lineEnd && (c.deg === 0 || c.deg === 2)) e += 0.1;
-    if (i === 0) { best[0][ci] = e; return; }
-    cands.forEach((p, pi) => {
-      const v = best[i - 1][pi] + e + moveScore(p, c, s.li === slots[i - 1].li);
-      if (v > best[i][ci]) { best[i][ci] = v; from[i][ci] = pi; }
-    });
-  }));
-  let ci = best[N - 1].indexOf(Math.max(...best[N - 1]));
-  const path = new Array(N);
-  for (let i = N - 1; i >= 0; i--) { path[i] = ci; ci = from[i][ci]; }
-  const out = lines.map(() => []);
-  slots.forEach((s, i) => {
-    const c = cands[path[i]], name = style === "rich" ? richName(c, s.w, key) : c.name, row = out[s.li];
-    if (!row.length || row[row.length - 1].chord !== name) row.push({ chord: name, at: s.at });
-  });
-  return out;
-}
-
-// Chords for a stretch of melody, best fit first: how well each holds the
-// notes (0 to 1) and which of its notes were sung, longest first.
-export function chordFit(notes, key) {
-  if (!key || !notes.length) return [];
-  const a = notes[0].start, b = notes[notes.length - 1].start + notes[notes.length - 1].dur;
-  const w = weightsIn(notes, a, b), flats = FLAT_KEYS.has(key.name);
-  return keyChords(key).map(c => ({
-    chord: c.name,
-    fit: Math.max(0, Math.min(1, (fitOf(c, w) + 0.2) / 1.4)),
-    holds: c.tones.filter(t => w[t] > 0).sort((x, y) => w[y] - w[x]).map(t => (flats ? NOTE_FLAT : NOTE_SHARP)[t])
-  })).sort((x, y) => y.fit - x.fit);
-}
-
-// Other ways to play one line: the best few chord paths through its parts
-// (each part trying its three best-fitting chords), most natural first.
-export function lineOptions(notes, key, { count = 3, style = "simple" } = {}) {
-  if (!key || !notes.length) return [];
-  const cands = keyChords(key), slots = slotsOf(notes);
-  const tops = slots.map(s => cands.map(c => ({ c, e: fitOf(c, s.w) - c.deg * 0.02 + (s.lineEnd && (c.deg === 0 || c.deg === 2) ? 0.1 : 0) })).sort((x, y) => y.e - x.e).slice(0, 3));
-  let paths = [{ list: [], score: 0 }];
-  tops.forEach(opts => {
-    paths = paths.flatMap(p => opts.map(o => ({ list: [...p.list, o.c], score: p.score + o.e + (p.list.length ? moveScore(p.list[p.list.length - 1], o.c, true) : 0) })));
-  });
-  const seen = new Set(), out = [];
-  for (const p of paths.sort((x, y) => y.score - x.score)) {
-    const changes = [];
-    p.list.forEach((c, j) => { const name = style === "rich" ? richName(c, slots[j].w, key) : c.name; if (!changes.length || changes[changes.length - 1].chord !== name) changes.push({ chord: name, at: slots[j].at }); });
-    const label = changes.map(x => x.chord).join(" · ");
-    if (seen.has(label)) continue;
-    seen.add(label); out.push({ changes, label });
-    if (out.length === count) break;
-  }
-  return out;
-}
-
-// Rough syllables in a word (vowel groups, a silent final e dropped).
-export function syllables(word) {
-  const w = String(word).toLowerCase().replace(/[^a-z]/g, "");
-  if (!w) return 0;
-  const n = (w.replace(/e$/, "").match(/[aeiouy]+/g) || []).length;
-  return Math.max(1, n);
-}
-
-// One line as a chord line over its words. Sung notes stand in for syllables:
-// a chord that changes at the k-th note of n goes over the word holding the
-// matching share of the line's syllables.
-// Which word each chord change falls on (an index; past the last word when
-// there are more chords than words).
-export function chordWords(words, notes, changes) {
-  const ws = String(words || "").trim().split(/\s+/).filter(Boolean);
-  const syl = ws.map(syllables), total = syl.reduce((a, b) => a + b, 0) || ws.length;
-  const wordAtSyl = s => { let acc = 0; for (let i = 0; i < ws.length; i++) { acc += syl[i] || 1; if (s < acc) return i; } return ws.length - 1; };
-  const at = changes.map((c, i) => {
-    if (i === 0) return 0;
-    let k = notes.findIndex(n => n.start >= c.at - 0.05);
-    if (k < 0) k = notes.length - 1;
-    return wordAtSyl(Math.floor(k * total / Math.max(1, notes.length)));
-  });
-  for (let i = 1; i < at.length; i++) if (at[i] <= at[i - 1]) at[i] = at[i - 1] + 1;
-  return at;
-}
-export function chordLine(words, notes, changes) {
-  const ws = String(words || "").trim().split(/\s+/).filter(Boolean);
-  if (!changes.length) return ws.join(" ");
-  if (!ws.length) return changes.map(c => c.chord).join("   ");
-  const at = chordWords(words, notes, changes);
-  const lyric = ws.join(" ");
-  const starts = []; let pos = 0;
-  ws.forEach(w => { starts.push(pos); pos += w.length + 1; });
-  let line = "";
-  changes.forEach((c, i) => {
-    if (at[i] >= ws.length) { line += (line ? " " : "") + c.chord; return; } /* more chords than words: they follow */
-    const col = Math.max(starts[at[i]], line.length ? line.length + 1 : 0);
-    line = line.padEnd(col, " ") + c.chord;
-  });
-  return line + "\n" + lyric;
-}
-
-// The whole sketch as a chord sheet, its key, and the sketch itself kept with
-// the song (notes as [midi, start, length], to a hundredth of a second) so its
-// chords can be restyled and swapped later.
-const r2 = x => Math.round(x * 100) / 100;
-export const packNotes = notes => notes.map(n => [n.midi, r2(n.start), r2(n.dur)]);
-export const unpackNotes = packed => (packed || []).map(([midi, start, dur]) => ({ midi, start, dur }));
-export function sketchSong(lines, { style = "simple" } = {}) {
-  const all = lines.flatMap(l => l.notes || []);
-  const key = detectKey(all);
-  const changes = harmonize(lines, key, { style });
-  const body = lines.map((l, i) => chordLine(l.words, l.notes || [], changes[i])).join("\n");
-  return { key: key ? key.name : "", sure: !!key?.sure, body, sketch: { v: 1, key: key ? key.name : "", style, lines: lines.map(l => ({ n: packNotes(l.notes || []) })) } };
-}
-// The key object for a sketch's saved key name.
-export function sketchKey(name) {
-  const m = /^([A-G][#b]?)(m?)$/.exec(name || "");
-  if (!m) return null;
-  const tonic = (m[2] ? MINOR_NAMES : MAJOR_NAMES).indexOf(name);
-  const pc = tonic >= 0 ? tonic : NOTE_SHARP.indexOf(m[1]) >= 0 ? NOTE_SHARP.indexOf(m[1]) : NOTE_FLAT.indexOf(m[1]);
-  return { tonic: pc, minor: !!m[2], name };
-}
-// The song's lines that were sung, in order (with or without words), from its
-// current text, so edits to the words are kept.
-export function sungLines(body, count) {
-  return chordModel(body).filter(l => l.kind === "lyric" || l.kind === "chords").slice(0, count);
-}
-// Replace sung line k's chords (and keep its words) in the body.
-export function setSungLine(body, k, chordsText) {
-  const lines = String(body || "").replace(/\r\n?/g, "\n").split("\n");
-  const ln = sungLines(body, k + 1)[k];
-  if (!ln) return body;
-  const from = ln.kind === "lyric" && ln.chordLine >= 0 ? ln.chordLine : ln.i;
-  lines.splice(from, ln.i - from + 1, ...chordsText.split("\n"));
-  return lines.join("\n");
-}
-const lineWords = ln => (ln.kind === "lyric" ? ln.text : "");
-// Every sung line re-chorded in a style, keeping the current words.
-export function restyle(body, sketch, style) {
-  const key = sketchKey(sketch?.key);
-  if (!key) return body;
-  const lines = sketch.lines.map(l => ({ notes: unpackNotes(l.n) }));
-  const sung = sungLines(body, lines.length);
-  const changes = harmonize(lines, key, { style });
-  let out = body;
-  for (let k = Math.min(sung.length, lines.length) - 1; k >= 0; k--) out = setSungLine(out, k, chordLine(lineWords(sung[k]), lines[k].notes, changes[k]));
-  return out;
-}
-// The melody under one word of sung line k: from that word to the next chord
-// change (or the line's end), by the same syllable estimate used to place chords.
-export function notesUnder(body, sketch, k, pos) {
-  const ln = sungLines(body, k + 1)[k], notes = unpackNotes(sketch?.lines?.[k]?.n);
-  if (!ln || !notes.length) return notes;
-  const ws = [...String(ln.text || "").matchAll(/\S+/g)];
-  if (!ws.length) return notes;
-  const syl = ws.map(m => syllables(m[0]) || 1), total = syl.reduce((a, b) => a + b, 0);
-  const wordAt = p => { let w = 0; ws.forEach((m, i) => { if (m.index <= p) w = i; }); return w; };
-  const sylBefore = w => syl.slice(0, w).reduce((a, b) => a + b, 0);
-  const w0 = wordAt(pos), nextChord = (ln.chords || []).map(c => c.pos).filter(p => p > ws[w0].index).sort((a, b) => a - b)[0];
-  const w1 = nextChord === undefined ? ws.length : Math.max(w0 + 1, wordAt(nextChord));
-  const i0 = Math.floor(sylBefore(w0) * notes.length / total), i1 = Math.max(i0 + 1, Math.floor(sylBefore(w1) * notes.length / total));
-  return notes.slice(i0, i1);
-}
-
-// ---- While sketching: how sure the key is, its chords, and a nudge per line ----
-// Key confidence as 0 to 5 bars: how far the best key leads the next one, held
-// back until enough has been sung.
-export function keyConfidence(notes) {
-  if (notes.length < 3) return { key: null, bars: 0, state: "listening" };
-  const key = detectKey(notes);
-  if (!key) return { key: null, bars: 0, state: "listening" };
-  let bars = Math.max(1, Math.min(5, Math.round(key.margin / 0.03) + 1));
-  if (notes.length < 8) bars = Math.min(bars, 3);
-  if (notes.length < 5) bars = Math.min(bars, 2);
-  return { key, bars, state: bars >= 5 ? "sure" : bars >= 2 ? "getting surer" : "listening" };
-}
-// The key's six chords: the three major (or minor) ones first, then their partners.
-export const keyFamily = key => (key ? keyChords(key).map(c => c.name) : []);
-// How much of the singing is on each pitch class (shares of the total time).
-export function pitchShares(notes) {
-  const w = new Array(12).fill(0);
-  notes.forEach(n => { w[((n.midi % 12) + 12) % 12] += n.dur; });
-  const tot = w.reduce((a, b) => a + b, 0) || 1;
-  return w.map(x => x / tot);
-}
-// A nudge for one line: where a different chord holds the melody clearly better
-// than the chosen one (the chosen path also weighs smooth moves, so they can
-// differ). At most one per line: the clearest.
-export function lineHint(words, notes, changes, key) {
-  if (!key || !notes.length || !changes.length) return null;
-  const ws = String(words || "").trim().split(/\s+/).filter(Boolean);
-  const at = chordWords(words, notes, changes);
-  let best = null;
-  changes.forEach((c, j) => {
-    const end = changes[j + 1]?.at ?? Infinity, seg = notes.filter(n => n.start >= c.at - 0.01 && n.start < end);
-    if (seg.length < 2) return;
-    const fits = chordFit(seg, key), top = fits[0], cur = fits.find(f => f.chord === c.chord.replace(/(maj7|7|add9)$/, ""));
-    const gain = top.fit - (cur ? cur.fit : 0);
-    if (top.chord !== c.chord && gain >= 0.12 && (!best || gain > best.gain)) {
-      const w = at[j] < ws.length ? ws.slice(at[j], at[j] + 2).join(" ") : "";
-      best = { j, chord: top.chord, gain, words: w, minor: /m$/.test(top.chord) && !/m$/.test(c.chord), major: !/m$/.test(top.chord) && /m$/.test(c.chord) };
-    }
-  });
-  return best;
-}
-
-// ---------- Add the words: a chord chart's chords over lyrics you paste ----------
-// A chart (from Chord chart) has sections of chords and no words. Your pasted
-// lyrics come in stanzas (blank lines between them), with or without names
-// like [Chorus] or "Verse 2:". Walking the chart in order, each sung section
-// takes the next stanza (one of its kind, when the stanza is named); the
-// section's chords run through its lines, two to a line, looping as the song
-// does. Intros, solos and outros stay as chord lines. Stanzas left over go at
-// the end with their kind's chords.
-const KINDS = { verse: "verse", "pre-chorus": "pre", prechorus: "pre", chorus: "chorus", refrain: "chorus", hook: "chorus", bridge: "bridge", tag: "chorus", coda: "outro", outro: "outro", ending: "outro", intro: "intro", solo: "solo", interlude: "solo", instrumental: "solo", break: "solo", riff: "intro" };
-const kindOf = name => KINDS[String(name || "").toLowerCase().replace(/\s*\d+$/, "").replace(/\s+/g, "-").replace(/^pre-?chorus$/, "pre-chorus")] || "";
-const SUNG = new Set(["verse", "pre", "chorus", "bridge"]);
-function chartSections(body) {
-  const head = [], secs = [];
-  let cur = null;
-  for (const line of String(body || "").split("\n")) {
-    const sec = line.match(SECTION_RE);
-    if (sec) { const name = (sec[1] || sec[2] || "").replace(/\s*\(x\d+\)\s*$/i, "").trim(); cur = { name, kind: kindOf(name), chords: [] }; secs.push(cur); continue; }
-    if (!line.trim()) continue;
-    if (cur && isChordLine(line)) cur.chords.push(...line.trim().split(/\s+/).filter(isChord));
-    else if (!cur) head.push(line);
-  }
-  return { head, secs: secs.filter(s => s.chords.length) };
-}
-export function lyricStanzas(text) {
-  const out = [];
-  let cur = null;
-  for (let raw of String(text || "").replace(/\r\n?/g, "\n").split("\n")) {
-    const line = raw.trim();
-    if (!line) { cur = null; continue; }
-    const named = line.match(/^\[([^\]]+)\]$/) || line.match(/^\(?((?:intro|verse|pre-?chorus|chorus|bridge|outro|refrain|hook|tag)(?:\s*\d+)?)\)?\s*:?$/i);
-    if (named) { cur = { name: named[1].replace(/\s*[x×]\s*\d+$/i, "").trim(), kind: kindOf(named[1].replace(/\s*[x×]\s*\d+$/i, "").replace(/\s*:\s*.*$/, "")), lines: [] }; out.push(cur); continue; }
-    if (!cur) { cur = { name: "", kind: "", lines: [] }; out.push(cur); }
-    cur.lines.push(line);
-  }
-  return out.filter(s => s.lines.length);
-}
-// One stanza under a progression: two chords a line (or one, for a one-chord
-// progression), the second over the middle of the line, looping.
-function stanzaLines(lines, chords) {
-  const out = [];
-  let at = 0;
-  const per = chords.length === 1 ? 1 : 2;
-  for (const line of lines) {
-    const words = [...line.matchAll(/\S+/g)];
-    const take = Array.from({ length: per }, () => chords[at++ % chords.length]);
-    const cols = per === 1 || words.length < 2 ? [0] : [0, words[Math.floor(words.length / 2)].index];
-    let row = "";
-    take.slice(0, cols.length).forEach((c, i) => { row = row.padEnd(i ? Math.max(cols[i], row.length + 1) : 0, " ") + c; });
-    if (cols.length < take.length) row += " " + take.slice(cols.length).join(" ");
-    out.push(row, line);
-  }
-  return out;
-}
-export function mergeWords(chartBody, lyricsText) {
-  const { head, secs } = chartSections(chartBody);
-  const stanzas = lyricStanzas(lyricsText);
-  if (!secs.length || !stanzas.length) return null;
-  const out = [...head];
-  if (head.length) out.push("");
-  const byKind = k => secs.find(s => s.kind === k) || secs.find(s => SUNG.has(s.kind)) || secs[0];
-  const left = [...stanzas];
-  const emit = (name, lines) => { out.push(`[${name}]`, ...lines, ""); };
-  for (const sec of secs) {
-    if (!SUNG.has(sec.kind) && sec.kind) { emit(sec.name, [sec.chords.join("   ")]); continue; }
-    const i = left.findIndex(st => !st.kind || st.kind === sec.kind);
-    if (i < 0) continue;
-    /* An unnamed stanza takes the next sung section; a named one waits for its kind. */
-    if (left[i].kind === "" || i === 0 || left.slice(0, i).every(st => st.kind && st.kind !== sec.kind)) {
-      const st = left.splice(i, 1)[0];
-      emit(st.name || sec.name, stanzaLines(st.lines, sec.chords));
-    }
-  }
-  for (const st of left) { const sec = byKind(st.kind); emit(st.name || sec.name, stanzaLines(st.lines, sec.chords)); }
-  return out.join("\n").trim();
-}
-
-// ---- Get the song ----
-// LRCLIB returns many recordings of a song (album, live, covers, karaoke).
-// pickVersions ranks the ones that have words: the title and artist must match;
-// then the one closest to the length the chart found (within 4 seconds); with
-// no length, the length most versions share (the album cut is copied most);
-// studio before live, covers or karaoke unless the title asks for them; timed
-// words before plain. Duplicates (same album and length) are dropped.
-const normT = t => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\(.*?\)|\[.*?\]/g, " ").replace(/&/g, "and").replace(/[^a-z0-9]+/g, " ").trim();
-const ODD = /\b(live|karaoke|cover|tribute|remix|instrumental|drumless|backing|acapella|a cappella|sped up|slowed|demo|8 ?bit|lullaby|piano version|re ?recorded)\b/;
-export function pickVersions(list, { title = "", artist = "", duration = 0 } = {}) {
-  const t = normT(title), a = normT(artist);
-  const ok = (list || []).filter(x => x && !x.instrumental && (x.plainLyrics || "").trim()
-    && (!t || normT(x.trackName).includes(t) || t.includes(normT(x.trackName)))
-    && (!a || normT(x.artistName).includes(a) || a.includes(normT(x.artistName))));
-  const seen = new Set(), uniq = [];
-  for (const x of ok) { const k = normT(x.albumName) + "|" + Math.round(x.duration || 0); if (!seen.has(k)) { seen.add(k); uniq.push(x); } }
-  const counts = {};
-  ok.forEach(x => { const d = Math.round(x.duration || 0); for (let k = d - 2; k <= d + 2; k++) counts[k] = (counts[k] || 0) + 1; });
-  const common = +Object.keys(counts).sort((p, q) => counts[q] - counts[p] || p - q)[0] || 0;
-  const want = duration > 0 ? duration : common;
-  const low = v => String(v || "").toLowerCase();
-  const odd = x => !ODD.test(low(title)) && ODD.test(low(x.albumName + " " + x.trackName));
-  const score = x => (Math.abs((x.duration || 0) - want) <= 4 ? 0 : 1000 + Math.abs((x.duration || 0) - want)) + (odd(x) ? 500 : 0) + (x.syncedLyrics ? 0 : 5);
-  return uniq.sort((p, q) => score(p) - score(q));
-}
-// The chart's tempo (from chord sites) against a measured one (GetSongBPM).
-// They agree within 4%, or when one counts double time. The measured tempo
-// wins when they disagree; in double time the chart's count stands.
-export function tempoPick(chart, measured) {
-  chart = +chart || 0; measured = +measured || 0;
-  const near = (p, q) => Math.abs(p - q) <= q * 0.04;
-  if (!measured) return { bpm: Math.round(chart), agree: false, measured: 0, chart };
-  if (!chart) return { bpm: Math.round(measured), agree: false, measured, chart };
-  if (near(chart, measured)) return { bpm: Math.round(measured), agree: true, measured, chart };
-  if (near(chart, measured * 2) || near(chart, measured / 2)) return { bpm: Math.round(chart), agree: true, measured, chart };
-  return { bpm: Math.round(measured), agree: false, measured, chart };
-}
-// Beats in a bar from a time signature like "3/4" (2 to 12; 4 otherwise).
-export function beatsOf(sig) {
-  const n = parseInt(String(sig || "").split("/")[0], 10);
-  return n >= 2 && n <= 12 ? n : 4;
-}
-
-// ---------- Your playing: the journal behind the profile page ----------
-// The play log keeps only 60 days, so the profile has its own small, lifetime
-// journal (data.journal), updated as you play. It holds counts, never a list
-// of every play, so it stays small however long you use the app:
-//   since     the first day it covers
-//   secs      seconds of playing (scrolling a song, finished or not)
-//   chords    { G: { n, first } }: plays that used the chord, and the day of the first
-//   changes   { "C|G": n }: switches made between two chords
-//   keys      { G: n }: plays by the key the song sounds in
-//   months    { "2026-10": { plays, secs, bpm, bpmN } }
-//   week      168 counts, one per hour of the week (Sunday midnight first)
-//   best      the longest streak in days
-//   firsts    the latest milestones: [{ kind: "chord" | "got", name, at }]
-//   tune      { n, checked: [6], drift: [6] }: tuner sessions, and per string how
-//             often it was checked and how often it had drifted more than 5 cents
-//   seeded    the day it was first worked out from the songs already played;
-//             numbers from before then are estimates
-const monthKey = t => dayKey(t).slice(0, 7);
-// The chords a song puts under your fingers, in the shapes you play.
-const shapesOf = song => {
-  const steps = shapeSteps(song);
-  return chordsUsed(song.body || "").map(c => transposeChord(c, steps, /^[A-G]b/.test(c)));
-};
-const soundingKey = song => transposeKey(song.key || guessKey(song.body || ""), song.transpose || 0);
-const playedSecs = song => song.duration || 210;
-export function journalOf(data, now = Date.now()) {
-  if (data.journal && typeof data.journal === "object" && data.journal.v === 1) {
-    /* From a backup it may be hand-edited: put back anything missing or the wrong shape. */
-    const j = data.journal, obj = v => v && typeof v === "object" && !Array.isArray(v), six = v => Array.isArray(v) && v.length === 6 ? v.map(x => +x || 0) : Array(6).fill(0);
-    for (const k of ["chords", "changes", "keys", "months"]) if (!obj(j[k])) j[k] = {};
-    if (!Array.isArray(j.week) || j.week.length !== 168) j.week = Array(168).fill(0);
-    if (!Array.isArray(j.firsts)) j.firsts = [];
-    if (!obj(j.tune)) j.tune = {};
-    j.tune = { n: +j.tune.n || 0, checked: six(j.tune.checked), drift: six(j.tune.drift) };
-    j.secs = +j.secs || 0; j.best = +j.best || 0;
-    if (typeof j.since !== "string") j.since = dayKey(now);
-    return j;
-  }
-  const j = { v: 1, since: dayKey(now), seeded: dayKey(now), secs: 0, chords: {}, changes: {}, keys: {}, months: {}, week: Array(168).fill(0), best: 0, firsts: [], tune: { n: 0, checked: Array(6).fill(0), drift: Array(6).fill(0) } };
-  /* Worked out once from what's already in the library: total plays per song,
-     the days still in the play log, and when each song was added. */
-  for (const s of data.songs || []) {
-    const n = playCount(s);
-    const days = Object.keys(s.playLog?.days || {}).sort();
-    const start = [s.created && s.created.slice(0, 10), days[0]].filter(Boolean).sort()[0];
-    if (start && start < j.since) j.since = start;
-    if (!n || s.format === "tab") continue;
-    j.secs += n * playedSecs(s);
-    for (const c of shapesOf(s)) {
-      const x = j.chords[c] || (j.chords[c] = { n: 0, first: start || j.seeded });
-      x.n += n; if (start && start < x.first) x.first = start;
-    }
-    for (const [k, x] of songChanges(s)) j.changes[k] = (j.changes[k] || 0) + x.n * n;
-    const key = soundingKey(s); if (key) j.keys[key] = (j.keys[key] || 0) + n;
-    for (const [d, c] of Object.entries(s.playLog?.days || {})) {
-      const m = j.months[d.slice(0, 7)] || (j.months[d.slice(0, 7)] = { plays: 0, secs: 0, bpm: 0, bpmN: 0 });
-      m.plays += c; m.secs += c * playedSecs(s);
-      if (s.bpm) { m.bpm += s.bpm * c; m.bpmN += c; }
-    }
-  }
-  j.best = streakOf(data.songs || [], now).days;
-  data.journal = j;
-  return j;
-}
-// A song played to its end: its chords, changes, key, tempo, and when.
-export function journalPlay(data, song, now = Date.now()) {
-  const j = journalOf(data, now), day = dayKey(now), d = new Date(now);
-  const m = j.months[monthKey(now)] || (j.months[monthKey(now)] = { plays: 0, secs: 0, bpm: 0, bpmN: 0 });
-  m.plays++;
-  if (song.bpm) { m.bpm += song.bpm; m.bpmN++; }
-  j.week[d.getDay() * 24 + d.getHours()]++;
-  if (song.format !== "tab") {
-    for (const c of new Set(shapesOf(song))) {
-      if (!j.chords[c]) { j.chords[c] = { n: 0, first: day }; j.firsts.unshift({ kind: "chord", name: c, at: day }); }
-      j.chords[c].n++;
-    }
-    for (const [k, x] of songChanges(song)) j.changes[k] = (j.changes[k] || 0) + x.n;
-    const key = soundingKey(song); if (key) j.keys[key] = (j.keys[key] || 0) + 1;
-  }
-  j.best = Math.max(j.best || 0, streakOf(data.songs, now).days);
-  j.firsts = j.firsts.slice(0, 40);
-}
-// Time spent playing: the seconds a song scrolled, whether or not it finished.
-export function journalTime(data, secs, now = Date.now()) {
-  if (!(secs > 1)) return;
-  const j = journalOf(data, now), m = j.months[monthKey(now)] || (j.months[monthKey(now)] = { plays: 0, secs: 0, bpm: 0, bpmN: 0 });
-  const s = Math.min(secs, 3600);
-  j.secs += s; m.secs += s;
-}
-// A tuner session: for each string checked, how far off it was when first heard.
-export function journalTune(data, firstCents, now = Date.now()) {
-  const j = journalOf(data, now);
-  if (!firstCents.some(c => typeof c === "number")) return;
-  j.tune.n++;
-  firstCents.forEach((c, i) => { if (typeof c !== "number" || i > 5) return; j.tune.checked[i]++; if (Math.abs(c) > 5) j.tune.drift[i]++; });
-}
-// A song marked "Got it" is a milestone, and counts toward your repertoire.
-export function journalGot(data, song, now = Date.now()) {
-  const j = journalOf(data, now);
-  song.gotAt = song.gotAt || new Date(now).toISOString();
-  j.firsts.unshift({ kind: "got", name: song.title, at: dayKey(now) });
-  j.firsts = j.firsts.slice(0, 40);
-}
-// The chords that tend to come next for a player, easiest first; the
-// passport suggests the first one you haven't played.
-const NEXT_STAMPS = ["G", "C", "D", "Em", "Am", "E", "A", "Dm", "Cadd9", "Dsus4", "E7", "A7", "D7", "G7", "B7", "Asus2", "Fmaj7", "F", "Bm", "F#m", "Bb", "C#m", "Gm", "Cm"];
-const BARRES = new Set(["F", "Bm", "F#m", "Bb", "B", "C#m", "Gm", "Cm", "G#m", "Fm", "Ab", "Eb", "Db"]);
-export const isBarre = c => BARRES.has(String(c).replace(/\/.*$/, ""));
-// Everything the profile page shows, worked out from the library and journal.
-export function profileOf(data, now = Date.now()) {
-  const j = journalOf(data, now), songs = data.songs || [];
-  const played = songs.filter(s => playCount(s) > 0);
-  const chords = Object.entries(j.chords).map(([name, x]) => ({ name, n: x.n, first: x.first, barre: isBarre(name) })).sort((a, b) => a.first < b.first ? -1 : a.first > b.first ? 1 : b.n - a.n);
-  const nextStamp = NEXT_STAMPS.find(c => !j.chords[c]) || "";
-  const changes = Object.entries(j.changes).map(([k, n]) => ({ a: k.split("|")[0], b: k.split("|")[1], n })).sort((x, y) => y.n - x.n);
-  const keys = Object.entries(j.keys).map(([k, n]) => ({ key: k, n })).sort((a, b) => b.n - a.n);
-  const months = Object.keys(j.months).sort();
-  const tempo = months.filter(m => j.months[m].bpmN).map(m => ({ m, bpm: j.months[m].bpm / j.months[m].bpmN, n: j.months[m].bpmN }));
-  const avg = xs => { const n = xs.reduce((a, x) => a + x.n, 0); return n ? xs.reduce((a, x) => a + x.bpm * x.n, 0) / n : 0; };
-  const recent = tempo.slice(-3), earlier = tempo.slice(0, -3);
-  /* When you play: four parts of the day for each weekday. */
-  const parts = [[5, 12, "mornings"], [12, 17, "afternoons"], [17, 22, "evenings"], [22, 29, "late nights"]];
-  const grid = Array.from({ length: 7 }, (_, d) => parts.map(([a, b]) => { let n = 0; for (let h = a; h < b; h++) n += j.week[d * 24 + (h % 24)] || 0; return n; }));
-  let top = null;
-  grid.forEach((row, d) => row.forEach((n, p) => { if (n && (!top || n > top.n)) top = { d, p, n }; }));
-  const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const bestMonth = months.reduce((b, m) => !b || j.months[m].plays > j.months[b].plays ? m : b, "");
-  /* Repertoire: songs you've got, month by month for the last year. */
-  const gotAt = s => s.status === "got" ? (s.gotAt || s.created || "").slice(0, 7) : "";
-  const now0 = new Date(now), ym = i => { const d = new Date(now0.getFullYear(), now0.getMonth() - i, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
-  const repertoire = Array.from({ length: 13 }, (_, i) => { const m = ym(12 - i); return { m, n: songs.filter(s => gotAt(s) && gotAt(s) <= m).length }; });
-  /* Comfort zone: what you play most. Dropped: tried once or twice, not in three weeks. */
-  const comfort = played.filter(s => playCount(s) >= 3).sort((a, b) => playCount(b) - playCount(a)).slice(0, 3).map(s => ({ id: s.id, title: s.title, n: playCount(s) }));
-  const dropped = played.filter(s => playCount(s) <= 2 && s.status !== "got" && now - (s.playLog?.last || 0) > 21 * DAY).sort((a, b) => (b.playLog?.last || 0) - (a.playLog?.last || 0)).slice(0, 3).map(s => ({ id: s.id, title: s.title, n: playCount(s) }));
-  /* Sets: the one played through most, and songs that sit next to each other in more than one set. */
-  const sets = (data.sets || []).map(x => ({ id: x.id, name: x.name || "Set", runs: (x.runs || []).length })).sort((a, b) => b.runs - a.runs);
-  const pairs = new Map(), title = id => songs.find(s => s.id === id)?.title;
-  for (const x of data.sets || []) for (let i = 1; i < (x.songIds || []).length; i++) {
-    const a = x.songIds[i - 1], b = x.songIds[i]; if (!title(a) || !title(b)) continue;
-    const k = [a, b].sort().join("|"); pairs.set(k, (pairs.get(k) || 0) + 1);
-  }
-  const together = [...pairs].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k, n]) => ({ a: title(k.split("|")[0]), b: title(k.split("|")[1]), n }));
-  const names = ["low E", "A", "D", "G", "B", "high e"];
-  const drift = j.tune.checked.map((c, i) => ({ string: names[i], checked: c, rate: c ? j.tune.drift[i] / c : 0 }));
-  const worst = drift.filter(x => x.checked >= 3).sort((a, b) => b.rate - a.rate)[0] || null;
-  return {
-    since: j.since, seeded: j.seeded,
-    hours: j.secs / 3600, plays: played.reduce((a, s) => a + playCount(s), 0), songsPlayed: played.length,
-    got: songs.filter(s => s.status === "got").length,
-    streak: streakOf(songs, now).days, best: Math.max(j.best || 0, streakOf(songs, now).days),
-    chords, nextStamp, barres: chords.filter(c => c.barre).length, firsts: j.firsts.slice(0, 6),
-    changes: changes.slice(0, 5),
-    keys: keys.slice(0, 5), tempo: { avg: avg(tempo), recent: avg(recent), earlier: avg(earlier), months: tempo.slice(-12) },
-    rhythm: { grid, top: top && `${DAYS[top.d]} ${parts[top.p][2]}`, bestMonth: bestMonth && { m: bestMonth, plays: j.months[bestMonth].plays } },
-    repertoire, yearAgo: repertoire[0].n,
-    comfort, dropped, sets: sets.filter(x => x.runs).slice(0, 1)[0] || null, together,
-    tune: { sessions: j.tune.n, worst, drift }
-  };
-}
-
-// ---------- The streak moment ----------
-// Once a day, after the first song you finish, a full-screen celebration of the
-// streak. This works out what it says: the count, the next milestone, a row of
-// seven days (up to three before today, today, and the days ahead, with the
-// milestone's day marked when it falls in the row), and how big the flame is.
-export const STREAK_GOALS = [7, 30, 100, 365];
-const DAY_ABBR = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
-export function streakMoment(songs, now = Date.now(), best = 0) {
-  const days = playDays(songs), n = streakOf(songs, now).days;
-  const goal = STREAK_GOALS.find(g => g > n) || Math.ceil((n + 1) / 365) * 365;
-  const hit = STREAK_GOALS.includes(n) || (n > 365 && n % 365 === 0);
-  const before = Math.min(Math.max(n - 1, 0), 3);
-  const slots = Array.from({ length: 7 }, (_, i) => {
-    const t = now + (i - before) * DAY, d = new Date(t);
-    return { label: DAY_ABBR[d.getDay()], on: i <= before && days.has(dayKey(t)), today: i === before, goal: i - before === goal - n ? goal : hit && i === before ? n : 0 };
-  });
-  const tier = n >= 30 ? 3 : n >= 7 ? 2 : n >= 3 ? 1 : 0;
-  const plural = (k, w) => `${k} ${w}${k === 1 ? "" : "s"}`;
-  const lead = n === 1 ? "Day one." : n === 7 ? "A full week in a row." : `${n} days in a row.`;
-  const goalName = goal === 7 ? "a full week" : `${goal} days`;
-  const next = n === 1 ? "Play tomorrow to start a streak." : hit ? `Next up: ${goalName}.` : `${plural(goal - n, "more day")} to ${goalName}.`;
-  return { n, goal, hit, slots, tier, lead, next, best: Math.max(best || 0, n) };
-}
-
-// ---------- Drum beats ----------
-// The metronome's drum patterns. A pattern is a rule for what hits on each
-// pulse (a beat; an eighth note in 6/8), so the audio code only plays hits.
-export const DRUM_BEATS = [["auto", "Auto"], ["rock", "Rock"], ["half", "Half time"], ["ballad", "Ballad"], ["four", "Four on the floor"]];
-export const DRUM_SWING = { straight: 0.5, light: 0.58, full: 0.667 };
-export const drumBeatName = style => ({ six8: "6/8", waltz: "Waltz" }[style] || DRUM_BEATS.find(([k]) => k === style)?.[1] || "Rock");
-/* Which pattern plays. 6 and 12 beats are compound time and 3, 5, 7 and 9 are
-   odd, and those keep their own patterns whatever is picked. Auto goes by the
-   song: fingerpicked and slow gets the ballad, slow gets half time, fast gets
-   four on the floor. Half time and the ballad need four beats. */
-export function drumStyle(pick, { bpm = 90, beats = 4, body = "" } = {}) {
-  if (beats === 6 || beats === 12) return "six8";
-  if (beats % 2) return "waltz";
-  let s = DRUM_BEATS.some(([k]) => k === pick && k !== "auto") ? pick : "auto";
-  if (s === "auto") {
-    const finger = /finger/i.test(String(body).slice(0, 200));
-    s = finger && bpm < 110 ? "ballad" : bpm < 80 ? "half" : bpm >= 125 ? "four" : "rock";
-  }
-  return (s === "half" || s === "ballad") && beats !== 4 ? "rock" : s;
-}
-/* The hits on pulse b of a bar: { k: kind, at: where in the pulse (0 to 1),
-   v: how hard }. swing is where the off-beat eighth lands (0.5 is straight). */
-export function drumHits(style, b, beats = 4, swing = 0.5) {
-  const hits = [], hit = (k, at, v) => hits.push({ k, at, v });
-  if (style === "six8") {
-    if (b % 3 === 0) hit((b / 3) % 2 === 0 ? "kick" : "snare", 0, (b / 3) % 2 === 0 ? 1 : 0.9);
-    hit("hat", 0, b % 3 === 0 ? 0.9 : 0.5);
-  } else if (style === "ballad") {
-    if (b === 0) hit("kick", 0, 0.8);
-    else if (b % 2 === 1) hit("stick", 0, 0.8);
-    hit("hat", 0, 0.45);
-  } else if (style === "four") {
-    hit("kick", 0, b === 0 ? 1 : 0.85);
-    if (beats === 4 && b % 2 === 1) hit("snare", 0, 0.55);
-    hit("open", swing, 0.7);
-  } else {
-    const even = beats % 2 === 0;
-    if (style === "half") { if (b === 0) hit("kick", 0, 1); else if (b === 2) hit("snare", 0, 1); }
-    else if (b === 0 || (even && b === beats / 2)) hit("kick", 0, b === 0 ? 1 : 0.85);
-    else hit("snare", 0, even ? 1 : 0.7);
-    hit("hat", 0, b === 0 ? 1 : 0.8);
-    hit("hat", swing, 0.55);
-  }
-  return hits;
-}
-
-// ---------- Bass line ----------
-// A bass that plays the root of each chord under the song. Everything here is
-// pure: the app asks which chord the bass is on and what to play on each pulse.
-export const BASS_STYLES = [["auto", "Auto"], ["root", "Root"], ["fifth", "Root and fifth"], ["pulse", "Pulse"], ["walk", "Walking"]];
-/* How many semitones the sheet's chords sit below what you hear: the chart's
-   capo while it is on, plus the capo from Make it easier. */
-export const soundOffset = song => (song?.easier?.on ? song.easier.capo || 0 : 0) + (song?.capoOff ? 0 : bodyCapo(song?.body));
-const BASS_LO = 38; /* D2: the bass sits between D2 and C#3, with room above for fifths */
-const bassPitch = (pc, lo = BASS_LO) => lo + ((((pc - lo) % 12) + 12) % 12);
-/* A chord's bass facts as pitch classes (0 to 11): the root, the note the bass
-   plays (a slash chord names its own), and the third, fifth and sixth as
-   semitones above the root. offset moves the shape to the sound. */
-export function chordBass(name, offset = 0) {
-  const m = String(name || "").match(CHORD_RE);
-  if (!m) return null;
-  const [, root, q, slash] = m;
-  const r = ((NOTE_INDEX[root] + offset) % 12 + 12) % 12;
-  const b = slash ? ((NOTE_INDEX[slash] + offset) % 12 + 12) % 12 : r;
-  const minor = /^(m(?!aj)|min|-|dim|°|ø)/.test(q);
-  const third = /^sus/.test(q) || q === "5" ? null : minor ? 3 : 4;
-  const fifth = /^(dim|°|ø)|b5/.test(q) ? 6 : /^(aug|\+)|#5/.test(q) ? 8 : 7;
-  const sixth = minor || (/7/.test(q) && !/maj7|M7/.test(q)) ? 10 : 9;
-  return { root: r, bass: b, third, fifth, sixth };
-}
-/* Which pattern plays. A pick wins; Auto follows the drum beat, and a full
-   swing walks. Walking needs four beats. */
-export function bassStyle(pick, drum, beats = 4, swing = "straight", riff = "") {
-  if (pick === "riff") return beats === 4 ? (validRiff(riff) ? "riff" : "pulse") : "fifth"; /* a riff is a bar of four beats */
-  let s = BASS_STYLES.some(([k]) => k === pick && k !== "auto") ? pick : "auto";
-  if (s === "auto") s = swing === "full" && beats === 4 ? "walk" : drum === "ballad" || drum === "half" ? "root" : drum === "six8" || drum === "waltz" ? "fifth" : "pulse";
-  return s === "walk" && beats !== 4 ? "fifth" : s;
-}
-/* The notes on pulse b of a bar: { m: midi note, at: where in the pulse (0 to 1),
-   len: how long, in pulses, v: how hard }. cur and next come from chordBass;
-   next is the chord after this one (for the walk's approach note). */
-export function bassHits(style, cur, next, b, beats = 4, swing = 0.5, riff = "") {
-  if (!cur) return [];
-  const hits = [], hit = (m, at, len, v) => hits.push({ m, at, len, v });
-  const low = bassPitch(cur.bass), rootP = bassPitch(cur.root), fifthP = rootP + cur.fifth > 52 ? rootP + cur.fifth - 12 : rootP + cur.fifth;
-  const compound = beats >= 6 && beats % 3 === 0, even = beats % 2 === 0 && !compound;
-  if (style === "riff" && validRiff(riff) && beats === 4) {
-    /* Each character is a sixteenth. The eighth-note off-beat moves with swing,
-       and a note rings until the next one. */
-    const pitch = { 1: low, 3: rootP + (cur.third ?? cur.fifth), 5: rootP + cur.fifth, 7: rootP + 10, 8: rootP + 12 };
-    const at = i => (i < 2 ? i * swing / 2 : swing + (i - 2) * (1 - swing) / 2);
-    for (let i = 0; i < 4; i++) {
-      const k = b * 4 + i, c = riff[k];
-      if (c === ".") continue;
-      let n = k + 1;
-      while (n < 16 && riff[n] === ".") n++;
-      hit(pitch[c], at(i), Math.max(0.15, (n - k) / 4 * 0.9), i === 0 ? (b === 0 ? 1 : 0.9) : i === 2 ? 0.8 : 0.65);
-    }
-    return hits;
-  }
-  if (style === "walk") {
-    if (b === 0) hit(low, 0, 0.9, 1);
-    else if (b === 1) hit(rootP + (cur.third ?? cur.fifth), 0, 0.9, 0.75);
-    else if (b === 2) hit(rootP + cur.fifth, 0, 0.9, 0.8);
-    else if (b === 3) {
-      if (!next || next.bass === cur.bass) hit(rootP + cur.sixth, 0, 0.9, 0.75);
-      else {
-        const prev = rootP + cur.fifth;
-        let tgt = bassPitch(next.bass);
-        for (let p = tgt; p <= 57; p += 12) if (Math.abs(p - prev) < Math.abs(tgt - prev)) tgt = p;
-        const from = [tgt - 1, tgt + 1].sort((x, y) => Math.abs(x - prev) - Math.abs(y - prev) || x - y)[0];
-        hit(from, 0, 0.9, 0.75);
-      }
-    }
-  } else if (style === "pulse") {
-    if (even) {
-      hit(low, 0, 0.45, b === 0 ? 1 : 0.75);
-      hit(low, swing, 0.4, 0.55);
-    } else hit(low, 0, 0.5, b === 0 ? 1 : compound && b % 3 === 0 ? 0.8 : 0.6);
-  } else if (style === "fifth") {
-    if (compound) { if (b % 3 === 0) hit(b % 6 === 0 ? low : fifthP, 0, 2.7, b % 6 === 0 ? 1 : 0.8); }
-    else if (even) { if (b === 0) hit(low, 0, beats / 2 * 0.9, 1); else if (b === beats / 2) hit(fifthP, 0, beats / 2 * 0.9, 0.8); }
-    else hit(b === 0 ? low : fifthP, 0, 0.9, b === 0 ? 1 : 0.75);
-  } else { /* root */
-    if (b === 0) hit(low, 0, beats * 0.9, 1);
-    else if (even && beats >= 4 && b === beats / 2) hit(low, 0, beats / 2 * 0.9, 0.6);
-  }
-  return hits;
-}
-/* Which chord the bass is on. rows are the sheet's chord rows, top to bottom:
-   { lo, hi: their first and last chord, kind, r0, r1: where they sit on the
-   page }, and L is the reading line on the same scale. Over lyrics ("line")
-   the bass goes by how far the page has moved through the row, so a row's
-   chords take turns. On a chord-only row ("bar") each chord gets a bar and
-   the bass moves on by itself; the page only brings it back when it has drifted
-   more than a row away, as after a loop or a scroll back. */
-export function bassWhere(idx, rows, L, onBar) {
-  if (!rows.length) return null;
-  let at = 0;
-  for (let i = 0; i < rows.length; i++) if (rows[i].r0 <= L) at = i;
-  const row = rows[at];
-  if (row.kind === "line") {
-    const span = Math.max(1, (rows[at + 1] ? rows[at + 1].r0 : row.r1) - row.r0);
-    return row.lo + Math.floor(Math.max(0, Math.min(0.999, (L - row.r0) / span)) * (row.hi - row.lo + 1));
-  }
-  if (idx == null || idx < (rows[at - 1] || row).lo || idx > (rows[at + 1] || row).hi) return row.lo;
-  return onBar ? Math.min(idx + 1, rows[rows.length - 1].hi) : idx;
-}
-
-// ---------- A song's groove ----------
-// What the drums and bass do for one song, found by the AI (or set in Edit) and
-// kept on the song as song.groove = { beat, swing, bass, src }. Each part is
-// optional: a part a song doesn't have comes from Settings. src is "ai" for
-// what was found and "you" once you have changed it (a groove with only src
-// "you" means: keep the defaults, don't look it up again).
-export const GROOVE = { beat: ["rock", "half", "ballad", "four"], swing: ["straight", "light", "full"], bass: ["root", "fifth", "pulse", "walk", "riff"] };
-/* A riff is one bar of a bass part in sixteenth notes, 16 characters, in
-   degrees of whatever chord it is played on: "." no new note, 1 root, 3 third,
-   5 fifth, 7 flat seventh, 8 root an octave up. */
-export const RIFF_STEPS = [".", "1", "3", "5", "7", "8"];
-export const validRiff = r => typeof r === "string" && /^[.13578]{16}$/.test(r) && /[13578]/.test(r);
-export function cleanGroove(raw, src = raw?.src) {
-  if (!isObj(raw)) return null;
-  const g = { src: src === "ai" ? "ai" : "you" };
-  for (const k of Object.keys(GROOVE)) if (GROOVE[k].includes(raw[k])) g[k] = raw[k];
-  if (validRiff(raw.riff)) g.riff = raw.riff;
-  if (g.bass === "riff" && !g.riff) delete g.bass; /* a riff style needs a riff */
-  return g;
-}
-/* The settings a song plays with: its own groove first, then Settings. */
-export function grooveOf(song, settings = {}) {
-  const g = song?.groove || {};
-  return { beat: g.beat || settings.metroBeat || "auto", swing: g.swing || settings.metroSwing || "straight", bass: g.bass || settings.bassStyle || "auto", riff: g.riff || "" };
-}
-const BASS_WORDS = { root: "root bass", fifth: "root and fifth bass", pulse: "pulse bass", walk: "walking bass", riff: "a bass riff" };
-/* "Half time, light swing, walking bass": what a groove says, for a toast. */
-export function grooveText(g) {
-  return [g?.beat && drumBeatName(g.beat), (g?.swing === "light" || g?.swing === "full") && `${g.swing} swing`, g?.bass && BASS_WORDS[g.bass]].filter(Boolean).join(", ") || "the defaults";
-}
-
 // ---------- Plays that outlive a song ----------
 // A song's plays are kept on the song. When a song leaves Recently deleted for
 // good (or expires from it), its plays move into data.kept as counts per day,
@@ -2553,6 +1497,7 @@ export function cleanKept(raw) {
 export function playSongs(data) {
   const out = [...(data.songs || []), ...(data.trash || []).filter(t => t?.type === "song" && t.item).map(t => t.item)];
   if (data.kept?.days) out.push({ playLog: { total: 0, last: 0, days: data.kept.days } });
+  if (data.merch?.rainDays?.length) out.push({ rainDays: data.merch.rainDays }); /* counts for the streak only, never as plays */
   return out;
 }
 
@@ -2570,49 +1515,12 @@ export function playCredited({ end = 0, cover = 0, ms = 0, expectedMs = 0 } = {}
   return end < 40 ? true : cover >= PLAY_COVER * end; /* a sheet that fits one screen has only the time to go by */
 }
 
-// ---------- Play map ----------
-// Credited plays grow a territory of hexagons around your practice spot. The
-// rings grow with the square root of your plays (ring k arrives at 4 k squared
-// plays), and the next ring fills in a cell at a time, so every play shows.
-export function territory(plays) {
-  plays = Math.max(0, Math.floor(+plays || 0));
-  const k = Math.floor(Math.sqrt(plays) / 2), lo = 4 * k * k, hi = 4 * (k + 1) * (k + 1);
-  const extra = Math.floor((plays - lo) / (hi - lo) * 6 * (k + 1));
-  return { plays, rings: k, cells: plays ? 1 + 3 * k * (k + 1) + extra : 0, nextAt: hi, toNext: hi - plays };
-}
-/* The first n cells of the territory as axial hex coordinates: the centre, then
-   ring after ring, each starting on the same side. */
-export function hexSpiral(n) {
-  const dirs = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]], out = [[0, 0]];
-  for (let k = 1; out.length < n; k++) {
-    let q = -k, r = k;
-    for (let i = 0; i < 6; i++) for (let j = 0; j < k; j++) { out.push([q, r]); q += dirs[i][0]; r += dirs[i][1]; }
-  }
-  return out.slice(0, Math.max(0, n));
-}
-/* A practice spot, kept no finer than about a kilometre. */
-export function coarseSpot(lat, lon) {
-  lat = +lat; lon = +lon;
-  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
-  return { lat: Math.round(lat * 100) / 100, lon: Math.round(lon * 100) / 100 };
-}
-/* The territory on a real map. Each hexagon is HEX_M metres from centre to corner,
-   laid out from the practice spot; web-mercator pixels place it on map tiles. */
-export const HEX_M = 250;
-export function hexCentre(spot, [q, r], S = HEX_M) {
-  const east = S * Math.sqrt(3) * (q + r / 2), south = S * 1.5 * r;
-  return { lat: spot.lat - south / 111320, lon: spot.lon + east / (111320 * Math.cos(spot.lat * Math.PI / 180)) };
-}
-export function mercator(lat, lon, z) {
-  const n = 256 * 2 ** z, s = Math.sin(Math.max(-85.05, Math.min(85.05, lat)) * Math.PI / 180);
-  return [(lon + 180) / 360 * n, (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n];
-}
-/* The closest zoom (9 to 16) at which every hexagon fits a w by h picture. */
-export function fitZoom(lat, cells, w, h, S = HEX_M) {
-  const ext = hexSpiral(cells).reduce((m, [q, r]) => Math.max(m, Math.abs(S * Math.sqrt(3) * (q + r / 2)) + S, Math.abs(S * 1.5 * r) + S), S);
-  const mpp = 2 * ext * 1.08 / Math.max(1, Math.min(w, h));
-  return Math.max(9, Math.min(16, Math.floor(Math.log2(156543.03 * Math.cos(lat * Math.PI / 180) / mpp))));
-}
-export const spotLabel = spot => spot ? `${Math.abs(spot.lat).toFixed(2)}° ${spot.lat >= 0 ? "N" : "S"}, ${Math.abs(spot.lon).toFixed(2)}° ${spot.lon >= 0 ? "E" : "W"}` : "";
-/* Credited plays over all time: the journal counts one each time a song is played through. */
-export const lifetimePlays = data => Object.values(journalOf(data).months).reduce((n, m) => n + (m.plays || 0), 0);
+// ---------- Re-exported topics (core/) ----------
+export { addSync, bodyKey, cleanFeel, cleanSyncs, cleanTimed, feelOf, keyGap, keyOfChroma, keyParts, matchLines, mergeSyncs, parseLrc, spotTimes, syncSeconds, syncWhere, wordTimes };
+export { buildWords, chordShape, dashChords, detectPaste, guessKey, isChord, isChordLine, looksLikeTab, parseBlocks, parseSheet, prefersFlats, transposeChord, transposeKey, wrapTab };
+export { beatsOf, chartOfSheet, chordFit, chordLine, chordName, chordWords, detectKey, harmonize, keyConfidence, keyFamily, lineHint, lineOptions, lyricStanzas, melodyNotes, cleanPlaced, chartChord, liningDue, SPOTS_V, looksGuessed, lyricsOfSheet, mergeWords, nameRepeats, numberLyrics, placedSheet, midiOfHz, notesUnder, packNotes, pickVersions, pitchShares, restyle, richName, setSungLine, sketchKey, sketchSong, splitTake, takeLines, sungLines, syllables, tempoPick, unpackNotes };
+export { PASSPORT, PRACTICE_PLAY, STREAK_GOALS, isBarre, journalGot, journalOf, journalPlay, journalPractice, journalTime, journalTune, profileOf, streakMoment };
+export { DRUM_BEATS, DRUM_PARTS, DRUM_SWING, GROOVE, barHits, cleanDrums, cleanGroove, drumBeatName, drumHits, drumLevelBar, drumStyle, grooveOf, grooveText, partOf, soundOffset };
+export { GUITAR_SHARE, HEX_KM2, HEX_M, HOLD_DAYS, PRACTICE_MEDIAN, PRACTICE_SPREAD, VENUES, cellsOutline, claimCells, cleanTour, coarseSpot, densityAt, edgePressure, hexNeighbours, hexSpiral, lifetimePlays, localBar, percentileOf, playsForCells, rng, sceneMap, seedOf, simulateRivals, takeoverPlan, territory, tourDay, userAvg7, venueName, venueOf, zOf, cornersSettle };
+export { CHORD_EXTRA, CHORD_FIT, HEAR, SCALES, chordLead, chordLeadOver, SKILL_LEVELS, bleedProfile, buzzRms, strumFit, chordNotes, chordTargets, chromaOf, cleanSkills, gradeSwitches, judgeTarget, pitchRms, practiceRate, practicing, scaleTargets, skillDone, skillState, roadNote, chordPlays, songsWith, KNOW_PLAYS, stringRange, strumDetector, strumLine, trackFloor };
+export { COMBO_STEPS, CALLOUT_LOOKS, achSettle, castFor, pickLook, CHANGES_DAYS, changesToWork, LESSON_PASSES, LESSON_XP, lessonDone, lessonKeep, lessonOfDay, lessonPartOf, BAND, BOX_EVERY, GUITARS, guitarFor, guitarNew, guitarsEarned, fretLayout, FRET_STEPS, FRET_MIN, FRET_HEAD, FRET_BODY, cleanGuitars, ME_STARTERS, ME_DEFAULT, ME_HAIR, ME_HAIR_COL, ME_TOP_COL, ME_BEARD, ME_HATS, ME_PATCHES, PATCH_COLOR, STAGE_LOOKS, cleanMe, meOf, meMood, rivalMe, stageLook, stageLookOf, patchesAll, patchesOf, boxesSeed, cleanBoxes, openBox, CHART_DEMOTE, CHART_PROMOTE, COVER_MULT, FANS, FRIEND_QUEST, MERCH, OPENING, QUEST, SOUNDCHECK_XP, XP, addXP, bandMeet, bandParts, bandState, battleFor, chartRivals, chartState, chartsSettle, cleanBand, cleanCharts, cleanDuelLink, cleanDuels, cleanGig, cleanMerch, cleanFame, cleanOpening, cleanQuests, cleanRehearse, cleanXP, coverState, duelRecord, duelWon, fansOf, fansNow, fansToSpend, fameSettle, venueNow, tipsOf, gigTips, tipsMigrate, FADE, friendQuest, friendQuestPick, friendQuestSettle, friendsOf, gelOf, gigCrowd, gigDone, gigFans, gigPct, gigStart, catchScore, relativeOf, catchTargets, targetAt, catchStart, catchAt, catchOpen, catchHear, catchClose, FOLLOW, tempoStep, followAhead, beatsLate, knownChords, merchBuy, merchState, merchTip, merchWear, merchWorn, headlined, looksOwned, lookOfTheme, missedChanges, noteHeard, openingAdvance, openingOn, openingReplay, openingSkip, openingStep, openingView, playableSongs, questState, questsSettle, rainSettle, rehearseMisses, requestSong, roadPath, secondTake, sheetChords, soundcheck, soundcheckDone, startBattle, startDuel, takeDuel, weekOf, weekXP, badgesOf, levelOf, levelStart, xpTotal };

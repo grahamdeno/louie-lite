@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
-import { base, phone, skip, LIB, useBrowser } from "./harness.mjs";
+import { base, phone, skip, LIB, useBrowser, tool } from "./harness.mjs";
 
 useBrowser();
 const require = createRequire(import.meta.url);
@@ -18,12 +18,15 @@ const lib = theme => ({ ...LIB, sets: [{ id: "s", name: "Friday", songIds: ["a",
   trash: [{ type: "song", item: { id: "z", title: "Old Song", body: "G" }, deletedAt: new Date().toISOString() }],
   settings: { v: 6, theme, controls: "bar", streakMoment: false, tipsSeen: TIPS, micExplained: true, sampleAdded: true, lastBackup: "2099-01-01T00:00:00Z", countIn: false } });
 const SCREENS = [
-  ["library", "#/"], ["song", "#/song/a"], ["set", "#/set/s"], ["settings", "#/settings"], ["trash", "#/trash"], ["gestures", "#/gestures"],
+  ["tonight", "#/"], ["library", "#/library"], ["song", "#/song/a"], ["set", "#/set/s"], ["settings", "#/settings"], ["trash", "#/trash"], ["gestures", "#/gestures"],
   ["menu", "#/song/a", p => p.click("#more")],
-  ["editor", "#/song/a", async p => { await p.click("#more"); await p.click(".menu [data-m='edit']"); }],
+  ["editor", "#/song/a", async p => { await tool(p, "edit"); }],
   ["question", "#/trash", p => p.click("[data-forget]")],
-  ["tuner", "#/", p => p.click("#tunerbtn")],
-  ["sketch", "#/sketch"]
+  ["tuner", "#/settings", async p => { await p.click("#s-tuner"); await p.waitForSelector("#tn-say, .tn-mic"); }],
+  ["sketch", "#/sketch"],
+  ["playing", "#/you"],
+  ["rehearse", "#/practice"],
+  ["charts", "#/charts"]
 ];
 
 const unnamed = () => {
@@ -36,7 +39,7 @@ const unnamed = () => {
 
 for (const theme of ["dark", "light"]) {
   test(`every control has a name, and axe finds nothing serious (${theme})`, { skip: skip() }, async t => {
-    const page = await phone(t, lib(theme), { colorScheme: theme, reducedMotion: "reduce" });
+    const page = await phone(t, lib(theme), { colorScheme: theme === "light" ? "light" : "dark", reducedMotion: "reduce" });
     const problems = [];
     for (const [screen, hash, act] of SCREENS) {
       await page.goto(base + hash); await page.reload(); await page.waitForTimeout(400);
@@ -55,3 +58,4 @@ for (const theme of ["dark", "light"]) {
     assert.deepEqual(problems, []);
   });
 }
+

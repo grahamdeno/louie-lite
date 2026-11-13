@@ -19,12 +19,19 @@ const I = {
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
   snow: '<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9"/><path d="M9.5 4.5 12 6l2.5-1.5M9.5 19.5 12 18l2.5 1.5"/>',
   flame: '<path d="M12 21c-3.6 0-6-2.4-6-5.6 0-3.4 2.6-5 3.6-8.4 2.3 1.4 3.4 3.4 3.4 5.4 1-.6 1.6-1.7 1.7-2.9 1.9 1.6 3.3 3.6 3.3 6 0 3.2-2.4 5.5-6 5.5z"/>',
+  pin: '<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/>',
+  amphead: '<rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9.5" cy="10" r="1.3"/><circle cx="14.5" cy="10" r="1.3"/><path d="M8.5 15h7"/>',
   chat: '<path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-8l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/><path d="M8.5 9.5h7M8.5 12.5h4"/>',
   note: '<path d="M9 18V6l11-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>',
   moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
   upload: '<path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M4 14v5h16v-5"/>',
   download: '<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M4 14v5h16v-5"/>',
   focus: '<path d="M4 7h16"/><path d="M4 12h16" stroke-width="2.4"/><path d="M4 17h16"/>',
+  cup: '<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5z"/><path d="M16 11h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M9 3c-1 1.5 1 2.5 0 4M12.5 3c-1 1.5 1 2.5 0 4"/>',
+  list: '<path d="M5 6h14M5 12h14M5 18h10"/>',
+  type: '<path d="M5 7V5h14v2M12 5v14M9 19h6"/>',
+  flag: '<path d="M6 21V4"/><path d="M6 4h11l-2.5 4L17 12H6"/>',
+  target: '<circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
   wand: '<path d="M4 20 14.5 9.5"/><path d="m13 8 3 3"/><path d="M17 3.5v3M15.5 5h3M20 9v2M19 10h2"/>',
   camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   cloud: '<path d="M7 18h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.2 4.4 4.4 0 0 0 7 18z"/><path d="M12 15V10M9.8 12 12 9.8l2.2 2.2"/>',
@@ -40,6 +47,8 @@ const I = {
   calendar: '<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
   image: '<rect x="3.5" y="3.5" width="17" height="17" rx="3"/><circle cx="9" cy="9" r="1.8"/><path d="M20.5 15l-5-5L5 20.5"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  shirt: '<path d="M8 4l-5 3 2 4 3-1.5V20h8V9.5l3 1.5 2-4-5-3a4 4 0 0 1-8 0z"/>',
   amp: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="13" r="3"/><path d="M15 10h3M15 13h3M15 16h3M6 8h12"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
   dots: '<circle cx="5.5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="18.5" cy="12" r="1.3" fill="currentColor"/>',
@@ -48,6 +57,7 @@ const I = {
   sliders: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',
   fretboard: '<path d="M6 4h12M6 4v16M10 4v16M14 4v16M18 4v16M6 9h12M6 14h12"/><circle cx="10" cy="11.5" r="1.4" fill="currentColor"/><circle cx="14" cy="16.5" r="1.4" fill="currentColor"/>',
   clip: '<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4.5V3h6v1.5"/>',
+  star: '<path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/>',
   check: '<path d="M5 12l4 4 10-10"/>',
   play: '<path d="M8 5.5v13a1 1 0 0 0 1.5.9l10.4-6.5a1 1 0 0 0 0-1.8L9.5 4.6A1 1 0 0 0 8 5.5z"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',
@@ -70,6 +80,9 @@ window.addEventListener("scroll", () => {
 }, { passive: true });
 const app = $("app");
 const layer = $("layer");
+// 4.29.1 (Graham): no page zoom. iPhone Safari ignores user-scalable=no, so its pinch gesture is
+// stopped here too; the Tour Map (Leaflet) zooms itself with touch events and is left alone.
+for (const ev of ["gesturestart", "gesturechange"]) document.addEventListener(ev, e => { if (!e.target?.closest?.(".tm-page, .leaflet-container")) e.preventDefault(); }, { passive: false });
 // Sheets in the layer close with a swipe down: from the handle or
 // title row, or from the content once it's scrolled to the top. They follow
 // the finger, and spring back from a short pull. Closing goes through the
@@ -234,12 +247,52 @@ export { oneHandMQ };
 // needs sound (never just for opening the app, so music playing alongside
 // isn't interrupted) and woken by any touch if iPhone has paused it.
 let audioCtx = null;
-export function sound() {
+/* 4.24.0: a tap you feel. Android has navigator.vibrate. iPhone Safari has no vibrate, but from iOS 18
+   flipping a switch checkbox gives the system's tick, so a hidden one is flipped (n ticks, 110 ms apart). */
+let hapLabel = null;
+export function haptic(n = 1) {
   try {
-    audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+    if (navigator.vibrate) { navigator.vibrate(n > 1 ? Array.from({ length: n * 2 - 1 }, (_, i) => i % 2 ? 70 : 25) : 18); return; }
+    if (!hapLabel) {
+      hapLabel = document.createElement("label"); hapLabel.className = "hap"; hapLabel.setAttribute("aria-hidden", "true");
+      const i = document.createElement("input"); i.type = "checkbox"; i.setAttribute("switch", ""); i.tabIndex = -1;
+      hapLabel.append(i); document.body.append(hapLabel);
+    }
+    for (let k = 0; k < n; k++) setTimeout(() => hapLabel.click(), k * 110);
+  } catch { /* no haptics here */ }
+}
+/* 4.78.3: iPhone can leave the audio engine deaf after a microphone is let go: its clock stops or it stays
+   interrupted, and every later listen hears nothing until the app is closed (Graham: leaving a song or a lesson
+   lost the mic for good). So a feature about to listen calls sound({ mic: true }) inside its tap, and gets a
+   fresh engine when a microphone was opened on the old one and is now stopped, or has gone deaf. Microphones are
+   opened with getMic, so it knows which are still live. */
+const mics = new Set();
+let clockAt = null, deaf = false, still = 0;
+setInterval(() => {
+  if (!audioCtx) return;
+  const now = performance.now() / 1000, t = audioCtx.currentTime;
+  /* stuck: running, but its clock hasn't moved for two checks in a row (a busy moment is not enough) */
+  still = audioCtx.state === "running" && clockAt && now - clockAt.now > 0.9 && t - clockAt.t < 0.05 ? still + 1 : 0;
+  if (still >= 2 || audioCtx.state === "closed") deaf = true;
+  clockAt = { now, t };
+}, 1000);
+const micLive = () => [...mics].some(s => s.getAudioTracks().some(t => t.readyState === "live"));
+export function sound(opt = {}) {
+  try {
+    if (audioCtx && opt.mic && !micLive() && (audioCtx.micOpened || deaf)) { try { audioCtx.close(); } catch { /* already */ } audioCtx = null; }
+    if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); deaf = false; still = 0; clockAt = null; mics.clear(); }
     if (audioCtx.state !== "running") audioCtx.resume?.()?.catch?.(() => {});
   } catch { return null; }
   return audioCtx;
+}
+/* is the audio engine stuck (its clock stopped while the page runs)? */
+export const soundDeaf = () => deaf;
+export async function getMic(audio = { echoCancellation: false, noiseSuppression: false, autoGainControl: false }) {
+  if (!navigator.mediaDevices?.getUserMedia) throw Object.assign(new Error("none"), { name: "NotSupportedError" });
+  const stream = await navigator.mediaDevices.getUserMedia({ audio });
+  mics.add(stream);
+  if (audioCtx) audioCtx.micOpened = true;
+  return stream;
 }
 addEventListener("pointerdown", () => { if (audioCtx && audioCtx.state !== "running") audioCtx.resume?.()?.catch?.(() => {}); }, true);
 export { html, raw, $, I, SECTION_NAMES, app, ask, esc, followKeyboard, icon, layer, leaveHooks, onLeave, onScroll, showToCopy, toast };
