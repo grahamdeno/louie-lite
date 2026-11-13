@@ -15,14 +15,21 @@ const changed = new Set([
 const COVERS = {
   "app.js": ["app", "regress", "duet", "changes", "today", "swipe"],
   "core.js": ["app", "changes", "today", "profile"],
+  /* split from app.js (4.15.2) */
+  "library.js": ["app", "regress", "a11y"], "audio.js": ["app"], "aihelp.js": ["playnext", "getsong", "app"],
+  /* core/ (4.15.1): each topic's screens */
+  "core/chords.js": ["app", "regress"], "core/recording.js": ["app"], "core/sketch.js": ["strum", "app"],
+  "core/playing.js": ["profile", "today"], "core/groove.js": ["app"], "core/turf.js": ["app"],
+  "core/neck.js": ["practice"], "core/game.js": ["app", "duet", "gig"],
   "ui.js": ["app", "regress"],
   "settings.js": ["settings", "today"],
   "findai.js": ["playnext", "getsong"],
   "aitools.js": ["app"],
   "tuner.js": ["app"],
   "heads.js": ["app"],
-  "ring.js": ["ringhint", "tips", "app"],
-  "coach.js": ["tips", "ringhint"],
+  "fold.js": ["tips", "app", "settings", "app2"],
+  "callout.js": ["app2", "gig"],
+  "coach.js": ["tips"],
   "german.js": ["german"],
   "sets.js": ["app", "regress"],
   "editor.js": ["app", "regress", "strum"],
@@ -31,7 +38,11 @@ const COVERS = {
   "styles.css": ["regress", "a11y"],
   "index.html": ["app", "a11y"],
   "sw.js": ["app"],
-  "profile.js": ["profile"]
+  "profile.js": ["profile"],
+  "practice.js": ["practice"],
+  "gig.js": ["app", "gig"], "tour.js": ["app"], "charts.js": ["app"], "band.js": ["app"], "friends.js": ["app"], "merch.js": ["app", "gig"], "hud.js": ["app"],
+  "road.js": ["app"], "duel.js": ["app"], "share.js": ["app", "duet"], "listen.js": ["app", "getsong"], "playmap.js": ["app"],
+  "scene.js": ["app"], "drawer.js": ["app"], "dial.js": ["app"], "crop.js": ["app"], "louie.js": ["regress"]
 };
 const files = new Set();
 for (const f of changed) {

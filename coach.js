@@ -1,9 +1,9 @@
 // Tabs coach: one-time tips shown in place, the demos behind Show me, and the
 // Tips & gestures page. Loaded with the app; app.js calls in when a tip is due.
-import { Tabs, tipPaced } from "./core.js";
+import { Tabs, openingReplay, tipPaced } from "./core.js";
 import { $, app, esc, icon, layer, onLeave, onScroll, toast } from "./ui.js";
 import { setSetCtx } from "./sets.js";
-import { READ_AT, aiKey, applyPaused, calm, card, chordEdit, data, diag, go, map, openTuner, paintMap, route, scroll, searching, setCurrent, setOpenEdit, showChordPop, viewing } from "./app.js";
+import { aiKey, applyPaused, calm, chordEdit, data, diag, go, map, openTuner, paintMap, route, scroll, searching, setCurrent, setOpenEdit, showChordPop, viewing } from "./app.js";
 
 // ---------- Coach: one-time help, in place and never in the way ----------
 // "Try it" on the first song (tap a chord, then Play); everything else is shown
@@ -155,13 +155,12 @@ function playCoach(song) {
 }
 // While playing: the pause badge fades in and out (without pausing).
 function demoPause() {
-  const stage = !!data.settings.stage;
   const g = document.createElement("div");
   g.className = "tappause ghost";
   g.innerHTML = icon("pause");
   document.body.appendChild(g);
   setTimeout(() => g.remove(), 1700);
-  coach(null, stage ? "On stage, tap twice anywhere to pause" : "Tap anywhere to pause", { ms: 3200 });
+  coach(null, "Tap anywhere to pause", { ms: 3200 });
 }
 // Paused: a line mid-screen gets the real focus look, the way play will start from it.
 function demoLine() {
@@ -173,25 +172,6 @@ function demoLine() {
   setCurrent(line);
   coach(line, "Tap a line to start from it", { ms: 3400, place: "above", html: `<b>Tap a line to start from it</b><span>Play picks up right here.</span>` });
   setTimeout(() => { if (!scroll.on && diag.block === line && $("sheet") === sheet) { setCurrent(was); applyPaused(); } }, 3400);
-  return true;
-}
-// Paused, with Now and Next off: show the real panel for a moment.
-function demoNN() {
-  const nn = $("nn");
-  if (!nn || !diag.seq.length) return false;
-  const top = $("sheet").getBoundingClientRect().top, line = innerHeight * READ_AT;
-  let idx = 0;
-  for (let i = 0; i < diag.seq.length; i++) if (top + diag.seq[i].y <= line) idx = i;
-  const next = [];
-  let last = diag.seq[idx].name;
-  for (let i = idx + 1; i < diag.seq.length && next.length < 3; i++) if (diag.seq[i].name !== last) { next.push(diag.seq[i].name); last = diag.seq[i].name; }
-  const fade = [0.85, 0.5, 0.28];
-  nn.innerHTML = `<div class="nowcol"><div class="lab">NOW</div><div>${card(diag.seq[idx].name, 1.26)}</div></div><div class="vs"></div>
-    <div style="min-width:0"><div class="lab">NEXT</div><div class="cards">${next.map((n, i) => card(n, 1, fade[i])).join("")}</div></div>`;
-  document.body.classList.add("nn-demo");
-  const ring = document.body.classList.contains("ring");
-  coach(nn, "", { ms: 3800, place: "above", fixed: true, html: `<b>Now and Next</b><span>The chord you're on, and what's coming, while you play. Turn it on ${ring ? "by holding Play, then Now and Next" : `with ${icon("fretboard")} below`}.</span>` });
-  setTimeout(() => { document.body.classList.remove("nn-demo"); if (!scroll.on) nn.innerHTML = ""; }, 3800);
   return true;
 }
 // Song map: show the section names, the way they appear while dragging.
@@ -221,7 +201,7 @@ function demoTap() {
 }
 // Search: invite a tap, then show what it can do.
 const SEARCH_LIST = () => `<b>Search does more than find</b><ul>
-  <li>Titles, artists, or a lyric you remember</li><li>Paste a chord sheet to add it</li><li>Paste a shared Tabs link to open it</li>
+  <li>Titles, artists, or a lyric you remember</li><li>Paste a chord sheet to add it</li><li>Paste a shared Louie link to open it</li>
   <li>Not in your library? ${aiKey() ? "Find it online, or make a chord chart with AI" : "Find it online"}</li></ul>`;
 function demoSearch(force) {
   const bar = document.querySelector(".cmd");
@@ -244,7 +224,7 @@ function demoSong() {
   return chords.find(s => s.sample) || [...chords].sort((a, b) => (b.opened || 0) - (a.opened || 0))[0];
 }
 function showMe(name) {
-  if (name === "search") { go("#/"); return setTimeout(() => demoSearch(true), 450); }
+  if (name === "search") { go("#/library"); return setTimeout(() => demoSearch(true), 450); }
   if (name === "meter") { go("#/"); return setTimeout(() => openTuner("standard", null, { demo: "meter" }), 350); }
   /* The set dial needs a song opened from a set. */
   if (name === "setdial") {
@@ -263,25 +243,19 @@ function showMe(name) {
 }
 /* One hand: point at the control where it is. Only on a phone held upright. */
 const ONE_HAND = {
-  ring: () => [document.getElementById("play"), "<b>Hold Play</b><span>Slide to Favorite, Metronome, Key, Now and Next or More, and let go.</span>"],
-  arc: () => { wakeRing(); return [document.getElementById("play"), "<b>Sweep the arc Play sits on</b><span>Up moves forward, down moves back. One full sweep goes end to end.</span>"]; },
-  pull: () => [document.querySelector(".song-title"), "<b>Pull down here</b><span>At the top of a song, pull down past \u201cRelease for Library\u201d and let go.</span>", "below"],
-  speed: () => [document.getElementById("dialbtn"), "<b>Hold the time</b><span>Then sweep around the corner to set the song's length.</span>"],
-  setdial: () => [document.getElementById("setdial"), "<b>Hold \u201c4 of 9\u201d</b><span>Sweep through the set; let go to open a song.</span>"],
-  rise: () => { wakeRing(); return [document.getElementById("play"), "<b>Play rises to your thumb</b><span>While the phone is in your hand; it settles after 5 seconds still.</span>"]; }
+  pull: () => [document.querySelector(".song-title"), "<b>Pull down here</b><span>At the top of a song, pull down past \u201cRelease for Songbook\u201d and let go.</span>", "below"],
+  speed: () => [document.getElementById("more"), "<b>Tap Tools, then the time</b><span>Under Song length, \u2212 and + step it and the time opens the dial.</span>"],
+  setdial: () => [document.getElementById("setdial"), "<b>Hold \u201c4 of 9\u201d</b><span>Sweep through the set; let go to open a song.</span>"]
 };
-/* Lift Play as a touch would. */
-const wakeRing = () => { document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })); document.body.dispatchEvent(new PointerEvent("pointerup", { bubbles: true })); };
 function runDemo(name, song) {
   if (ONE_HAND[name]) {
-    if (!document.body.classList.contains("ring")) return toast("This one is for a phone held upright, with Song controls set to Hold Play");
+    if (!document.body.classList.contains("one")) return toast("This one is for a phone held upright");
     if (name === "setdial" && !document.getElementById("setdial")) return toast("Open a song from a set, then hold \u201c4 of 9\u201d");
     return setTimeout(() => { const [el, html, place = "above"] = ONE_HAND[name](); if (el) setTimeout(() => coach(el, "", { ms: 6000, place, fixed: true, html }), 400); }, 300);
   }
   if (name === "chord") return demoChord(song, true);
   if (name === "pause") return demoPause();
   if (name === "line") return demoLine();
-  if (name === "nn") return demoNN();
   if (name === "map") {
     const sec = document.querySelectorAll(".sheet > .sec")[1];
     if (sec) window.scrollTo({ top: sec.getBoundingClientRect().top + scrollY - innerHeight * 0.3 });
@@ -291,19 +265,16 @@ function runDemo(name, song) {
 // Grouped by where you are; only things without a visible button.
 const GESTURES = [
   ["One hand (phone held upright)", [
-    ["ring", "Hold Play", "A ring opens: Favorite, Metronome, Key, Now and Next, More, and Set in a set. Slide to one and let go, or let go and tap", "play"],
-    ["arc", "Sweep the arc", "Moves through the song: slowly for a line or two, one full sweep end to end. The section glows as you go", "loop"],
-    ["pull", "Pull down at the top of a song", "Let go at \u201cRelease for Library\u201d to go back (when paused)", "back"],
-    ["speed", "Hold the time", "The speed dial: sweep the corner to set the song's length", "gauge"],
-    ["setdial", "Hold \u201c4 of 9\u201d in a set", "The set dial: sweep through the set, let go to open a song", "listplus"],
-    ["rise", "Pick up the phone", "Play rises to your thumb; it settles back after 5 seconds still", "up"]]],
+    ["", "Press Play", "Play opens the Gig. Practicing a section, the bar folds into Play's corner instead", "play"],
+    ["pull", "Pull down at the top of a song", "Let go at \u201cRelease for Songbook\u201d to go back (when paused)", "back"],
+    ["speed", "Tools, then Song length", "\u2212 and + step it; tap the time for the dial and sweep to set it", "gauge"],
+    ["setdial", "Hold \u201c4 of 9\u201d in a set", "The set dial: sweep through the set, let go to open a song", "listplus"]]],
   ["On a song", [
-    ["chord", "Tap a chord", "See how to play it; tap a chord card above the song to mark everywhere it's played", "fretboard"],
+    ["chord", "Tap a chord", "Its shape shows above Play; tap a chord chip to mark everywhere it's played", "fretboard"],
     ["line", "Tap a line", "Play starts from there", "play"],
-    ["map", "Drag the song map", "Jump through the song's sections (Settings > Chord diagrams > Song map)", "sections"],
-    ["nn", "Now and Next", "The chord you're on, and what's coming", "fretboard"],
+    ["map", "Drag the song map", "Jump through the song's sections (practicing, a tab or Play together)", "sections"],
     ["", "Tap the title bar", "Back to the top", "up"],
-    ["", "Key", "Hold Play, then Key; or \u2212 and + in the bar on iPad (resizes tab)", "plus"],
+    ["", "Change the key", "Tap the title for About this song, then the Key tile", "plus"],
     ["", "Count-in", "Plays only when you start from the top", "metro"]]],
   ["While playing", [
     ["pause", "Tap anywhere", "Pause (tap twice on stage). Scroll by hand and it carries on from there", "pause"]]],
@@ -315,8 +286,8 @@ const GESTURES = [
     ["search", "Search", "Titles, artists, a lyric; paste a sheet or a link. Return opens the top match", "search"]]],
   ["Editing", [
     ["tap", "Tap tempo", "Tap along to set the tempo", "pick"],
-    ["", "Tap a word", "Place or change its chord; on a sung song, chords that fit your melody", "edit"],
-    ["", "Sing it, when adding a song", "Hold the pad to sing a line, let go to keep it. Then hear it back with Your recording; Rich adds the 7ths and 9ths you sang", "mic"]]],
+    ["", "Tap a chord, or a word", "Tap a chord to change or remove it, or a word to add one on it; + before the first word and after the last, Chords adds a row of chords alone", "edit"],
+    ["", "Sing it, when adding a song", "Tap the pad and sing the whole verse; Louie splits it into lines at your breaths. Drag a split to move it, tap the melody to add one, or tap a line for its options. Hear the song plays your voice with the chords", "mic"]]],
   ["Sets", [
     ["", "Next up", "Stop stays on this song; it waits if the next needs another tuning", "fork"]]],
   ["Tuner", [
@@ -332,10 +303,12 @@ function renderGestures() {
     <p class="gs-intro">Things you can do with a tap or a drag that don't have a button. <b>Show me</b> plays the tip again where it happens.</p>
     ${GESTURES.map(([h, rows]) => `<div class="label">${h}</div><div class="list glass gs-list">${rows.map(([demo, t, s, ic]) => `
       <div class="gs-row"><span class="gs-ic">${icon(ic)}</span><div class="gs-t"><b>${esc(t)}</b><span>${esc(s)}</span></div>${demo ? `<button class="gs-show" data-demo="${demo}">Show me</button>` : ""}</div>`).join("")}</div>`).join("")}
+    <div class="label">Opening night</div><div class="list glass gs-list"><div class="gs-row"><span class="gs-ic">${icon("play")}</span><div class="gs-t"><b>The first leg of the Road</b><span>Five steps on the sample song: the microphone, a chord, a verse, a pause, a show</span></div><button class="gs-show gs-replay" id="gs-opening" data-demo="opening">Replay</button></div></div>
     <button class="btn" id="gs-reset" style="display:block;margin:22px auto 6px">Reset tips</button>
     <p class="foot" style="text-align:center;margin:0 0 30px">Shows each tip again, once, when it's next useful.</p>`;
   app.querySelectorAll("[data-go]").forEach(b => b.onclick = () => go(b.dataset.go));
-  app.querySelectorAll("[data-demo]").forEach(b => b.onclick = () => showMe(b.dataset.demo));
+  app.querySelectorAll(".gs-row [data-demo]:not(#gs-opening)").forEach(b => b.onclick = () => showMe(b.dataset.demo));
+  $("gs-opening").onclick = () => { openingReplay(data); Tabs.save(data); go("#/"); };
   $("gs-reset").onclick = () => {
     data.settings.tipsSeen = {}; data.settings.used = {}; lastCoach = { key: "", at: 0 }; Tabs.save(data);
     window.scrollTo({ top: 0, behavior: calm() ? "auto" : "smooth" }); /* back to the top, where Back is */
@@ -343,4 +316,4 @@ function renderGestures() {
   };
 }
 
-export { chordTapped, coach, coachTip, demoLine, demoMap, demoNN, demoPause, demoSearch, demoTap, dismissCoach, markSeen, markUsed, renderGestures, searchOpened, songCoach, takeDemo, tick, tipDue, tipsSeen, used };
+export { chordTapped, coach, coachTip, demoLine, demoMap, demoPause, demoSearch, demoTap, dismissCoach, markSeen, markUsed, renderGestures, searchOpened, songCoach, takeDemo, tick, tipDue, tipsSeen, used };

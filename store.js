@@ -34,7 +34,7 @@ let saveWarned = 0;
 function saveFailed() {
   if (Date.now() - saveWarned < 60e3) return;
   saveWarned = Date.now();
-  toast("Couldn't save: the phone's storage for Tabs is full. Back up, then remove songs or cover photos you don't need.", null, { label: "Back up", fn: () => backupNow() });
+  toast("Couldn't save: the phone's storage for Louie is full. Back up, then remove songs or cover photos you don't need.", null, { label: "Back up", fn: () => backupNow() });
 }
 Tabs.onSaveError = saveFailed;
 function writeMain(json) {
@@ -68,7 +68,10 @@ async function loadLibrary() {
 // can report them. The first one in a session shows a short note with a way to
 // copy the details; nothing is ever sent anywhere.
 const ERR_KEY = "louielite.errors.v1";
-const problems = (() => { try { return JSON.parse(localStorage.getItem(ERR_KEY)) || []; } catch { return []; } })();
+/* 4.42.7 (#76): problems from an older version are marked in Copy diagnostics, and drop off after 30 days */
+const OLD_DAYS = 30;
+const problems = (() => { try { return JSON.parse(localStorage.getItem(ERR_KEY)) || []; } catch { return []; } })()
+  .filter(p => p.v === VERSION || Date.now() - Date.parse(p.at) < OLD_DAYS * 864e5);
 let problemNoted = false;
 function noteError(e, { quiet = false, where = "" } = {}) {
   const err = e?.reason ?? e?.error ?? e;
@@ -95,15 +98,20 @@ async function diagnostics() {
   const mb = n => (n / 1048576).toFixed(1) + " MB";
   const s = data.settings, hidden = ["tipsSeen", "used"];
   return [
-    `Tabs ${VERSION}, ${new Date().toISOString()}`,
+    `Louie: Learn Guitar ${VERSION}, ${new Date().toISOString()}`,
     navigator.userAgent,
     `Home Screen app: ${matchMedia("(display-mode: standalone)").matches || navigator.standalone ? "yes" : "no"}; screen ${innerWidth}x${innerHeight}; offline copy: ${navigator.serviceWorker?.controller ? "yes" : "no"}`,
     `Library: ${data.songs.length} songs, ${data.sets.length} sets, ${data.trash.length} recently deleted`,
     `Storage: ${where.db ? "database" : "localStorage only"}, copy ${where.copy === false ? "too big" : where.copy ? "ok" : "not yet"}, library ${mb(where.size || JSON.stringify(data).length)}; ${est ? `${mb(est.usage)} of ${mb(est.quota)}` : "unknown"} used; kept permanently: ${storageKept ? "yes" : storageKept === false ? "no" : "unknown"}; AI key: ${aiKey() ? "set" : "none"}`,
     `Settings: ${JSON.stringify(Object.fromEntries(Object.entries(s).filter(([k]) => !hidden.includes(k))))}`,
-    `Problems (${problems.length}):`,
-    ...(problems.length ? problems.slice().reverse().map(p => `- ${p.at} v${p.v} ${p.where}: ${p.msg}${p.stack ? "\n  " + p.stack.replace(/\n/g, "\n  ") : ""}`) : ["- none"])
+    ...problemLines()
   ].join("\n");
+}
+function problemLines() {
+  const line = p => `- ${p.at} v${p.v} ${p.where}: ${p.msg}${p.stack ? "\n  " + p.stack.replace(/\n/g, "\n  ") : ""}`;
+  const now = problems.filter(p => p.v === VERSION).reverse(), old = problems.filter(p => p.v !== VERSION).reverse();
+  return [`Problems in ${VERSION} (${now.length}):`, ...(now.length ? now.map(line) : ["- none"]),
+    ...(old.length ? [`Before ${VERSION} (${old.length}, may already be fixed; they drop off after ${OLD_DAYS} days):`, ...old.map(line)] : [])];
 }
 async function copyDiagnostics() {
   const text = await diagnostics();
@@ -137,7 +145,7 @@ async function backupNow() {
   const file = new File([Object.keys(covers).length ? JSON.stringify({ ...withoutGerman(data), covers }, null, 2) : Tabs.export(data)], name, { type: "application/json" });
   let done = false;
   if (navigator.canShare?.({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: "Tabs backup" }); done = true; }
+    try { await navigator.share({ files: [file], title: "Louie backup" }); done = true; }
     catch (e) { if (e.name === "AbortError") return false; }
   }
   if (!done) {

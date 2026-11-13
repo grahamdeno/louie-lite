@@ -5,7 +5,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { chromium, base, phone, skip, LIB, FAKE_MIC, useBrowser } from "./harness.mjs";
+import { chromium, base, phone, skip, LIB, FAKE_MIC, useBrowser, until, settled, openSpeed, speedText, tool, showTool } from "./harness.mjs";
 
 useBrowser();
 
@@ -13,31 +13,33 @@ useBrowser();
 test("menus and panels work from a keyboard: focus moves in, Escape closes", { skip: skip() }, async t => {
   const page = await phone(t);
   const inside = sel => page.evaluate(sel => !!document.activeElement.closest(sel), sel);
-  await page.goto(base + "#/song/a"); await page.waitForTimeout(400);
-  await page.focus("#more"); await page.keyboard.press("Enter"); await page.waitForTimeout(300);
+  await page.goto(base + "#/song/a"); await page.waitForSelector('.metarow');
+  await page.focus("#more"); await page.keyboard.press("Enter"); await page.waitForSelector('.menu');
   assert.equal(await inside(".menu"), true, "focus is in the menu");
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.m), "speed", "4.2.0: Tools starts on its first tile");
   await page.keyboard.press("ArrowDown");
-  assert.equal(await page.evaluate(() => document.activeElement.dataset.m), "listen", "on a phone held upright the menu is a bottom sheet; mid-song items sit lowest");
-  await page.keyboard.press("Escape"); await page.waitForTimeout(200);
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.step), "1", "4.32.0: arrows move through each control in the tab");
+  await page.keyboard.press("Escape"); await page.waitForSelector('.menu', { state: 'detached' });
   assert.equal(await page.locator(".menu").count(), 0);
   assert.equal(await page.evaluate(() => document.activeElement.id), "more");
-  await page.keyboard.press("Enter"); await page.waitForTimeout(200);
-  await page.keyboard.press("Enter"); await page.waitForTimeout(400); /* Add to set */
+  await page.keyboard.press("Enter"); await page.waitForSelector('.menu');
+  await showTool(page, "set"); await page.focus('.menu [data-m="set"]');
+  await page.keyboard.press("Enter"); await page.waitForSelector('#layer [role=dialog]'); /* Add to set */
   assert.equal(await page.getAttribute("#layer [role=dialog]", "aria-modal"), "true");
   assert.equal(await inside("#layer"), true, "focus is in the panel");
-  await page.keyboard.press("Escape"); await page.waitForTimeout(300);
+  await page.keyboard.press("Escape"); await page.waitForFunction(() => document.getElementById('layer').children.length === 0);
   assert.equal(await page.evaluate(() => document.getElementById("layer").children.length), 0);
 });
 
 test("iPad: chords in a rail, songs in a list beside the song; rotating puts them back", { skip: skip() }, async t => {
   const page = await phone(t, LIB, { viewport: { width: 1180, height: 820 } });
-  await page.goto(base + "#/song/a"); await page.waitForTimeout(500);
+  await page.goto(base + "#/song/a"); await page.waitForSelector('.side-r');
   assert.equal(await page.evaluate(() => document.getElementById("strip").parentElement.id), "rail");
   assert.equal(await page.locator(".side-r").count(), 2);
   assert.equal(await page.getAttribute(".side-r.on", "data-id"), "a");
-  await page.click(".side-r:not(.on)"); await page.waitForTimeout(500);
+  await page.click(".side-r:not(.on)"); await page.waitForFunction(() => /Harbor Lights/.test(document.querySelector('h1.song-title')?.innerText || ''));
   assert.match(await page.innerText("h1.song-title"), /Harbor Lights/);
-  await page.setViewportSize({ width: 820, height: 1180 }); await page.waitForTimeout(400);
+  await page.setViewportSize({ width: 820, height: 1180 }); await page.waitForFunction(() => document.getElementById('strip').parentElement.id === 'app');
   assert.equal(await page.evaluate(() => document.getElementById("strip").parentElement.id), "app");
   assert.equal(await page.locator(".side").isVisible(), false);
 });
@@ -49,9 +51,9 @@ test("song, artist and set names are shown as text, never run as markup", { skip
     sets: [{ id: "s", name: bad(5), songIds: ["a", "b"], created: "2026-10-01T00:00:00Z" }],
     trash: [{ type: "song", item: { id: "z", title: bad(6), artist: bad(7), body: "G" }, deletedAt: new Date().toISOString() }] };
   const page = await phone(t, lib, { viewport: { width: 1180, height: 820 } });
-  for (const h of ["#/", "#/song/a", "#/set/s", "#/trash", "#/settings"]) { await page.goto(base + h); await page.waitForTimeout(400); }
-  await page.goto(base + "#/"); await page.waitForTimeout(300);
-  await page.click("#q"); await page.keyboard.type("img"); await page.waitForTimeout(600);
+  for (const h of ["#/", "#/song/a", "#/set/s", "#/trash", "#/settings"]) { await page.goto(base + h); await page.waitForFunction(h => location.hash === h || (h === '#/' && /^#?\/?$/.test(location.hash)), h); }
+  await page.goto(base + "#/library"); await page.waitForSelector('#q');
+  await page.click("#q"); await page.keyboard.type("img"); await page.waitForFunction(() => document.body.classList.contains('searching'));
   assert.equal(await page.evaluate(() => window.__x), undefined);
   assert.equal(await page.locator("img[src=x]").count(), 0);
 });
@@ -59,11 +61,11 @@ test("song, artist and set names are shown as text, never run as markup", { skip
 test("All songs sorts by artist", { skip: skip() }, async t => {
   const page = await phone(t, { ...LIB, songs: [...LIB.songs, { id: "c", title: "Anchor", artist: "Zed", body: "G\nla" }] });
   assert.deepEqual(await page.$$eval("#sort option", o => o.map(x => x.textContent)), ["A–Z", "Artist", "Recently played", "Most played"]);
-  await page.selectOption("#sort", "artist"); await page.waitForTimeout(300);
+  await page.selectOption("#sort", "artist"); await page.waitForFunction(() => document.querySelector('#list .row .t')?.textContent === 'Harbor Lights');
   assert.deepEqual(await page.$$eval("#list .row .t", r => r.map(x => x.textContent)), ["Harbor Lights", "River Road", "Anchor"]);
 });
 
-test("sketch: sing two lines, add their words, get chords in the melody's key", { skip: skip() }, async t => {
+test("4.74.0 Sing it: one take split at a breath into two lines, words, Your song, saved with +50 fans; then hear it, Rich and the fits in Edit", { skip: skip() }, async t => {
   const browser2 = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"], ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
   t.after(() => browser2.close());
   const ctx = await browser2.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
@@ -71,69 +73,73 @@ test("sketch: sing two lines, add their words, get chords in the melody's key", 
   const page = await ctx.newPage();
   const errors = []; page.on("pageerror", e => errors.push(String(e)));
   page.on("console", m => { if (/Content Security Policy/i.test(m.text())) errors.push(m.text()); });
-  await page.goto(base); await page.waitForTimeout(400);
+  await page.goto(base + "#/library"); await page.waitForSelector('#add'); /* 4.9.0: Add is in the Songbook */
   await page.evaluate(d => localStorage.setItem("louielite-v1", JSON.stringify(d)), LIB);
-  await page.reload(); await page.waitForTimeout(300);
+  await page.reload(); await page.waitForSelector('#add');
   // From Add: an empty new song offers Sing it.
-  await page.click("#add"); await page.waitForTimeout(600);
-  await page.click("#ed-sing"); await page.waitForTimeout(500);
-  assert.match(await page.innerText("h1"), /New sketch/);
+  await page.click("#add"); await page.waitForSelector("#sr-write"); await page.click("#sr-write"); /* 4.45.0: "What song?" first */ await page.waitForSelector('#ed-sing');
+  await page.click("#ed-sing"); await page.waitForSelector('#sk-pad');
+  assert.match(await page.innerText("h1"), /Sing it/);
+  assert.equal(await page.locator(".skwheel, #sk-wheel").count(), 0, "4.74.0: no key wheel");
+  assert.deepEqual(await page.$$eval("[data-mode]", b => b.map(x => x.textContent.trim())), ["Voice", "Guitar", "Both"]);
   const hz = m => 440 * 2 ** ((m - 69) / 12);
-  const pad = await page.locator("#sk-pad").boundingBox(), px = pad.x + pad.width / 2, py = pad.y + pad.height - 60;
-  // Hold the pad to sing a line; let go to keep it.
-  const singLine = async melody => {
-    await page.mouse.move(px, py); await page.mouse.down(); await page.waitForTimeout(400);
-    for (const m of melody) { await page.evaluate(f => { window.__hz = f; }, hz(m)); await page.waitForTimeout(420); }
-    await page.evaluate(() => { window.__hz = 0; }); await page.waitForTimeout(150);
-    await page.mouse.up(); await page.waitForTimeout(500);
-  };
-  await singLine([55, 59, 62, 59, 60, 64, 67, 64]);          // G B D B | C E G E
-  assert.equal(await page.evaluate(() => document.activeElement.id), "sk-words", "the words field is ready for dictation");
-  await page.keyboard.type("Porch light burning past the second shift");
-  await page.evaluate(() => document.activeElement.blur()); await page.waitForTimeout(200);
-  // Slide left while singing: that take goes, nothing is added.
-  await page.mouse.move(px, py); await page.mouse.down(); await page.waitForTimeout(400);
-  await page.evaluate(f => { window.__hz = f; }, hz(50)); await page.waitForTimeout(500);
-  await page.mouse.move(px - 120, py, { steps: 5 }); await page.mouse.up(); await page.waitForTimeout(400);
-  await page.evaluate(() => { window.__hz = 0; });
-  assert.equal(await page.locator(".sknb-row").count(), 1, "the slid-away take wasn't kept");
-  await singLine([62, 66, 57, 62, 59, 55, 55, 55]);          // D F# A D | B G G G
+  const sing = async ms => { for (const m of ms) { await page.evaluate(f => { window.__hz = f; }, hz(m)); await page.waitForTimeout(420); /* real timer */ } };
+  const rest = async ms => { await page.evaluate(() => { window.__hz = 0; }); await page.waitForTimeout(ms); /* real timer */ };
+  // 4.74.0: Redo drops a take
+  await page.click("#sk-pad"); await page.waitForSelector("#sk-redo");
+  await sing([50, 52]); await page.click("#sk-redo"); await page.waitForSelector(".sk-intro");
+  // One take, two phrases with a breath between: tap to start, tap to stop; it's split into two lines
+  await page.click("#sk-pad"); await page.waitForSelector("#sk-rib");
+  assert.match(await page.innerText("#sk-pad-t"), /TAP TO STOP/, "a tap sings hands-free");
+  await sing([55, 59, 62, 59, 60, 64, 67, 64]);          // G B D B | C E G E
+  await rest(900);                                       // a breath
+  await sing([62, 66, 57, 62, 59, 55, 55, 55]);          // D F# A D | B G G G
+  await rest(200);
+  await page.click("#sk-pad"); await page.waitForFunction(() => document.activeElement.id === 'sk-words');
+  assert.equal(await page.locator(".skl").count(), 2, "split at the breath into two lines");
+  assert.equal(await page.locator(".sk-cut").count(), 1, "one marker between them");
+  await page.keyboard.type("Porch light burning past the second shift"); await page.keyboard.press("Enter");
+  await page.waitForFunction(() => document.activeElement.id === 'sk-words' && document.activeElement.dataset.i === "1");
+  assert.equal(await page.inputValue("#sk-words"), "", "Return goes on to the next line, empty");
   await page.keyboard.type("Home to you a little more");
-  await page.evaluate(() => document.activeElement.blur()); await page.waitForTimeout(200);
-  assert.match(await page.innerText("#sk-meter"), /G major/);
-  assert.equal(await page.locator(".sknb-row").count(), 2);
+  await page.evaluate(() => document.activeElement.blur()); await page.waitForFunction(() => document.activeElement === document.body);
+  assert.match(await page.innerText("#sk-key"), /G MAJOR/);
   assert.deepEqual(await page.$$eval(".skfam-c", b => b.map(x => x.textContent)), ["G", "C", "D", "Em", "Am", "Bm"], "the key's chords, ready to hear");
-  await page.click("#sk-done"); await page.waitForTimeout(1200);
+  // Your song: hear it, name it, save it; the first song you write is worth fans
+  await page.click("#sk-done"); await page.waitForSelector("#sk-save");
+  assert.match(await page.innerText(".sks-win"), /Songwriter/);
+  await page.fill("#sk-title", "Porch Light");
+  await page.click("#sk-save"); await page.waitForFunction(() => JSON.parse(localStorage.getItem('louielite-v1')).songs.some(s => s.sketch));
   const song = JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).songs.find(s => s.sketch);
   assert.ok(song, "a new song was made");
+  assert.equal(song.title, "Porch Light");
   assert.equal(song.key, "G");
   assert.match(song.body, /^G\s+C\nPorch light burning past the second shift\nD\s+G\nHome to you a little more$/);
-  assert.ok(await page.locator("#ce-done").isVisible(), "it opens in the editor to name it");
   assert.deepEqual(song.sketch.lines.map(l => l.n.length), [8, 6], "the melody stays with the song (the three Gs at the end are one held note)");
-
-  // Name it and save; the song page offers the recording and Simple or Rich.
-  await page.fill("#ed-title", "Porch Light"); await page.dispatchEvent("#ed-title", "change");
-  await page.click("#ce-done"); await page.waitForTimeout(900);
-  await page.waitForSelector("#sk-hear:not([hidden])", { timeout: 4000 });
-  await page.click("[data-st='rich']"); await page.waitForTimeout(400);
+  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).quests.fans >= 50, true, "+50 fans for the first song written");
+  await page.waitForSelector('h1.song-title');
+  await page.waitForSelector("#sk-hear:not([hidden])", { timeout: 4000 }); await settled(page); /* the song page has just faded in: taps wait for it */
+  /* keep hold of the Undo button the moment it appears: on a busy machine a later toast can replace it before the save lands */
+  await page.click("[data-st='rich']"); await page.waitForFunction(() => (window.__undo = document.querySelector("#toast .tact")) && /Rich|7ths/.test(document.getElementById("toast").textContent));
+  await page.waitForFunction(() => /\nD7\s+G\nHome to you/.test(JSON.parse(localStorage.getItem('louielite-v1')).songs.find(s => s.sketch).body));
   const body = async () => JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).songs.find(s => s.sketch).body;
   assert.match(await body(), /\nD7\s+G\nHome to you/, "Rich: the V chord becomes D7");
-  await page.click("#toast .tact"); await page.waitForTimeout(400);
+  await page.evaluate(() => window.__undo.click()); await page.waitForFunction(() => !/D7/.test(JSON.parse(localStorage.getItem('louielite-v1')).songs.find(s => s.sketch).body));
   assert.match(await body(), /\nD\s+G\nHome to you/, "Undo");
   // Hear it back: the first line is lit while it plays, then Stop.
-  await page.click("#sk-hear"); await page.waitForTimeout(700);
+  await page.click("#sk-hear"); await page.waitForSelector('#sheet > .pr.skcur');
   assert.equal(await page.evaluate(() => [...document.querySelectorAll("#sheet > .pr")].findIndex(e => e.classList.contains("skcur"))), 0);
   assert.match(await page.innerText("#sk-hear"), /Stop/);
-  await page.click("#sk-hear"); await page.waitForTimeout(300);
+  await page.click("#sk-hear"); await page.waitForFunction(() => !document.querySelector('#sheet.skplay'));
   assert.equal(await page.locator("#sheet.skplay").count(), 0);
 
   // In Edit, a word's chord picker shows chords that fit the melody and other ways for the line.
-  await page.click("#more"); await page.click(".menu [data-m='edit']"); await page.waitForTimeout(600);
-  await page.click(".ce-line[data-line='3'] .ce-w >> nth=0"); await page.waitForTimeout(300);
+  await tool(page, "edit"); await page.waitForSelector(".ce-line[data-line='3']");
+  await page.click(".ce-line[data-line='3'] .ce-w >> nth=0"); await page.waitForSelector('.ce-fitb');
   assert.equal(await page.locator(".ce-fitb").count(), 4);
   assert.match(await page.innerText(".ce-alt.on"), /D · G\s*now/);
   const other = page.locator(".ce-alt:not(.on)").first(), label = (await other.innerText()).trim();
-  await other.click(); await page.waitForTimeout(400);
+  await other.click(); await page.waitForFunction(() => /\nD\s+G\nHome to you/.test(JSON.parse(localStorage.getItem('louielite-v1')).songs.find(s => s.sketch).body) === false);
   const chords = label.split(" · ");
   assert.match(await body(), new RegExp(`\\n${chords[0]}\\s+${chords[1] ? chords[1] + "\\n" : "\\n"}Home to you a little more$`));
   assert.deepEqual(errors, []);
@@ -150,9 +156,9 @@ test("a set's Album art cover finds art for its songs on Apple Music", { skip: s
   await page.route("https://itunes.apple.com/search**", r => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" },
     body: JSON.stringify({ results: [{ trackName: "Harbor Lights", artistName: "The Night Ferries", trackViewUrl: "https://music.apple.com/x", artworkUrl100: art("harbor") }] }) }));
   await page.route("https://is1-ssl.mzstatic.com/**", r => r.fulfill({ status: 200, contentType: "image/png", body: Buffer.from("89504e470d0a1a0a0000000d4948445200000001000000010806000000", "hex") }));
-  await page.goto(base + "#/set/s"); await page.waitForTimeout(400);
-  await page.click("#s-cover"); await page.waitForTimeout(200);
-  await page.click('[data-cv="art"]'); await page.waitForTimeout(800);
+  await page.goto(base + "#/set/s"); await page.waitForSelector('#s-cover');
+  await page.click("#s-cover"); await page.waitForSelector('[data-cv="art"]');
+  await page.click('[data-cv="art"]'); await page.waitForFunction(() => /Album art for every song/.test(document.getElementById('toast')?.textContent || '') && JSON.parse(localStorage.getItem('louielite-v1')).songs.find(s => s.id === 'b').art && !!document.querySelector('.cover img[src*="river"]'));
   const songs = JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).songs;
   assert.match(songs.find(s => s.id === "a").listen.art, /river\/600x600bb/);
   assert.match(songs.find(s => s.id === "b").art, /harbor\/600x600bb/);
@@ -163,17 +169,17 @@ test("a set's Album art cover finds art for its songs on Apple Music", { skip: s
 test("Back from a song opened in a set returns to that set; from the library, to the library", { skip: skip() }, async t => {
   const page = await phone(t, { ...LIB, sets: [{ id: "s", name: "Friday", songIds: ["a", "b"] }] });
   const hash = () => page.evaluate(() => location.hash);
-  await page.goto(base + "#/set/s"); await page.waitForTimeout(300);
-  await page.click("[data-open='0']"); await page.waitForTimeout(400);
-  assert.equal(await page.getAttribute(".oh-back", "aria-label"), "Back to Friday");
-  await page.click("#snext"); await page.waitForTimeout(400);               // on to the next song in the set
-  await page.click(".oh-back"); await page.waitForTimeout(400);
+  await page.goto(base + "#/set/s"); await page.waitForSelector("[data-open='0']");
+  await page.click("[data-open='0']"); await page.waitForSelector('.shead .sh-back');
+  assert.equal(await page.getAttribute(".shead .sh-back", "aria-label"), "Back to Friday");
+  await page.click("#snext"); await page.waitForFunction(() => /Harbor Lights/.test(document.querySelector('h1.song-title')?.innerText || ''));               // on to the next song in the set
+  await page.click(".shead .sh-back"); await page.waitForFunction(() => location.hash === '#/set/s');
   assert.equal(await hash(), "#/set/s");
-  await page.goto(base + "#/"); await page.waitForTimeout(300);
-  await page.click('#list .row[data-id="a"]'); await page.waitForTimeout(400);
-  assert.equal(await page.getAttribute(".oh-back", "aria-label"), "Back to library");
-  await page.click(".oh-back"); await page.waitForTimeout(400);
-  assert.equal(await hash(), "#/");
+  await page.goto(base + "#/library"); await page.waitForSelector('#list .row[data-id="a"]');
+  await page.click('#list .row[data-id="a"]'); await page.waitForSelector('.shead .sh-back');
+  assert.equal(await page.getAttribute(".shead .sh-back", "aria-label"), "Back to the Songbook");
+  await page.click(".shead .sh-back"); await page.waitForFunction(() => location.hash === '#/library');
+  assert.equal(await hash(), "#/library");
 });
 
 test("sketch: a quiet voice is still heard; silence says so and is logged; the pad stays under the finger", { skip: skip() }, async t => {
@@ -182,22 +188,22 @@ test("sketch: a quiet voice is still heard; silence says so and is logged; the p
   const ctx = await browser2.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
   await ctx.addInitScript(FAKE_MIC);
   const page = await ctx.newPage();
-  await page.goto(base); await page.waitForTimeout(400);
+  await page.goto(base); await page.waitForFunction(() => !!localStorage.getItem('louielite-v1'));
   await page.evaluate(d => localStorage.setItem("louielite-v1", JSON.stringify(d)), LIB);
-  await page.goto(base + "#/sketch"); await page.waitForTimeout(500);
-  const pad = await page.locator("#sk-pad").boundingBox(), px = pad.x + pad.width / 2, py = pad.y + pad.height - 60;
+  await page.goto(base + "#/sketch"); await page.waitForSelector('#sk-pad'); await settled(page);
   const hold = async (hzs, gain) => {
+    const at = await page.locator("#sk-pad").boundingBox(), px = at.x + at.width / 2, py = at.y + at.height - 30;
     await page.evaluate(g => { window.__gain = g; window.__padAtStart = document.getElementById("sk-pad"); }, gain);
-    await page.mouse.move(px, py); await page.mouse.down(); await page.waitForTimeout(400);
+    await page.mouse.move(px, py); await page.mouse.down(); await page.waitForTimeout(400); /* real timer */
     const same = await page.evaluate(() => document.getElementById("sk-pad") === window.__padAtStart && document.getElementById("sk-pad").classList.contains("on"));
-    for (const hz of hzs) { await page.evaluate(f => { window.__hz = f; }, hz); await page.waitForTimeout(400); }
-    await page.evaluate(() => { window.__hz = 0; }); await page.waitForTimeout(150);
-    await page.mouse.up(); await page.waitForTimeout(500);
+    for (const hz of hzs) { await page.evaluate(f => { window.__hz = f; }, hz); await page.waitForTimeout(400); /* real timer */ }
+    await page.evaluate(() => { window.__hz = 0; }); await page.waitForTimeout(150); /* real timer */
+    await page.mouse.up(); await page.waitForTimeout(500); /* real timer */
     return same;
   };
   // About a quarter of the old threshold: a voice at arm's length.
   assert.equal(await hold([196, 247, 294, 247, 262], 0.012), true, "the same pad, now recording, is under the finger");
-  assert.equal(await page.locator(".sknb-row").count(), 1, "a quiet line is kept");
+  assert.equal(await page.locator(".skl").count(), 1, "a quiet line is kept");
   await page.evaluate(() => document.activeElement?.blur());
   // Silence: a clear message, and the details go to the problems log.
   await hold([196, 247, 294], 0);
@@ -208,14 +214,14 @@ test("sketch: a quiet voice is still heard; silence says so and is logged; the p
 test("while playing, the focus line skips section names to the section's first line", { skip: skip() }, async t => {
   const long = { ...LIB.songs[0], body: LIB.songs[0].body + "\n\n" + LIB.songs[0].body.replace("[Chorus]", "[Chorus 2]").replace("[Verse]", "[Verse 2]") };
   const page = await phone(t, { ...LIB, songs: [long, LIB.songs[1]], settings: { ...LIB.settings, focus: "always" } });
-  await page.goto(base + "#/song/a"); await page.waitForTimeout(400);
-  await page.click("#play"); await page.waitForTimeout(300);
+  await page.goto(base + "#/song/a"); await page.waitForSelector('.metarow');
+  await page.click("#play"); await page.waitForSelector('#sheet > .cur');
   // Put the Chorus name exactly at the reading line.
   await page.evaluate(() => {
     const sec = [...document.querySelectorAll("#sheet > .sec")].find(e => /chorus/i.test(e.textContent));
     window.scrollTo(0, sec.getBoundingClientRect().top + scrollY - innerHeight * 0.4 + 2);
   });
-  await page.waitForTimeout(250);
+  await page.waitForFunction(() => /chorus/i.test(document.querySelector('#sheet > .cur')?.previousElementSibling?.textContent || ''));
   const cur = await page.evaluate(() => { const c = document.querySelector("#sheet > .cur"); const sec = [...document.querySelectorAll("#sheet > .sec")].find(e => /chorus/i.test(e.textContent)); return { cls: c?.className, text: c?.textContent.slice(0, 30), prev: c?.previousElementSibling?.className, secTop: sec.getBoundingClientRect().top - innerHeight * 0.4, afterChorus: /chorus/i.test(c?.previousElementSibling?.textContent || "") }; });
   assert.ok(!/\bsec\b/.test(cur.cls || ""), `the focus is not on the section name (${cur.cls})`);
   assert.equal(cur.afterChorus, true, "it's the Chorus's first line");
@@ -235,15 +241,16 @@ test("Listen searches Apple Music in the app: change the words, hear a preview, 
   await page.route("https://audio-ssl.itunes.apple.com/**", r => r.fulfill({ status: 200, contentType: "audio/mp4", body: "" }));
   await page.route("https://is1-ssl.mzstatic.com/**", r => r.fulfill({ status: 200, contentType: "image/png", body: Buffer.from("89504e470d0a1a0a", "hex") }));
   let left = false; page.on("popup", () => { left = true; });
-  await page.goto(base + "#/song/b"); await page.waitForTimeout(400);
-  await page.click("#listen"); await page.waitForTimeout(500);
+  await page.goto(base + "#/song/b"); await page.waitForSelector('#about');
+  await page.click("#about"); await page.click("#ab-find"); await page.waitForSelector('.ls-row');
   assert.equal(await page.inputValue("#ls-q"), "Harbor Lights Me");
+  assert.match(await page.innerText("#ls-panel .cover-head"), /Harbor Lights/, "the cover header tops the sheet");
   assert.equal(await page.locator(".ls-row").count(), 2);
   assert.equal(await page.locator(".ls-pv").count(), 2, "each result can be previewed");
-  await page.fill("#ls-q", "Harbor Lights live"); await page.press("#ls-q", "Enter"); await page.waitForTimeout(500);
+  await page.fill("#ls-q", "Harbor Lights live"); await page.press("#ls-q", "Enter"); await page.waitForFunction(() => /Live/.test(document.querySelector('.ls-row')?.innerText || ''));
   assert.equal(terms.at(-1), "Harbor Lights live");
   assert.match(await page.innerText(".ls-row"), /Harbor Lights \(Live\)/);
-  await page.click(".ls-row"); await page.waitForTimeout(400);
+  await page.click(".ls-row"); await page.waitForFunction(() => !document.getElementById('ls-panel') && /222\/600x600bb/.test(JSON.parse(localStorage.getItem('louielite-v1')).songs.find(s => s.id === 'b').listen?.art || ''));
   const song = JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).songs.find(s => s.id === "b");
   assert.match(song.listen.url, /i=222/);
   assert.match(song.listen.art, /222\/600x600bb/);
@@ -263,26 +270,26 @@ test("Listen still finds songs when Safari blocks Apple's reply, and offers a wa
     if (!cb) return r.abort("accessdenied");
     r.fulfill({ status: 200, contentType: "text/javascript", body: `${cb}(${JSON.stringify({ results: [hit] })});` });
   });
-  await page.goto(base + "#/song/b"); await page.waitForTimeout(400);
-  await page.click("#listen"); await page.waitForTimeout(1200);
+  await page.goto(base + "#/song/b"); await page.waitForSelector('#about');
+  await page.click("#about"); await page.click("#ab-find"); await page.waitForSelector('.ls-row');
   assert.equal(await page.locator(".ls-row").count(), 1, "found by the fallback");
   down = true;
-  await page.fill("#ls-q", "Harbor"); await page.press("#ls-q", "Enter"); await page.waitForTimeout(1500);
+  await page.fill("#ls-q", "Harbor"); await page.press("#ls-q", "Enter"); await page.waitForFunction(() => /Couldn't reach/.test(document.getElementById('ls-res')?.innerText || ''));
   assert.match(await page.innerText("#ls-res"), /Couldn't reach/);
   const log = await page.evaluate(() => localStorage.getItem("louielite.errors.v1"));
   assert.match(log, /Apple catalog search/, "the reason is kept for diagnostics");
   let opened = "";
   await page.context().route("https://music.apple.com/**", r => { opened = r.request().url(); r.fulfill({ status: 200, body: "" }); });
-  await page.click("#ls-apple"); await page.waitForTimeout(800);
+  await page.click("#ls-apple"); await until(() => opened !== '');
   assert.match(opened, /music\.apple\.com\/search\?term=Harbor/, "opens Apple Music's own search");
   down = false;
-  await page.click("#ls-retry"); await page.waitForTimeout(1200);
+  await page.click("#ls-retry"); await page.waitForFunction(() => document.querySelectorAll('.ls-row').length === 1);
   assert.equal(await page.locator(".ls-row").count(), 1, "Try again works");
   /* A page opened before the update has older rules: offer a restart instead. */
   page.removeAllListeners("console");
   await page.evaluate(() => { const m = document.querySelector("meta[http-equiv='Content-Security-Policy']"); m.content = m.content.replace(/script-src[^;]*/, "script-src 'self'"); });
   down = true;
-  await page.fill("#ls-q", "Harbor two"); await page.press("#ls-q", "Enter"); await page.waitForTimeout(1500);
+  await page.fill("#ls-q", "Harbor two"); await page.press("#ls-q", "Enter"); await page.waitForSelector('#ls-restart');
   assert.equal(await page.locator("#ls-restart").count(), 1, "offers a restart");
 });
 
@@ -291,16 +298,16 @@ test("iPhone: Listen opens Apple Music's search, and Paste on return saves the l
   let searched = false, opened = "";
   await page.route("https://itunes.apple.com/search**", r => { searched = true; r.abort(); });
   await page.context().route("https://music.apple.com/**", r => { opened = r.request().url(); r.fulfill({ status: 200, body: "" }); });
-  await page.goto(base + "#/song/b"); await page.waitForTimeout(400);
-  await page.click("#listen"); await page.waitForTimeout(300);
+  await page.goto(base + "#/song/b"); await page.waitForSelector('#about');
+  await page.click("#about"); await page.click("#ab-find"); await page.waitForSelector('#ls-open');
   assert.equal(await page.locator("#ls-q").count(), 0, "no in-app search on an iPhone");
-  await page.click("#ls-open"); await page.waitForTimeout(800);
+  await page.click("#ls-open"); await until(() => opened !== '');
   assert.match(opened, /music\.apple\.com\/search\?term=Harbor%20Lights%20Me/);
   assert.equal(searched, false, "Apple's catalog search isn't tried");
   await page.evaluate(() => navigator.clipboard.writeText("https://music.apple.com/us/album/harbor/1?i=777"));
   await page.evaluate(() => { Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true }); document.dispatchEvent(new Event("visibilitychange")); });
-  await page.waitForTimeout(200);
-  await page.click("#bp-go"); await page.waitForTimeout(400);
+  await page.waitForSelector('#bp-go');
+  await page.click("#bp-go"); await page.waitForFunction(() => /i=777/.test(JSON.parse(localStorage.getItem('louielite-v1')).songs.find(s => s.id === 'b').listen?.url || ''));
   const song = JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).songs.find(s => s.id === "b");
   assert.match(song.listen.url, /i=777/);
   assert.equal(await page.locator(".bp-listen").count(), 0, "the offer goes away");
@@ -308,60 +315,74 @@ test("iPhone: Listen opens Apple Music's search, and Paste on return saves the l
 
 test("2.0 one hand: on a phone held upright the controls sit at the bottom; iPad keeps its layout", { skip: skip() }, async t => {
   const page = await phone(t);
-  const box = async sel => page.evaluate(sel => { const r = document.querySelector(sel)?.getBoundingClientRect(); return r && r.width ? { top: r.top, bottom: r.bottom, right: r.right } : null; }, sel);
+  const box = async sel => page.evaluate(sel => { const r = document.querySelector(sel)?.getBoundingClientRect(); return r && r.width ? { top: r.top, bottom: r.bottom, right: r.right, left: r.left } : null; }, sel);
   const H = 844;
   assert.ok((await box("#chips")).top < H * 0.3, "filters at the top (2.6: moved back)");
   assert.ok((await box("#tunerbtn")).top < 100, "tuner in the header (2.6: moved back)");
   assert.ok(await page.evaluate(() => { const b = document.querySelector("#tunerbtn"), r = b.getBoundingClientRect(), i = b.querySelector("svg").getBoundingClientRect(); return Math.abs((i.top + i.bottom) / 2 - (r.top + r.bottom) / 2) < 2 && Math.abs((i.left + i.right) / 2 - (r.left + r.right) / 2) < 2; }), "the tuner icon is centered");
   const dot = await page.evaluate(() => { const d = document.querySelector("#tunerbtn .dotmark"); return d && getComputedStyle(d).position; });
   if (dot) assert.equal(dot, "absolute", "the not-tuned dot sits in the corner");
-  await page.goto(base + "#/song/a"); await page.waitForTimeout(400);
-  assert.equal(await box(".head"), null, "song page top has no buttons");
-  for (const sel of [".oh-back", ".player .fav", "#more", "#play"]) assert.ok((await box(sel)).top > H * 0.85, `${sel} in the bar`);
-  assert.ok((await box("#play")).right > 330, "Play at the bottom right");
-  await page.click("#more"); await page.waitForTimeout(300);
-  const m = await box(".menu");
-  assert.ok(m.bottom > H - 40 && m.top > H * 0.35, "the menu rises from the bottom");
-  assert.match(await page.evaluate(() => [...document.querySelectorAll(".menu .mrow")].at(-1).textContent), /Text size/, "Text size lowest");
+  await page.goto(base + "#/song/a"); await page.waitForSelector('.metarow');
+  /* 4.2.0: one song screen. Back, the title and the heart at the top; Tools and a big Play at the bottom. */
+  assert.ok((await box(".shead .sh-back")).top < 100 && (await box(".shead .fav")).top < 100, "back and the heart beside the title");
+  for (const sel of ["#more", "#play"]) assert.ok((await box(sel)).top > H * 0.85, `${sel} in the bar`);
+  assert.equal(await page.locator(".player .fav, .player #nnbtn, .player .oh-back").count(), 0, "just Tools and Play");
+  assert.ok((await box("#play")).right > 330, "Play at the right, in thumb reach");
+  assert.equal(await page.locator(".secbar").count(), 0, "4.55.0: no row of section chips on the song page");
+  await page.click("#more"); await page.waitForSelector('.menu');
+  await page.waitForFunction(() => !document.querySelector(".menu").getAnimations().length); const m = await box(".menu");
+  assert.ok(m.bottom > H - 40 && m.top > H * 0.1 /* 4.20.0: taller with the Practice switch */, `Tools rises from the bottom (${m.top}, ${m.bottom})`);
+  assert.ok(Math.abs(m.left - (390 - m.right)) < 2, `4.19.1: Tools sits centred (${m.left}, ${m.right})`);
+  assert.equal(await page.locator(".menu .t3-tabs [data-tab]").count(), 3, "4.32.0: Play, Practice and Song tabs");
+  assert.ok((await box(".menu .t3-tabs")).bottom > H - 60, "the tabs sit at the bottom, in thumb reach");
+  assert.doesNotMatch(await page.innerText(".menu"), /Lines in a gig/, "4.43.0: the Gig shows every line that fits");
 
   const pad = await phone(t, LIB, { viewport: { width: 1180, height: 820 } });
-  await pad.goto(base + "#/song/a"); await pad.waitForTimeout(400);
-  assert.ok(await pad.evaluate(() => document.querySelector(".head [data-go]").getBoundingClientRect().top < 100), "iPad: buttons stay at the top");
-  assert.equal(await pad.evaluate(() => document.querySelector(".oh-back").offsetParent), null, "iPad: no bar copies");
-  await pad.goto(base + "#/"); await pad.waitForTimeout(400);
+  await pad.goto(base + "#/song/a"); await pad.waitForSelector(".shead [data-go]");
+  assert.ok(await pad.evaluate(() => document.querySelector(".shead [data-go]").getBoundingClientRect().top < 100), "iPad: back at the top");
+  await pad.goto(base + "#/library"); await pad.waitForSelector("#tunerbtn");
   assert.ok(await pad.evaluate(() => document.querySelector("#tunerbtn").getBoundingClientRect().top < 100), "iPad: tuner at the top");
 });
 
-test("2.1 speed dial: hold the time and sweep the corner; the length follows and saves", { skip: skip() }, async t => {
+test("2.1, 2.6.5 speed dial (4.2.0: Tools, then Speed): a wobble changes nothing; a sweep sets the length, saves, and Undo puts it back", { skip: skip() }, async t => {
   const page = await phone(t, { ...LIB, songs: LIB.songs.map(s => s.id === "a" ? { ...s, duration: 200 } : s) });
-  await page.goto(base + "#/song/a"); await page.waitForTimeout(400);
-  const before = await page.innerText("#dialbtn");
-  const b = await page.locator("#dialbtn").boundingBox();
-  const x = b.x + 20, y = b.y + 16;
+  await page.goto(base + "#/song/a"); await page.waitForSelector(".metarow"); await settled(page);
+  const before = await speedText(page);
+  const x = 250, y = 700;
+  // A small wobble changes nothing, and nothing on the dial gets selected.
+  await openSpeed(page);
   await page.mouse.move(x, y); await page.mouse.down();
-  await page.waitForSelector(".dial", { timeout: 2000 }).catch(() => {});
-  assert.equal(await page.locator(".dial").count(), 1, "the dial opens on press");
+  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector(".dial-big")).webkitUserSelect || getComputedStyle(document.querySelector(".dial-big")).userSelect), "none");
+  await page.mouse.move(x + 6, y - 8, { steps: 3 }); await page.mouse.up(); await page.waitForTimeout(300); /* real timer: let a wobble settle */
+  if (await page.locator(".dial").count()) { await page.mouse.click(60, 120); await page.waitForSelector(".dial", { state: "detached" }); }
+  assert.equal(await speedText(page), before, "a small wobble changes nothing");
+  // A real sweep: it closes on release and the page keeps what the dial showed.
+  await openSpeed(page);
+  await page.mouse.move(x, y); await page.mouse.down();
   await page.mouse.move(x + 60, y - 140, { steps: 8 });
   const shown = await page.textContent(".dial-big");
-  await page.mouse.up(); await page.waitForTimeout(300);
-  assert.equal(await page.locator(".dial").count(), 0, "it closes on release");
-  const after = await page.innerText("#dialbtn");
-  assert.notEqual(after.trim(), before.trim(), "the length changed");
-  assert.equal(after.trim(), shown.trim(), "the bar shows what the dial showed");
-  assert.ok(JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).songs.find(s => s.id === "a").durationSet, "saved");
-  /* A tap opens it to sweep anywhere; a tap off it closes it. */
-  await page.click("#dialbtn"); await page.waitForTimeout(200);
-  assert.equal(await page.locator(".dial").count(), 1);
-  await page.mouse.click(60, 120); await page.waitForTimeout(300);
-  assert.equal(await page.locator(".dial").count(), 0);
+  await page.mouse.up(); await page.waitForSelector(".dial", { state: "detached" });
+  const after = await speedText(page);
+  assert.notEqual(after, before, "the length changed");
+  assert.equal(after, shown.trim(), "the page keeps what the dial showed");
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem("louielite-v1")).songs.find(s => s.id === "a").durationSet, null, { timeout: 5000 });
+  assert.match(await page.innerText("#toast"), /Length .*Undo/s);
+  await showTool(page, "speed");
+  assert.match(await page.innerText('.menu [data-m="speed"]'), new RegExp(after), "the Speed row shows it");
+  await page.click('.menu [data-m="speed"]'); await page.waitForSelector(".dial");
+  await page.mouse.click(60, 120); await page.waitForSelector(".dial", { state: "detached" });
+  assert.equal(await page.locator(".dial").count(), 0, "a tap off it closes it");
+  // Undo puts it back.
+  await page.waitForSelector("#toast .tact", { state: "attached" }); await page.evaluate(() => document.querySelector("#toast .tact").click());
+  await until(async () => (await speedText(page)) === before);
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem("louielite-v1")).songs.find(s => s.id === "a").duration === 200);
 });
 
 test("2.1 set dial: in a set, sweep to a song and let go to open it", { skip: skip() }, async t => {
   const songs = [...LIB.songs, ...["One", "Two", "Three"].map((title, i) => ({ id: "x" + i, title, artist: "Y", format: "chords", body: "[Verse]\nG C\nla" }))];
   const page = await phone(t, { ...LIB, songs, sets: [{ id: "s", name: "Gig", songIds: ["a", "x0", "x1", "x2"] }] });
-  await page.goto(base + "#/set/s"); await page.waitForTimeout(400);
-  await page.click("[data-open='0']"); await page.waitForTimeout(500);
-  await page.click("#play"); await page.waitForTimeout(600); /* works while playing too */
+  await page.goto(base + "#/set/s"); await page.waitForSelector("[data-open='0']");
+  await page.click("[data-open='0']"); await page.waitForSelector('#setdial'); await settled(page);
   assert.match(await page.innerText("#setdial"), /1 of 4/);
   const b = await page.locator("#setdial").boundingBox();
   const x = b.x + 20, y = b.y + 16;
@@ -369,138 +390,223 @@ test("2.1 set dial: in a set, sweep to a song and let go to open it", { skip: sk
   await page.mouse.move(x + 60, y - 160, { steps: 8 });
   const pick = await page.textContent(".dial-big");
   assert.notEqual(pick, "River Road", "sweeping moves through the set");
-  await page.mouse.up(); await page.waitForTimeout(600);
+  await page.mouse.up(); await page.waitForFunction(p => new RegExp(p).test(document.querySelector('h1.song-title')?.innerText || ''), pick);
   assert.match(await page.innerText("h1.song-title"), new RegExp(pick));
   assert.match(await page.innerText("#setdial"), /of 4/);
 });
 
-test("2.1 glow: count-in and the chord you're on glow; gig day counts down on Up Next", { skip: skip() }, async t => {
+test("2.1 glow: the count-in glows; gig day counts down on Up Next", { skip: skip() }, async t => {
   const soon = new Date(Date.now() + 50 * 60e3), when = `${soon.getFullYear()}-${String(soon.getMonth() + 1).padStart(2, "0")}-${String(soon.getDate()).padStart(2, "0")}T${String(soon.getHours()).padStart(2, "0")}:${String(soon.getMinutes()).padStart(2, "0")}`;
   const sameDay = soon.toDateString() === new Date().toDateString();
-  const page = await phone(t, { ...LIB, sets: [{ id: "s", name: "Gig", songIds: ["a"], when }], settings: { ...LIB.settings, diagrams: true, countIn: true } });
+  const page = await phone(t, { ...LIB, sets: [{ id: "s", name: "Gig", songIds: ["a"], when }], settings: { ...LIB.settings, countIn: true } });
   if (sameDay) {
     const a = await page.textContent("#un-cd");
     assert.match(a, /^0:[45]\d:\d\d$/, "a countdown on gig day");
-    await page.waitForTimeout(1300);
+    await page.waitForTimeout(1300); /* real timer */
     assert.notEqual(await page.textContent("#un-cd"), a, "it ticks");
     assert.match(await page.evaluate(() => getComputedStyle(document.querySelector("#un-cd")).textShadow), /px/, "it glows");
   }
-  await page.goto(base + "#/song/a"); await page.waitForTimeout(400);
-  await page.click("#play"); await page.waitForSelector(".countin", { timeout: 3000 });
+  await page.goto(base + "#/song/a"); await page.waitForSelector('.metarow');
+  await page.click("#play"); await page.waitForSelector(".countin", { state: "attached", timeout: 3000 }); /* 4.55.0: hidden under the opening card, still glowing */
   assert.match(await page.evaluate(() => getComputedStyle(document.querySelector(".countin")).textShadow), /px/, "the count-in glows");
-  await page.waitForSelector("#nn .nowcol .dn", { timeout: 8000 });
-  assert.match(await page.evaluate(() => getComputedStyle(document.querySelector("#nn .nowcol .dn")).filter), /glow-f/, "Now glows");
-  assert.doesNotMatch(await page.evaluate(() => getComputedStyle(document.querySelector("#nn .cards .dn")).filter), /glow-f/, "Next stays plain");
 });
 
-test("2.2 ring: Play rests in the corner, rises with a touch, settles when still; hold it for the ring", { skip: skip() }, async t => {
-  /* The first-rise hint keeps Play up while it plays; it's covered in ringhint.e2e. */
-  const ring = { ...LIB, settings: { ...LIB.settings, controls: "ring", follow: "touch", tipsSeen: { ...LIB.settings.tipsSeen, ringHint: true } } };
-  const page = await phone(t, ring);
+test("3.19.0 one hand: paused the whole bar shows; Play folds it into its corner while playing, and there is no ring", { skip: skip() }, async t => {
+  const lib = { ...LIB, songs: LIB.songs.map(s => s.id === "a" ? { ...s, duration: 900 } : s), settings: { ...LIB.settings, countIn: false } };
+  const page = await phone(t, lib);
   const center = () => page.evaluate(() => { const r = document.getElementById("play").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
-  await page.goto(base + "#/song/a"); await page.waitForTimeout(500);
-  assert.equal(await page.evaluate(() => document.getElementById("play").parentElement.id), "rc", "Play sits in the ring controls");
-  let c = await center();
-  assert.ok(c.x > 330 && c.y > 780, `Play rests in the corner (${c.x}, ${c.y})`);
-  await page.mouse.click(120, 300); await page.waitForTimeout(900);
-  c = await center();
-  assert.ok(Math.abs(c.x - 390 * 0.66) < 6 && Math.abs(c.y - 844 * 0.79) < 6, `a touch lifts Play to the thumb (${c.x}, ${c.y})`);
-  assert.equal(await page.evaluate(() => document.body.classList.contains("ring-up")), true);
-  await page.waitForTimeout(5800);
-  c = await center();
-  assert.ok(c.x > 330 && c.y > 780, "still for 5 seconds: back in the corner");
-  /* A tap on Play still plays and pauses. */
-  await page.click("#play"); await page.waitForTimeout(300);
+  const state = () => page.evaluate(() => ({ one: document.body.classList.contains("one"), fold: document.body.classList.contains("fold"), inBar: !!document.getElementById("play").closest(".player"), bar: getComputedStyle(document.querySelector(".app.viewer .dock")).display !== "none" }));
+  await page.goto(base + "#/song/a"); await page.waitForSelector('#play');
+  assert.deepEqual(await state(), { one: true, fold: false, inBar: true, bar: true }, "paused: the bar is out with Play in it");
+  await page.click("#play"); await page.waitForFunction(() => document.body.classList.contains('fold'));
   assert.equal(await page.getAttribute("#play", "aria-label"), "Pause auto-scroll");
-  await page.click("#play"); await page.waitForTimeout(300);
+  assert.deepEqual(await state(), { one: true, fold: true, inBar: false, bar: false }, "playing: the bar folds away");
+  /* wait for the fold to finish moving (it springs past the corner and back) */
+  await page.waitForFunction(() => { const p = document.getElementById('play'), r = p.getBoundingClientRect(); return !document.getAnimations().some(a => a.playState === 'running' && (a.effect?.target === p || a.effect?.target?.contains?.(p))) && r.left + r.width / 2 > 320 && r.top + r.height / 2 > 760; });
+  const c = await center();
+  assert.ok(c.x > 320 && c.y > 760, `Play waits in the corner (${c.x}, ${c.y})`);
+  assert.equal(await page.locator("#fp-nav:visible").count(), 0, "4.73.0: no Songbook button beside Pause (left from version 3); a set still offers the next song");
+  await page.click("#play"); await page.waitForFunction(() => !document.body.classList.contains('fold'));
+  await page.goto(base + "#/song/a"); await page.waitForSelector('#play');
+  await page.click("#play"); await page.waitForFunction(() => document.body.classList.contains('fold'));
+  /* a long hold is still a tap: nothing opens, and it pauses */
+  await page.mouse.move(c.x, c.y); await page.mouse.down(); await page.waitForTimeout(900); /* real timer */ await page.mouse.up(); await page.waitForFunction(() => document.getElementById('play').getAttribute('aria-label') === 'Start auto-scroll');
+  assert.equal(await page.locator(".ringx, .rc-track, .rc-isl").count(), 0, "no ring, arc or island");
   assert.equal(await page.getAttribute("#play", "aria-label"), "Start auto-scroll");
-  /* A firm tap (400 ms) is still a tap: no ring. */
-  c = await center();
-  await page.mouse.move(c.x, c.y); await page.mouse.down(); await page.waitForTimeout(400); await page.mouse.up(); await page.waitForTimeout(250);
-  assert.equal(await page.locator(".ringx").count(), 0, "a firm tap doesn't open the ring");
-  assert.equal(await page.getAttribute("#play", "aria-label"), "Pause auto-scroll", "it played");
-  await page.click("#play"); await page.waitForTimeout(300);
-  assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById("play")).webkitUserSelect || getComputedStyle(document.getElementById("play")).userSelect), "none");
-  /* Hold: the ring. Slide toward More and let go: the menu. */
-  c = await center();
-  await page.mouse.move(c.x, c.y); await page.mouse.down(); await page.waitForTimeout(600);
-  assert.deepEqual(await page.$$eval(".ringx .ri", els => els.map(e => e.dataset.r)), ["metro", "key", "nn", "tuner", "fav", "more"], "2.26.0: Tempo, Key, Chords lowest, then Tuner, Favorite, More (no Back: it's in the island; no Set outside a set)");
-  assert.deepEqual(await page.$$eval(".ringx .ri-l", els => els.map(e => e.textContent)), ["TEMPO", "KEY", "CHORDS", "TUNER", "FAVORITE", "MORE"], "each named on the panel");
-  assert.equal(await page.locator(".ringx .ri[data-r='back']").count(), 0);
-  const more = await page.evaluate(() => { const r = document.querySelector(".ri[data-r='more']").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
-  await page.mouse.move(more.x, more.y, { steps: 6 });
-  assert.match(await page.textContent(".ring-name"), /More/);
-  await page.mouse.up(); await page.waitForTimeout(300);
-  assert.equal(await page.locator(".menu.msheet").count(), 1, "the More menu opens");
-  assert.equal(await page.getAttribute("#play", "aria-label"), "Start auto-scroll", "holding didn't start playback");
-  await page.mouse.click(120, 200); await page.waitForTimeout(300);
-  /* Let go without choosing: the ring stays to tap; Key opens the key dial. */
-  c = await center();
-  await page.mouse.move(c.x, c.y); await page.mouse.down(); await page.waitForTimeout(600); await page.mouse.up(); await page.waitForTimeout(200);
-  assert.equal(await page.locator(".ringx").count(), 1, "stays open");
-  await page.click(".ri[data-r='key']"); await page.waitForTimeout(300);
-  assert.equal(await page.locator(".dial.key").count(), 1, "the key dial");
-  assert.match(await page.textContent(".dial-small"), /KEY A/);
-  await page.mouse.click(60, 120); await page.waitForTimeout(300);
-  assert.equal(await page.locator(".dial").count(), 0);
-  /* Metronome from the ring: on, and the item shows it. */
-  c = await center();
-  await page.mouse.move(c.x, c.y); await page.mouse.down(); await page.waitForTimeout(600); await page.mouse.up(); await page.waitForTimeout(200);
-  await page.click(".ri[data-r='metro']"); await page.waitForTimeout(200);
-  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).settings.metronome, true, "metronome on from the ring");
-  c = await center();
-  await page.mouse.move(c.x, c.y); await page.mouse.down(); await page.waitForTimeout(600); await page.mouse.up(); await page.waitForTimeout(200);
-  assert.equal(await page.getAttribute(".ri[data-r='metro']", "aria-pressed"), "true");
-  await page.mouse.click(60, 120); await page.waitForTimeout(200);
-  /* While playing: hold Play, slide to More, let go: the song pauses and the menu stays. */
-  await page.click("#play"); await page.waitForTimeout(400);
-  c = await center();
-  await page.mouse.move(c.x, c.y); await page.mouse.down(); await page.waitForTimeout(800);
-  const m2 = await page.evaluate(() => { const r = document.querySelector(".ri[data-r='more']").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
-  await page.mouse.move(m2.x, m2.y, { steps: 6 }); await page.mouse.up(); await page.waitForTimeout(1200);
-  assert.equal(await page.locator(".menu").count(), 1, "the menu stays open");
-  assert.equal(await page.getAttribute("#play", "aria-label"), "Start auto-scroll", "the song paused");
-  await page.mouse.click(60, 120); await page.waitForTimeout(300);
-  /* Screen readers get the same controls as buttons. */
-  assert.equal(await page.locator(".rc .sr-only [data-ri]").count(), 6);
+  assert.deepEqual(await state(), { one: true, fold: false, inBar: true, bar: true }, "paused again: the bar unfolds");
+  /* Tools has the beat (4.69.0: Off, Bass drum, Metronome) now that the ring is gone */
+  await page.click("#more"); await page.waitForSelector(".menu");
+  assert.equal(await page.locator(".menu [data-beat]").count(), 3);
 });
 
 test("2.16.5 speed dial: a tap that slips a little near the corner closes it without changing the time", { skip: skip() }, async t => {
   const page = await phone(t, { ...LIB, songs: LIB.songs.map(s => s.id === "a" ? { ...s, duration: 200 } : s) });
-  await page.goto(base + "#/song/a"); await page.waitForTimeout(400);
-  const before = (await page.innerText("#dialbtn")).trim();
-  await page.click("#dialbtn"); await page.waitForSelector(".dial");
+  await page.goto(base + "#/song/a"); await page.waitForSelector('.metarow');
+  const before = await speedText(page);
+  await openSpeed(page);
   /* Tap on the wheel close to the corner, drifting 8 px: about 9 degrees there. */
   const x = 390 - 20, y = 844 - 25;
   await page.mouse.move(x, y); await page.mouse.down();
   await page.mouse.move(x - 8, y, { steps: 3 });
-  await page.mouse.up(); await page.waitForTimeout(300);
+  await page.mouse.up(); await page.waitForSelector('.dial', { state: 'detached' });
   assert.equal(await page.locator(".dial").count(), 0, "the tap closed it");
-  assert.equal((await page.innerText("#dialbtn")).trim(), before, "the time didn't change");
+  assert.equal(await speedText(page), before, "the time didn't change");
   assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).songs.find(s => s.id === "a").duration, 200, "nothing saved");
 });
 
 test("2.25.0 speed dial is a meter: the needle swings with the length, and whole minutes are marked", { skip: skip() }, async t => {
   const page = await phone(t, { ...LIB, songs: LIB.songs.map(s => s.id === "a" ? { ...s, duration: 235 } : s) });
-  await page.goto(base + "#/song/a"); await page.waitForTimeout(400);
-  await page.click("#dialbtn"); await page.waitForSelector(".dial-needle");
+  await page.goto(base + "#/song/a"); await page.waitForSelector('.metarow');
+  await openSpeed(page); await page.waitForSelector(".dial-needle");
   const tip = () => page.evaluate(() => { const n = document.querySelector(".dial-needle"); return [+n.getAttribute("x2"), +n.getAttribute("y2")]; });
   const before = await tip();
-  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll(".dial-labels .sc")].map(e => e.textContent)), ["2:00", "3:00", "4:00", "5:00", "6:00", "7:00"]);
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll(".dial-labels .sc")].map(e => e.textContent)), ["2:00", "3:00", "4:00", "5:00", "6:00", "8:00", "10:00", "15:00"], "3.19.0: up to 15 minutes");
   assert.match(await page.textContent(".dial-small"), /SONG LENGTH/);
   await page.keyboard.press("Escape").catch(() => {});
   await page.evaluate(() => { const s = document.getElementById("speed"); s.value = 480; s.oninput(); });
-  await page.mouse.click(60, 120); await page.waitForTimeout(250);
-  await page.click("#dialbtn"); await page.waitForSelector(".dial-needle");
+  await page.mouse.click(60, 120); await page.waitForSelector('.dial', { state: 'detached' });
+  await openSpeed(page); await page.waitForSelector(".dial-needle");
   const after = await tip();
   assert.ok(after[1] < before[1], `faster points higher: ${before} then ${after}`);
 });
 
-test("2.25.0 filter chips: the selected one's lamp is lit", { skip: skip() }, async t => {
+test("2.25.0 filter chips: the selected one is filled in the accent colour (4.20.0: flat pills, no lamps)", { skip: skip() }, async t => {
   const page = await phone(t, { ...LIB, songs: LIB.songs.map((s, i) => ({ ...s, favorite: i === 0 })) });
-  const glow = sel => page.evaluate(s => getComputedStyle(document.querySelector(s), "::before").boxShadow, sel);
-  assert.match(await glow("#chips [data-f='all']"), /255, 140, 40/);
-  assert.doesNotMatch(await glow("#chips [data-f='fav']"), /255, 140, 40/);
-  await page.click("#chips [data-f='fav']"); await page.waitForTimeout(200);
-  assert.match(await glow("#chips [data-f='fav']"), /255, 140, 40/);
+  const fill = sel => page.evaluate(s => getComputedStyle(document.querySelector(s)).backgroundColor, sel);
+  const lamp = sel => page.evaluate(s => getComputedStyle(document.querySelector(s), "::before").display, sel);
+  const go = await page.evaluate(() => { const d = document.createElement("i"); d.style.color = "var(--accent)"; document.body.appendChild(d); const c = getComputedStyle(d).color; d.remove(); return c; });
+  assert.equal(await fill("#chips [data-f='all']"), go);
+  assert.notEqual(await fill("#chips [data-f='fav']"), go);
+  assert.equal(await lamp("#chips [data-f='all']"), "none", "no lamp dot");
+  await page.click("#chips [data-f='fav']"); await until(async () => (await fill("#chips [data-f='fav']")) === go);
+  assert.notEqual(await fill("#chips [data-f='all']"), go);
+});
+
+test("4.20.1 Songbook filters: one row that fits, Sets in the header, Tabs in the sort menu", { skip: skip() }, async t => {
+  const songs = LIB.songs.map((s, i) => ({ ...s, favorite: i === 0, format: i === 1 ? "tab" : s.format }));
+  const page = await phone(t, { ...LIB, songs });
+  await page.waitForSelector("#chips");
+  const r = await page.evaluate(() => { const b = document.querySelector("#chips").getBoundingClientRect(); return { right: b.right, w: innerWidth, scroll: document.querySelector("#chips").scrollWidth - document.querySelector("#chips").clientWidth }; });
+  assert.ok(r.right <= r.w, `the row ends inside the screen (${r.right} of ${r.w})`);
+  assert.ok(r.scroll <= 0, "nothing scrolls sideways");
+  assert.equal(await page.locator("#chips [data-f='sets'], #chips [data-f='tab']").count(), 0, "Sets and Tabs are not in the row");
+  await page.click("#setsbtn"); await page.waitForSelector("#newset");
+  await page.click("#libback"); await page.waitForSelector("#chips [data-f='all'].on");
+  assert.equal(await page.locator("#newset").count(), 0, "Back from Sets goes to All, not out of the Songbook");
+  await page.selectOption("#sort", "tabs");
+  await page.waitForFunction(() => document.querySelector("#sort")?.value === "tabs");
+  assert.equal(await page.locator("#list .row").count(), 1, "only the tab song");
+  await page.selectOption("#sort", "title");
+  await page.waitForFunction(() => document.querySelector("#sort")?.value === "title");
+  assert.ok(await page.locator("#list .row").count() > 1, "choosing a sort clears Tabs only");
+});
+
+test("4.22.0 Search, focused: two big buttons and three recent cards, no Up next; Paste reads the clipboard; typing still searches", { skip: skip() }, async t => {
+  const page = await phone(t, { ...LIB, songs: LIB.songs.map((x, i) => i ? x : { ...x, opened: Date.now() - 3600e3 }), settings: { ...LIB.settings, aiKey: undefined } }); /* 4.48.0: Played lately shows only songs you played */
+  await page.goto(base + "#/library"); await page.waitForSelector("#q");
+  await page.evaluate(() => { navigator.clipboard.readText = async () => window.__clip || ""; window.__clip = "[Verse]\nG   C\nLine one of the words\nD   G\nLine two of the words"; });
+  await page.click("#q"); await page.waitForSelector("#sr-paste");
+  assert.equal(await page.locator(".sr-card").count(), 0, "4.49.2: no recent songs on the search screen");
+  for (const sel of [".lib-top", "#chips", ".today"]) assert.equal(await page.locator(sel).first().isVisible().catch(() => false), false, `${sel} hidden while searching`);
+  await page.click("#sr-paste"); await page.waitForSelector("[role=dialog][aria-label='Save pasted song']");
+  await page.keyboard.press("Escape");
+  /* typing still searches, as before */
+  await page.fill("#q", "River"); await page.waitForSelector("#list .row");
+  assert.equal(await page.locator("#sr-paste").count(), 0, "the buttons give way to results");
+});
+
+test("4.69.0 the beat from the song screen: Off, Bass drum or Metronome and up to 150%, while the song keeps playing", { skip: skip() }, async t => {
+  const lib = { ...LIB, songs: LIB.songs.map(s => s.id === "a" ? { ...s, duration: 900, bpm: 100 } : s), settings: { ...LIB.settings, countIn: false, metronome: true, metroSound: "drums" } };
+  const page = await phone(t, lib);
+  const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem("louielite-v1")).settings);
+  await page.goto(base + "#/song/a"); await page.waitForSelector("#play");
+  assert.match(await page.innerText("#play"), /WITH THE BASS DRUM/, "an old drums setting is the bass drum now");
+  await page.click("#play"); await page.waitForFunction(() => document.body.classList.contains("fold"));
+  await page.waitForSelector("#fp-band", { state: "visible" });
+  await page.click("#fp-band"); await page.waitForSelector("#band-sheet");
+  assert.equal(await page.getAttribute("#play", "aria-label"), "Pause auto-scroll", "the song keeps playing");
+  assert.equal(await page.getAttribute("#band-sheet [data-beat='kick']", "aria-pressed"), "true");
+  await page.click("#band-sheet [data-beat='off']"); await page.waitForFunction(() => JSON.parse(localStorage.getItem("louielite-v1")).settings.metronome === false);
+  assert.equal(await page.evaluate(() => import("/audio.js").then(m => m.metro.timer)), 0, "the beat stops");
+  await page.click("#band-sheet [data-beat='click']"); await page.waitForFunction(() => JSON.parse(localStorage.getItem("louielite-v1")).settings.metroSound === "click");
+  assert.equal((await saved()).metronome, true, "picking Metronome turns the beat back on");
+  assert.ok(await page.evaluate(() => import("/audio.js").then(m => m.metro.timer)) > 0, "and it plays");
+  await page.locator("#bs-vol").fill("150"); await page.waitForFunction(() => JSON.parse(localStorage.getItem("louielite-v1")).settings.metroVol === 1.5);
+  assert.equal(await page.innerText("#bs-v"), "150%");
+  assert.equal(await page.getAttribute("#play", "aria-label"), "Pause auto-scroll", "still playing");
+  await page.click("#bs-x"); await page.waitForSelector("#band-sheet", { state: "detached" });
+  await page.click("#play"); await page.waitForFunction(() => !document.body.classList.contains("fold"));
+  /* paused, Tools has the same choice and no Band row */
+  await settled(page); await page.click("#more"); await page.waitForSelector(".menu [data-beat]");
+  assert.equal(await page.locator(".menu [data-m='band']").count(), 0, "4.69.0: no Band row");
+  assert.equal(await page.getAttribute(".menu [data-beat='click']", "aria-checked"), "true");
+});
+
+test("4.44.0 an achievement callout bursts over a playing song, takes no taps, clears itself and waits its turn", { skip: skip() }, async t => {
+  const lib = { ...LIB, songs: LIB.songs.map(s => s.id === "a" ? { ...s, duration: 900 } : s), settings: { ...LIB.settings, countIn: false } };
+  const page = await phone(t, lib);
+  await page.goto(base + "#/song/a"); await page.waitForSelector("#play");
+  await page.click("#play"); await page.waitForFunction(() => document.body.classList.contains("fold"));
+  await page.evaluate(() => import("/app.js").then(m => { m.showCallout({ kind: "combo", word: "COMBO", big: "x10" }); m.showCallout({ kind: "level", word: "LEVEL UP", big: "3" }); }));
+  await page.waitForSelector(".co");
+  assert.equal(await page.locator(".co").count(), 1, "one at a time");
+  assert.match(await page.innerText(".co-badge"), /COMBO\s*x10/);
+  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector(".co")).pointerEvents), "none", "taps go to the screen underneath");
+  await page.waitForFunction(() => /COMBO x10/.test(document.getElementById("co-say")?.textContent || ""));
+  await page.waitForFunction(() => /LEVEL UP/.test(document.querySelector(".co-badge")?.textContent || ""), null, { timeout: 5000 }); /* the next one, after the first clears */
+  assert.equal(await page.getAttribute("#play", "aria-label"), "Pause auto-scroll", "the song kept playing");
+  await page.waitForSelector(".co", { state: "detached", timeout: 5000 });
+});
+
+test("4.44.0 with Reduce Motion a callout is still, and a play-through with a new chord gets one", { skip: skip() }, async t => {
+  const lib = { ...LIB, songs: LIB.songs.map(s => s.id === "a" ? { ...s, duration: 12 } : s), settings: { ...LIB.settings, countIn: false } };
+  const page = await phone(t, lib, { reducedMotion: "reduce" });
+  await page.goto(base + "#/song/a"); await page.waitForSelector("#play");
+  await page.evaluate(() => { const d = JSON.parse(localStorage.getItem("louielite-v1")); d.ach = { level: 1, badges: [] }; localStorage.setItem("louielite-v1", JSON.stringify(d)); });
+  await page.evaluate(() => import("/app.js").then(m => m.showCallout({ kind: "chord", word: "NEW CHORD", big: "F" })));
+  await page.waitForSelector(".co.still");
+  assert.equal(await page.evaluate(() => document.getAnimations().filter(a => a.effect?.target?.closest?.(".co") && a.effect.getComputedTiming().duration > 400).length), 0, "nothing moves");
+});
+
+test("4.45.1: a toast from a switch in Tools sits above the sheet, not at the top of the screen", { skip: skip() }, async t => {
+  const page = await phone(t);
+  await page.goto(base + "#/song/a"); await page.waitForSelector('.metarow');
+  await page.click("#more"); await page.waitForSelector('.menu.tools');
+  await page.waitForFunction(() => !document.querySelector(".menu").getAnimations().length);
+  await page.click('.menu [data-m="wait"]'); await page.waitForSelector('.toast.show');
+  await page.waitForFunction(() => { const t = document.getElementById("toast").getBoundingClientRect(), m = document.querySelector(".menu").getBoundingClientRect(); return Math.abs(t.bottom - m.top) < 24; });
+});
+
+/* 4.62.0: the chord row fits when it can and says so when it can't; a long title scrolls as a banner and stops */
+const rowSong = (id, title, chords) => ({ id, title, artist: "A", key: "C", format: "chords", duration: 60, body: "[Verse]\n" + chords.map(c => `${c}        ${c}\nLine for ${c}`).join("\n") });
+test("The chord row fits up to what is readable, then scrolls with a fade and a count (4.62.0)", { skip: skip() }, async t => {
+  const few = rowSong("a", "Short Road", ["C", "G", "Am", "F"]), many = rowSong("b", "Short Road", ["C", "G", "Am", "F", "Dm", "Em", "D", "A", "E"]);
+  const page = await phone(t, { ...LIB, songs: [few, many] });
+  await page.goto(base + "#/song/a"); await page.reload(); await page.waitForSelector(".scard"); await settled(page);
+  assert.equal(await page.locator(".scard").count(), 4);
+  assert.ok(await page.evaluate(() => { const r = document.querySelector(".strip"); return r.classList.contains("fits") && r.scrollWidth <= r.clientWidth + 1; }), "four chords: every tile shows, the row doesn't scroll");
+  assert.match(await page.innerText(".strip-h"), /Chords\s*4/i, "the label carries the count");
+  assert.equal(await page.locator(".scard svg text.dn").count(), 0, "a tile names its chord once");
+  await page.goto(base + "#/song/b"); await page.reload(); await page.waitForSelector(".scard"); await settled(page);
+  assert.equal(await page.locator(".scard").count(), 9);
+  assert.match(await page.innerText(".strip-h"), /Chords\s*9/i);
+  await page.waitForSelector(".strip.fade-r");
+  assert.equal(await page.locator(".strip.fade-l").count(), 0, "at the start there is nothing to the left");
+  await page.evaluate(() => { const r = document.querySelector(".strip"); r.scrollLeft = r.scrollWidth; });
+  await page.waitForFunction(() => { const r = document.querySelector(".strip"); return r.classList.contains("fade-l") && !r.classList.contains("fade-r"); });
+});
+test("A long title steps down, then scrolls as a banner for three loops; a short one stays still; reduced motion keeps an ellipsis (4.62.0)", { skip: skip() }, async t => {
+  const long = rowSong("l", "Desperately Wanting Everything And More Than Anyone Could Ever Need", ["C", "G"]), short = rowSong("s", "Short Road", ["C", "G"]);
+  const page = await phone(t, { ...LIB, songs: [long, short] });
+  await page.goto(base + "#/song/s"); await page.reload(); await page.waitForSelector("h1.song-title"); await settled(page);
+  assert.equal(await page.locator("h1.song-title.banner").count(), 0, "a short title doesn't move");
+  await page.goto(base + "#/song/l"); await page.reload(); await page.waitForSelector("h1.song-title.banner"); await settled(page);
+  assert.equal(await page.evaluate(() => document.querySelector("h1.song-title").style.fontSize), "20px", "it stepped down first");
+  assert.equal(await page.getAttribute("h1.song-title", "aria-label"), long.title, "a screen reader gets the title once");
+  await page.waitForSelector(".song-title .tt.go", { timeout: 8000 }); /* real timer: it starts after 2 s */
+  assert.equal(await page.locator("h1.song-title").innerText(), long.title, "the copy is drawn, not in the text");
+  const page2 = await phone(t, { ...LIB, songs: [long] }, { reducedMotion: "reduce" });
+  await page2.goto(base + "#/song/l"); await page2.reload(); await page2.waitForSelector("h1.song-title"); await settled(page2);
+  assert.equal(await page2.locator("h1.song-title.banner").count(), 0, "reduced motion: no banner");
+  assert.ok(await page2.evaluate(() => getComputedStyle(document.querySelector("h1.song-title").parentElement).textOverflow === "ellipsis"), "reduced motion: an ellipsis");
 });

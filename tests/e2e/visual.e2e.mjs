@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { base, phone, skip, LIB, useBrowser } from "./harness.mjs";
+import { base, phone, skip, LIB, useBrowser, tool } from "./harness.mjs";
 
 useBrowser();
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -26,11 +26,11 @@ const lib = theme => ({
   settings: { v: 6, theme, controls: "bar", streakMoment: false, tipsSeen: TIPS, micExplained: true, sampleAdded: true, lastBackup: "2099-01-01T00:00:00Z", countIn: false, lastTuned: 9e15 }
 });
 const SHOTS = [
-  ["library", "#/"], ["sketch", "#/sketch"], ["song", "#/song/a"], ["tab", "#/song/c"], ["set", "#/set/s"], ["settings", "#/settings"], ["gestures", "#/gestures"],
-  ["menu", "#/song/a", p => p.click("button.more:visible")],
-  ["edit", "#/song/a", async p => { await p.click("button.more:visible"); await p.click(".menu [data-m='edit']"); }],
-  ["search", "#/", async p => { await p.click("#q"); await p.keyboard.type("willow"); }],
-  ["ask", "#/song/a", async p => { await p.click("button.more:visible"); await p.click(".menu [data-m='edit']"); await p.waitForTimeout(300); await p.click("[data-sec]"); }]
+  ["library", "#/library"], ["sketch", "#/sketch"], ["song", "#/song/a"], ["tab", "#/song/c"], ["set", "#/set/s"], ["settings", "#/settings"], ["gestures", "#/gestures"],
+  ["menu", "#/song/a", p => p.click("#more")],
+  ["edit", "#/song/a", async p => { await tool(p, "edit"); }],
+  ["search", "#/library", async p => { await p.click("#q"); await p.keyboard.type("willow"); }],
+  ["ask", "#/song/a", async p => { await tool(p, "edit"); await p.waitForTimeout(300); await p.click("[data-sec]"); }]
 ];
 
 // Pixels that differ by more than a little, counted in the page itself.

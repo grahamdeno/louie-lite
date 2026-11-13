@@ -1,10 +1,9 @@
 // Tabs Settings and Recently deleted screens.
-import { BASS_STYLES, DRUM_BEATS, SPEEDS, TRASH_DAYS, Tabs, VERSION, html, raw } from "./core.js";
+import { LANGS, SPEEDS, TRASH_DAYS, Tabs, VERSION, html, langChosen, langOf, looksOwned, raw } from "./core.js";
 import { $, app, ask, esc, icon, toast } from "./ui.js";
 import { coverPut } from "./sets.js";
-import { askMotion } from "./ring.js";
 import { ago, backupNow, copyDiagnostics, problems, storageKept, where } from "./store.js";
-import { AI, aiError, aiKey, applyTheme, askClaude, bassPreview, busy, data, go, metroPreview, mmss, setData, BPM_STORE, bpmKey } from "./app.js";
+import { AI, aiError, aiKey, applyTheme, askClaude, busy, data, go, metroPreview, mmss, setData, BPM_STORE, bpmKey } from "./app.js";
 
 // ---------- Settings ----------
 const kb = n => n < 1048576 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1048576).toFixed(1)} MB`;
@@ -19,9 +18,9 @@ function renderSettings() {
       <button class="ib glass" id="back" aria-label="${back}">${icon("back")}</button>
     </div>
     <h1 class="title" style="margin:14px 2px 10px">${title}</h1>`;
-  const metVol = Math.round((s.metroVol >= 0 && s.metroVol <= 1 ? s.metroVol : 0.8) * 100), metSound = s.metroSound === "click" ? "click" : "drums";
-  const bassVol = Math.round((s.bassVol >= 0 && s.bassVol <= 1 ? s.bassVol : 0.7) * 100), bassPick = BASS_STYLES.find(([k]) => k === s.bassStyle) || BASS_STYLES[0];
-  const beatPick = DRUM_BEATS.find(([k]) => k === s.metroBeat) || DRUM_BEATS[0], swing = ["light", "full"].includes(s.metroSwing) ? s.metroSwing : "straight";
+  const metVol = Math.round((s.metroVol >= 0 && s.metroVol <= 1.5 ? s.metroVol : 0.8) * 100);
+  /* 4.69.0: the beat is Off, Bass drum or Metronome (the drum kit and its beat and swing sit out for now) */
+  const beat = !s.metronome ? "off" : s.metroSound === "click" ? "click" : "kick";
   const PAGES = {
     playing: ["Playing", `
     <div class="set-group glass">
@@ -37,66 +36,24 @@ function renderSettings() {
         <button class="toggle ${s.countIn !== false ? "on" : ""}" id="s-count" role="switch" aria-checked="${s.countIn !== false}" aria-label="Count-in"></button>
       </div>
       <div class="set">
-        <span class="tile">${icon("metro")}</span><span class="name">Metronome</span>
-        <input type="range" class="s-vol" id="s-metvol" min="0" max="100" step="5" value="${metVol}" style="--fill:${metVol}%" aria-label="Metronome volume">
-        <button class="toggle ${s.metronome ? "on" : ""}" id="s-metro" role="switch" aria-checked="${!!s.metronome}" aria-label="Metronome"></button>
+        <span class="tile">${icon("mic")}</span><span class="name">Score my plays<small class="sub">The Gig listens for the chords you play. Off, shows play unscored</small></span>
+        <button class="toggle ${s.gigScore !== false ? "on" : ""}" id="s-score" role="switch" aria-checked="${s.gigScore !== false}" aria-label="Score my plays"></button>
       </div>
       <div class="set">
-        <span class="tile">${icon("note")}</span><span class="name">Metronome sound</span>
-        <div class="seg mini" id="s-metsound" role="group" aria-label="Metronome sound">${[["click", "Click"], ["drums", "Drums"]].map(([k, n]) => `<button data-m="${k}" class="${metSound === k ? "on" : ""}" aria-pressed="${metSound === k}">${n}</button>`).join("")}</div>
-      </div>
-      ${metSound === "drums" ? `<div class="set">
-        <span class="tile">${icon("note")}</span><span class="name">Drum beat</span><span class="val">${beatPick[1]}</span>${icon("chev", "chev")}
-        <select id="s-metbeat" aria-label="Drum beat">${DRUM_BEATS.map(([k, n]) => `<option value="${k}" ${beatPick[0] === k ? "selected" : ""}>${n}</option>`).join("")}</select>
+        <span class="tile">${icon("metro")}</span><span class="name">Beat</span>
+        <div class="seg mini" id="s-beat" role="group" aria-label="Beat">${[["off", "Off"], ["kick", "Bass drum"], ["click", "Metronome"]].map(([k, n]) => `<button data-m="${k}" class="${beat === k ? "on" : ""}" aria-pressed="${beat === k}">${n}</button>`).join("")}</div>
       </div>
       <div class="set">
-        <span class="tile">${icon("note")}</span><span class="name">Swing</span>
-        <div class="seg mini" id="s-metswing" role="group" aria-label="Swing">${[["straight", "Straight"], ["light", "Light"], ["full", "Full"]].map(([k, n]) => `<button data-m="${k}" class="${swing === k ? "on" : ""}" aria-pressed="${swing === k}">${n}</button>`).join("")}</div>
-      </div>` : ""}
+        <span class="tile">${icon("note")}</span><span class="name">Beat volume</span>
+        <input type="range" class="s-vol" id="s-metvol" min="0" max="150" step="5" value="${metVol}" style="--fill:${Math.round(metVol / 1.5)}%" aria-label="Beat volume">
+      </div>
       <div class="set">
         <span class="tile">${icon("metro")}</span><span class="name">Drop-out practice</span>
         <button class="toggle ${s.metroDrop ? "on" : ""}" id="s-metdrop" role="switch" aria-checked="${!!s.metroDrop}" aria-label="Drop-out practice"></button>
       </div>
       <div class="set">
-        <span class="tile">${icon("note")}</span><span class="name">Bass</span>
-        <input type="range" class="s-vol" id="s-bassvol" min="0" max="100" step="5" value="${bassVol}" style="--fill:${bassVol}%" aria-label="Bass volume">
-        <button class="toggle ${s.bass ? "on" : ""}" id="s-bass" role="switch" aria-checked="${!!s.bass}" aria-label="Bass"></button>
-      </div>
-      ${s.bass ? `<div class="set">
-        <span class="tile">${icon("note")}</span><span class="name">Bass style</span><span class="val">${bassPick[1]}</span>${icon("chev", "chev")}
-        <select id="s-bassstyle" aria-label="Bass style">${BASS_STYLES.map(([k, n]) => `<option value="${k}" ${bassPick[0] === k ? "selected" : ""}>${n}</option>`).join("")}</select>
-      </div>
-      <div class="set">
-        <span class="tile">${icon("metro")}</span><span class="name">Bass only</span>
-        <button class="toggle ${s.bassOnly ? "on" : ""}" id="s-bassonly" role="switch" aria-checked="${!!s.bassOnly}" aria-label="Bass only"></button>
-      </div>` : ""}
-      <div class="set">
         <span class="tile">${icon("flame")}</span><span class="name">Streak celebration</span>
         <button class="toggle ${s.streakMoment !== false ? "on" : ""}" id="s-streak" role="switch" aria-checked="${s.streakMoment !== false}" aria-label="Streak celebration"></button>
-      </div>
-      <div class="set">
-        <span class="tile">${icon("focus")}</span><span class="name">Play map</span>
-        <button class="toggle ${s.playMap ? "on" : ""}" id="s-playmap" role="switch" aria-checked="${!!s.playMap}" aria-label="Play map"></button>
-      </div>
-      <div class="set">
-        <span class="tile">${icon("stage")}</span><span class="name">Stage mode</span>
-        <button class="toggle ${s.stage ? "on" : ""}" id="s-stage" role="switch" aria-checked="${!!s.stage}" aria-label="Stage mode"></button>
-      </div>
-    </div>
-    <p class="foot">Song length fits the scroll to how long a song takes; 1x style is a fixed speed. Each song keeps its own. Count-in plays one bar at the song's tempo. The metronome plays along at the song's tempo, as a click or a drum beat, and slows with you when the speed dial is set longer than the recording; a song with no tempo gets one looked up. The slider sets its volume. Auto picks the drum beat from the song: ballad if it is fingerpicked and slow, half time when slow, four on the floor when fast, and a 6/8 feel for songs counted in 6 or 12. Swing lays the off-beat eighths later. Drop-out practice silences every other bar so you hold the time yourself. Bass plays the root of each chord under the song at its sounding pitch (the capo is counted), and keeps time without the metronome; Auto picks its pattern from the drum beat, and Bass only mutes the drums. Each song can have its own drum beat, swing and bass, found by the AI the first time it plays with the metronome or bass on (and when you add it) and kept on the song; change it in Edit, where a song can also have a bass riff of its own. Streak celebration shows your streak once a day, after the first song you play to the end. Play map (off until you turn it on) grows a territory of hexagons from your plays; a play counts when a song is played through, not when the page is scrolled by hand. Stage mode is for playing live: larger, higher-contrast text, no chord cards, and while a song plays, stray touches are ignored (tap twice to pause).</p>`],
-    diagrams: ["Chord diagrams", `
-    <div class="set-group glass">
-      <div class="set">
-        <span class="tile">${icon("fretboard")}</span><span class="name">Now and Next while playing</span>
-        <button class="toggle ${s.diagrams === true ? "on" : ""}" id="s-diagrams" role="switch" aria-checked="${s.diagrams === true}" aria-label="Now and Next chords"></button>
-      </div>
-      <div class="set">
-        <span class="tile">${icon("pause")}</span><span class="name">Diagrams when paused</span>
-        <button class="toggle ${s.pauseDiagrams !== false ? "on" : ""}" id="s-pause" role="switch" aria-checked="${s.pauseDiagrams !== false}" aria-label="Diagrams when paused"></button>
-      </div>
-      <div class="set">
-        <span class="tile">${icon("sections")}</span><span class="name">Song map</span>
-        <button class="toggle ${s.songMap !== false ? "on" : ""}" id="s-map" role="switch" aria-checked="${s.songMap !== false}" aria-label="Song map: the section rail on the right edge"></button>
       </div>
       <div class="set">
         <span class="tile">${icon("focus")}</span><span class="name">Focus current line</span><span class="val">${{ always: "Always", playing: "While playing", off: "Off" }[s.focus] || "Always"}</span>${icon("chev", "chev")}
@@ -105,37 +62,19 @@ function renderSettings() {
         </select>
       </div>
     </div>
-    <p class="foot">Tap a chord for its fingering, or a line to start from it. The song map is the rail of sections on the right edge; touch it and slide to jump to a section.</p>`],
+    <p class="foot">Song length fits the scroll to how long a song takes; 1x style is a fixed speed. Each song keeps its own. Count-in plays one bar at the song's tempo. The beat plays along at the song's tempo: Off, a bass drum on every beat (louder on the 1) or the metronome's click. It slows with you when the speed dial is set longer than the recording; a song with no tempo gets one looked up. The slider sets its volume. Drop-out practice silences every other bar so you hold the time yourself. Streak celebration shows your streak once a day, after the first song you play to the end. A play counts when a song is played through by auto-scroll, not when the page is scrolled by hand; each one lights a hexagon on your Tour Map (in More). Focus current line makes the line you're on stand out; the other lines dim while the song plays. Tap a chord for its fingering, or a line to start from it; the rail on the right edge jumps to a section.</p>`],
     look: ["Look", `
     <div class="set-group glass">
       <div class="set">
         <span class="tile">${icon("moon")}</span><span class="name">Theme</span>
-        <div class="seg mini" id="s-theme" role="group" aria-label="Theme">${[["auto", "Auto"], ["dark", "Dark"], ["light", "Light"]].map(([k, n]) => `<button data-t="${k}" class="${(s.theme === "dark" || s.theme === "light" ? s.theme : "auto") === k ? "on" : ""}" aria-pressed="${(s.theme === "dark" || s.theme === "light" ? s.theme : "auto") === k}">${n}</button>`).join("")}</div>
+        <div class="seg mini" id="s-theme" role="group" aria-label="Theme">${(() => { const own = looksOwned(data), on = own.has(s.theme) ? s.theme : "auto";
+          return [["auto", "Auto"], ["light", "Light"], ["dark", "Dark"], ["green", "Green"], ["headliner", "Headliner"]].map(([k, n]) => own.has(k)
+            ? `<button data-t="${k}" class="${on === k ? "on" : ""}" aria-pressed="${on === k}">${n}</button>`
+            : `<button data-t="${k}" class="locked" aria-label="${n}, at the Merch table">${icon("lock")}${n}</button>`).join(""); })()}</div>
       </div>
-      <div class="set">
-        <span class="tile">${icon("amp")}</span><span class="name">Amp covering</span>
-        <button class="toggle ${s.tolex ? "on" : ""}" id="s-tolex" role="switch" aria-checked="${!!s.tolex}" aria-label="Amp covering: a fine tolex grain behind the app"></button>
-      </div>
-      <div class="set">
-        <span class="tile">${icon("play")}</span><span class="name">Song controls</span><span class="val">${s.controls === "bar" ? "Bar" : "Hold Play"}</span>${icon("chev", "chev")}
-        <select id="s-controls" aria-label="Song controls">
-          ${[["ring", "Hold Play (ring)"], ["bar", "Bar"]].map(([v, t]) => `<option value="${v}" ${v === (s.controls || "ring") ? "selected" : ""}>${t}</option>`).join("")}
-        </select>
-      </div>
-      ${s.controls === "bar" ? "" : `<div class="set">
-        <span class="tile">${icon("gauge")}</span><span class="name">Play button</span><span class="val">${{ hand: "Follows your hand", touch: "Follows your touch", corner: "Stays in the corner" }[s.follow || "hand"]}</span>${icon("chev", "chev")}
-        <select id="s-follow" aria-label="Play button">
-          ${[["hand", "Follows your hand"], ["touch", "Follows your touch"], ["corner", "Stays in the corner"]].map(([v, t]) => `<option value="${v}" ${v === (s.follow || "hand") ? "selected" : ""}>${t}</option>`).join("")}
-        </select>
-      </div>
-      <div class="set">
-        <span class="tile">${icon("loop")}</span><span class="name">Arc sweep</span><span class="val">${s.arcSweep === "screen" ? "One screen" : "Whole song"}</span>${icon("chev", "chev")}
-        <select id="s-arc" aria-label="Arc sweep">
-          ${[["song", "Whole song"], ["screen", "One screen"]].map(([v, t]) => `<option value="${v}" ${v === (s.arcSweep || "song") ? "selected" : ""}>${t}</option>`).join("")}
-        </select>
-      </div>`}
     </div>
-    <p class="foot">On a phone held upright, hold Play for Back, Favorite, Key, More and Set; Play rises to your thumb while the phone is in your hand and settles in the corner when it's still. Sweep the arc to move through the song: slowly for a line or two, quickly to cover ground; one full sweep goes end to end.</p>`],
+    <p class="foot">Light is Festival Poster and Dark is Neon Midnight. Green Room is at the Merch table for tips, and Headliner, black and gold under a blacklight, is yours once you headline a show. Auto follows your phone between Light and Dark.</p>
+    <p class="foot">On a phone held upright, the whole bar shows while a song is paused. Press Play and it folds into Play's corner; pause and it comes back. At the top of a paused song, pull down to go back.</p>`],
     newsongs: ["New songs", `
     <div class="set-group glass">
       ${s.speedMode === "multiplier" ? `<div class="set">
@@ -160,8 +99,8 @@ function renderSettings() {
     today: ["Today", `
     <div class="set-group glass">
       <div class="set">
-        <span class="tile">${icon("flame")}</span><span class="name">Streak and daily nudge</span>
-        <button class="toggle ${s.nudge !== false ? "on" : ""}" id="s-nudge" role="switch" aria-checked="${s.nudge !== false}" aria-label="Streak and daily nudge in the library"></button>
+        <span class="tile">${icon("flame")}</span><span class="name">Up next card in the Songbook</span>
+        <button class="toggle ${s.nudge !== false ? "on" : ""}" id="s-nudge" role="switch" aria-checked="${s.nudge !== false}" aria-label="Up next card in the Songbook"></button>
       </div>
       ${s.nudge !== false ? `<label class="fld fld-k"><span class="tile ftile">${icon("sun")}</span>
         <input id="s-city" type="text" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" placeholder="City for weather (optional)" value="${esc(s.place?.name || "")}" aria-label="City for weather"></label>
@@ -172,7 +111,7 @@ function renderSettings() {
       </div>
       <div id="s-cities"></div>` : ""}
     </div>
-    <p class="foot">Under the library's title: your practice streak (a day counts when a song plays to its end) and, until you play today, one song to try. With a city, the weather picks it: a slow song on a rainy day. Only the city's position is sent, once a day; Tabs asks for your location only if you turn on the Play map. Weather data by <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo.com</a>.</p>`],
+    <p class="foot">Under the Songbook's title: your practice streak (a day counts when a song plays to its end) and, until you play today, one song to try. With a city, the weather picks it: a slow song on a rainy day, and when the air has changed a lot since your last play the song page says to tune up first. Only the city's position is sent, once a day; Louie asks for your location only if you plant your flag on the Tour Map. Weather data by <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo.com</a>.</p>`],
     keys: ["Keys", `
     <p class="foot" style="margin:0 4px 14px">Each key stays on this phone and is sent only to its own service.</p>
     <div class="label">Anthropic · AI help</div>
@@ -187,7 +126,7 @@ function renderSettings() {
       </div>
     </div>
     <p class="foot" id="s-keymsg" aria-live="polite"></p>
-    <details class="foot s-why"><summary>What it's used for</summary>Adds Clean up and Scan a page when adding songs, and Make it easier and Spark tone in a song's ••• menu. The key stays on this phone and is sent only to Anthropic. Cleanup and scans send the pasted text or photo; Make it easier and Spark tone send only the song's title, artist and chord names. Use a key made just for Tabs, with a low monthly spend limit.</details>
+    <details class="foot s-why"><summary>What it's used for</summary>Adds Clean up and Scan a page when adding songs, and Make it easier and Spark tone in a song's ••• menu. The key stays on this phone and is sent only to Anthropic. Cleanup and scans send the pasted text or photo; Make it easier and Spark tone send only the song's title, artist and chord names. Use a key made just for Louie, with a low monthly spend limit.</details>
     <div class="label">GetSongBPM · Tempo data</div>
     <div class="set-group glass">
       <label class="fld fld-k"><span class="tile ftile">${icon("metro")}</span>
@@ -199,50 +138,86 @@ function renderSettings() {
       </div>
     </div>
     <details class="foot s-why"><summary>What it's used for</summary>Get the song checks the chart's tempo and time signature against GetSongBPM's measured data. The free key is at <a href="https://getsongbpm.com/api" target="_blank" rel="noopener">getsongbpm.com/api</a>; it stays on this phone and is sent only to GetSongBPM, with the song's title and artist. Words come from <a href="https://lrclib.net" target="_blank" rel="noopener">LRCLIB</a>, which needs no key.</details>
-    <p class="foot credit">Tempo data by <a href="https://getsongbpm.com" target="_blank" rel="noopener">GetSongBPM.com</a></p>`],
-    library: ["Library and backups", `
+    <p class="foot credit">Tempo data by <a href="https://getsongbpm.com" target="_blank" rel="noopener">GetSongBPM.com</a></p>
+`],
+    apple: ["Apple Music", `
+    <p class="foot" style="margin:0 4px 14px">With an Apple Music subscription, songs play their real recording here: Play starts it with the scroll, and the Recording chip under a song's title sets what Play starts.</p>
+    <div class="set-group glass">
+      <div class="set">
+        <span class="tile">${icon("note")}</span><span class="name">Apple Music</span>
+        <button class="toggle ${s.appleMusic ? "on" : ""}" id="s-apple" role="switch" aria-checked="${!!s.appleMusic}" aria-label="Apple Music: play whole songs in Louie"></button>
+      </div>
+      ${s.appleMusic ? `<label class="fld fld-k"><span class="tile ftile">${icon("cloud")}</span>
+        <input id="s-appletoken" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Token address (https://…/token)" value="${esc(s.appleMusicToken || "")}" aria-label="Apple Music token address"></label>
+      <div class="key-row">
+        <span class="ai-status"><i class="dot ${s.appleMusicToken ? "on" : ""}"></i>${s.appleMusicToken ? "Ready" : "No token address"}</span>
+        <button class="btn sm primary" id="s-applesave">Save</button>
+      </div>` : ""}
+    </div>
+    <details class="foot s-why"><summary>What it's used for</summary>The recording plays here instead of opening Apple Music, and the page follows it. Songs also get their genre, year and composer, the search screen shows what you played lately, and each line is timed from LRCLIB's synced lyrics (only the times are kept). Off, nothing is loaded and nothing is sent. On, Louie loads Apple's MusicKit, asks your token address for a developer token (see worker/README.md), and Apple asks you to sign in once.</details>`],
+    library: ["Songbook and backups", `
     <div class="set-group glass">
       <button class="set" id="s-export"><span class="tile">${icon("cloud")}</span><span class="name">Back up now</span><span class="val muted">${ago(s.lastBackup)}</span>${icon("chev", "chev")}</button>
       <button class="set" id="s-import"><span class="tile">${icon("download")}</span><span class="name">Import backup</span>${icon("chev", "chev")}</button>
       <button class="set" id="s-trash"><span class="tile">${icon("trash")}</span><span class="name">Recently deleted</span><span class="val muted">${data.trash.length || ""}</span>${icon("chev", "chev")}</button>
     </div>
     <input type="file" id="file" accept=".json,application/json" hidden>
-    <p class="foot">${data.songs.length} song${data.songs.length === 1 ? "" : "s"}, stored only on this phone${where.db ? ` in its database (${kb(where.size || JSON.stringify(data).length)})${where.copy === false ? "" : ", with a copy in browser storage"}` : ""}${storageKept ? ", kept permanently" : storageKept === false ? ". The browser may clear it if Tabs isn't added to your Home Screen" : ""}. Back up weekly to iCloud Drive: tap Back up now, then Save to Files. Add Tabs to your Home Screen from the Share menu to use it offline.</p>`],
+    <p class="foot">${data.songs.length} song${data.songs.length === 1 ? "" : "s"}, stored only on this phone${where.db ? ` in its database (${kb(where.size || JSON.stringify(data).length)})${where.copy === false ? "" : ", with a copy in browser storage"}` : ""}${storageKept ? ", kept permanently" : storageKept === false ? ". The browser may clear it if Louie isn't added to your Home Screen" : ""}. Back up weekly to iCloud Drive: tap Back up now, then Save to Files. Add Louie to your Home Screen from the Share menu to use it offline.</p>`],
+    lang: ["Language practice", `
+    <div class="label">Every song uses</div>
+    <div class="lp-list s-lp" role="radiogroup" aria-label="Language">${Object.entries(LANGS).map(([k, L]) => { const on = langChosen(data) && langOf(data) === k; return `<button class="lp-row${on ? " on" : ""}" role="radio" aria-checked="${on}" data-lang="${k}"><span class="lp-em lp-${k}">${L.short}</span><span class="lp-t"><b>${L.name}</b><small>${esc(L.own)} · ${esc(L.sample)}</small></span><i></i></button>`; }).join("")}</div>
+    <div class="set-group glass s-gap">
+      <div class="set"><span class="tile">${icon("chat")}</span><span class="name">English under each line<small class="sub">At every level</small></span>
+        <button class="toggle ${s.deEnglish === true ? "on" : ""}" id="s-deen" role="switch" aria-checked="${s.deEnglish === true}" aria-label="English under each line"></button></div>
+      ${langOf(data) === "ru" ? `<div class="set"><span class="tile">${icon("chat")}</span><span class="name">Latin letters under Russian<small class="sub">The sound of each Russian line, at Fluent</small></span>
+        <button class="toggle ${s.deTranslit !== false ? "on" : ""}" id="s-detr" role="switch" aria-checked="${s.deTranslit !== false}" aria-label="Latin letters under Russian"></button></div>` : ""}
+    </div>
+    <p class="foot">${(() => { const n = data.songs.filter(x => x.de).length; return n ? `${LANGS[langOf(data)].name} is in ${n} song${n === 1 ? "" : "s"}. ` : ""; })()}Translations stay on this phone and aren't backed up. Switching deletes them, after asking.</p>`],
     help: ["Help", `
     <div class="set-group glass">
       <button class="set" id="s-tips"><span class="tile">${icon("info")}</span><span class="name">Tips &amp; gestures</span>${icon("chev", "chev")}</button>
       <button class="set" id="s-diag"><span class="tile">${icon("info")}</span><span class="name">Copy diagnostics</span><span class="val muted">${problems.length ? `${problems.length} problem${problems.length === 1 ? "" : "s"}` : ""}</span>${icon("chev", "chev")}</button>
-    </div>`]
+    </div>
+    <div class="label">Testing</div>
+    <div class="set-group glass">
+      <button class="set" id="s-testfans"><span class="tile">${icon("shirt")}</span><span class="name">Add $1,000 in test tips</span><span class="val muted">${data.merch?.test ? `$${data.merch.test.toLocaleString("en-US")} added` : "To try the Merch table"}</span></button>
+      ${data.merch?.test ? `<button class="set" id="s-testfans-x"><span class="tile">${icon("x")}</span><span class="name">Remove test tips</span></button>` : ""}
+    </div>
+    <p class="foot">Test tips are only for spending at the Merch table. They don't count toward your fans, XP, the chart or your venue. Removing them takes back what's left to spend; what you bought stays.</p>`]
   };
   if (PAGES[page]) {
     app.innerHTML = head(PAGES[page][0], "Back to settings") + PAGES[page][1];
   } else {
     // The main menu: one row per page, each showing where it stands.
     const city = s.place?.name?.split(",")[0];
-    const diagOn = [s.diagrams === true, s.pauseDiagrams !== false, s.songMap !== false, (s.focus || "always") !== "off"].filter(Boolean).length;
-    const theme = { dark: "Dark", light: "Light" }[s.theme] || "Auto";
+    const theme = looksOwned(data).has(s.theme) && { dark: "Dark", light: "Light", green: "Green Room", headliner: "Headliner" }[s.theme] || "Auto";
     const row = (id, ic, name, val, muted = false) => `<button class="set" data-page="${id}"><span class="tile">${icon(ic)}</span><span class="name">${name}</span><span class="val${muted ? " muted" : ""}">${val}</span>${icon("chev", "chev")}</button>`;
     const n = data.songs.length;
-    app.innerHTML = head("Settings", "Back to library") + `
+    app.innerHTML = head("Settings", "Back") + `
     <div class="set-group glass">
-      ${row("playing", "play", "Playing", [s.speedMode === "multiplier" ? "1x style" : "Song length", s.countIn !== false && "Count-in", s.stage && "Stage"].filter(Boolean).join(" · "))}
-      ${row("diagrams", "fretboard", "Chord diagrams", `${diagOn} of 4 on`)}
-      ${row("look", "moon", "Look", `${theme} · ${s.controls === "bar" ? "Bar" : "Hold Play"}`)}
+      ${row("playing", "play", "Playing", [s.speedMode === "multiplier" ? "1x style" : "Song length", s.countIn !== false && "Count-in"].filter(Boolean).join(" · "))}
+      ${row("look", "moon", "Look", theme)}
       ${row("newsongs", "sliders", "New songs", `${s.speedMode === "multiplier" ? ((s.startSpeed || SPEEDS.medium) / SPEEDS.medium).toFixed(1) + "x" : mmss(s.startLength || 210)} · ${t ? semis(t) : "No transpose"}`)}
     </div>
     <div class="set-group glass s-gap">
       ${row("today", "flame", "Today", s.nudge === false ? "Off" : city ? esc(city) : "On")}
+      ${row("apple", "note", "Apple Music", s.appleMusic ? (s.appleMusicToken ? "On" : "On · no token") : "Off")}
       ${row("keys", "wand", "Keys", `<span class="s-keys">${dot(aiKey())}AI ${dot(bpmKey())}Tempo</span>`, true)}
+      ${row("lang", "chat", "Language practice", langChosen(data) ? LANGS[langOf(data)].name : "Not picked")}
     </div>
     <div class="set-group glass s-gap">
-      ${row("library", "cloud", "Library and backups", `${n} song${n === 1 ? "" : "s"}`, true)}
+      ${row("library", "cloud", "Songbook and backups", `${n} song${n === 1 ? "" : "s"}`, true)}
       ${row("help", "info", "Help", problems.length ? `${problems.length} problem${problems.length === 1 ? "" : "s"}` : "Tips, diagnostics", true)}
     </div>
-    <p class="foot s-ver" id="s-ver">Tabs ${VERSION}</p>
+    <p class="foot s-ver" id="s-ver">Louie: Learn Guitar ${VERSION}</p>
     <div class="s-dock"><button class="btn primary" id="s-backup">${icon("cloud")}Back up now</button><span>Last backup ${esc(ago(s.lastBackup) || "never")}</span></div>`;
   }
   document.getElementById("back").onclick = () => go(PAGES[page] ? "#/settings" : "#/");
   app.querySelectorAll("[data-page]").forEach(b => b.onclick = () => go("#/settings/" + b.dataset.page));
+  /* 4.36.0: one language for every song; switching asks first (german.js) */
+  app.querySelectorAll(".s-lp [data-lang]").forEach(b => b.onclick = () => import(`./german.js?v=${VERSION}`).then(m => m.switchLang(b.dataset.lang, renderSettings)));
+  document.getElementById("s-deen")?.addEventListener("click", () => { s.deEnglish = s.deEnglish !== true; Tabs.save(data); renderSettings(); });
+  document.getElementById("s-detr")?.addEventListener("click", () => { s.deTranslit = s.deTranslit === false; Tabs.save(data); renderSettings(); });
   document.getElementById("s-backup")?.addEventListener("click", async () => { if (await backupNow()) { renderSettings(); toast("Backed up"); } });
   // Each page has only its own controls; the rest are skipped.
   const $ = id => document.getElementById(id) || { addEventListener() {}, querySelectorAll: () => [] };
@@ -250,26 +225,21 @@ function renderSettings() {
   $("s-length")?.addEventListener("change", e => { s.startLength = +e.target.value; Tabs.save(data); renderSettings(); });
   $("s-mode").onchange = e => { s.speedMode = e.target.value; Tabs.save(data); renderSettings(); };
   $("s-count").onclick = () => { s.countIn = s.countIn === false; Tabs.save(data); renderSettings(); };
-  $("s-playmap").onclick = () => { if (s.playMap) { s.playMap = false; delete s.playSeen; Tabs.save(data); try { localStorage.removeItem("louielite.spot.v1"); } catch {} renderSettings(); } else go("#/playmap"); }; /* turning it on goes through the explanation */
+  $("s-score").onclick = () => { s.gigScore = s.gigScore === false; Tabs.save(data); renderSettings(); };
   $("s-streak").onclick = () => { s.streakMoment = s.streakMoment === false; Tabs.save(data); renderSettings(); };
-  $("s-metro").onclick = () => { s.metronome = !s.metronome; Tabs.save(data); renderSettings(); };
+  app.querySelectorAll("#s-beat [data-m]").forEach(b => b.onclick = () => { const m = b.dataset.m; s.metronome = m !== "off"; if (m !== "off") s.metroSound = m === "click" ? "click" : "kick"; Tabs.save(data); renderSettings(); if (m !== "off") metroPreview(); });
   /* The volume saves as it moves; letting go plays a bar's opening beat at that level. */
-  $("s-metvol")?.addEventListener("input", e => { s.metroVol = +e.target.value / 100; e.target.style.setProperty("--fill", e.target.value + "%"); Tabs.save(data); });
+  $("s-metvol")?.addEventListener("input", e => { s.metroVol = +e.target.value / 100; e.target.style.setProperty("--fill", Math.round(e.target.value / 1.5) + "%"); Tabs.save(data); });
   $("s-metvol")?.addEventListener("change", () => metroPreview());
-  $("s-metbeat")?.addEventListener("change", e => { s.metroBeat = e.target.value; Tabs.save(data); renderSettings(); metroPreview(); });
-  app.querySelectorAll("#s-metswing [data-m]").forEach(b => b.onclick = () => { s.metroSwing = b.dataset.m; Tabs.save(data); renderSettings(); metroPreview(); });
   $("s-metdrop")?.addEventListener("click", () => { s.metroDrop = !s.metroDrop; Tabs.save(data); renderSettings(); });
-  $("s-bass")?.addEventListener("click", () => { s.bass = !s.bass; Tabs.save(data); renderSettings(); if (s.bass) bassPreview(); });
-  $("s-bassvol")?.addEventListener("input", e => { s.bassVol = +e.target.value / 100; e.target.style.setProperty("--fill", e.target.value + "%"); Tabs.save(data); });
-  $("s-bassvol")?.addEventListener("change", () => bassPreview());
-  $("s-bassstyle")?.addEventListener("change", e => { s.bassStyle = e.target.value; Tabs.save(data); renderSettings(); bassPreview(); });
-  $("s-bassonly")?.addEventListener("click", () => { s.bassOnly = !s.bassOnly; Tabs.save(data); renderSettings(); });
-  app.querySelectorAll("#s-metsound [data-m]").forEach(b => b.onclick = () => { s.metroSound = b.dataset.m; Tabs.save(data); renderSettings(); metroPreview(); });
-  $("s-tolex").onclick = () => { s.tolex = !s.tolex; Tabs.save(data); applyTheme(); renderSettings(); };
-  $("s-stage").onclick = () => { s.stage = !s.stage; Tabs.save(data); applyTheme(); renderSettings(); };
   $("s-transpose")?.addEventListener("change", e => { s.transpose = +e.target.value; Tabs.save(data); renderSettings(); });
-  $("s-diagrams").onclick = () => { s.diagrams = s.diagrams !== true; Tabs.save(data); renderSettings(); };
-  $("s-map").onclick = () => { s.songMap = s.songMap === false; Tabs.save(data); renderSettings(); };
+  $("s-apple").onclick = () => { s.appleMusic = !s.appleMusic; Tabs.save(data); renderSettings(); };
+  $("s-applesave")?.addEventListener("click", () => {
+    const u = $("s-appletoken").value.trim();
+    if (u && !/^https:\/\/\S+$/.test(u)) { toast("The address must start with https://"); return; }
+    if (u) s.appleMusicToken = u; else delete s.appleMusicToken;
+    Tabs.save(data); renderSettings(); toast(u ? "Token address saved" : "Token address removed");
+  });
   $("s-nudge").onclick = () => { s.nudge = s.nudge === false; Tabs.save(data); renderSettings(); };
   const findCity = async () => {
     const name = $("s-city").value.trim(), out = $("s-cities");
@@ -293,16 +263,11 @@ function renderSettings() {
   $("s-cityfind")?.addEventListener("click", findCity);
   $("s-city")?.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); findCity(); } });
   $("s-cityremove")?.addEventListener("click", () => { delete s.place; Tabs.save(data); renderSettings(); toast("Weather off"); });
-  $("s-pause").onclick = () => { s.pauseDiagrams = s.pauseDiagrams === false; Tabs.save(data); renderSettings(); };
   $("s-focus").onchange = e => { s.focus = e.target.value; Tabs.save(data); renderSettings(); };
-  $("s-arc")?.addEventListener("change", e => { s.arcSweep = e.target.value; Tabs.save(data); renderSettings(); });
-  $("s-controls").onchange = e => { s.controls = e.target.value; Tabs.save(data); renderSettings(); };
-  $("s-follow")?.addEventListener("change", async e => {
-    s.follow = e.target.value;
-    if (s.follow === "hand" && !(await askMotion())) { s.follow = "touch"; toast("Motion wasn't allowed, so Play follows your touch"); }
-    Tabs.save(data); renderSettings();
-  });
-  app.querySelectorAll("#s-theme [data-t]").forEach(b => b.onclick = () => { s.theme = b.dataset.t; Tabs.save(data); applyTheme(); renderSettings(); });
+  app.querySelectorAll("#s-theme [data-t]").forEach(b => b.onclick = () => {
+    /* 4.78.0: a look you don't have opens it on the Merch table */
+    if (b.classList.contains("locked")) { toast(b.dataset.t === "headliner" ? "Headline a show to earn Headliner" : "Green Room is at the Merch table"); return go("#/merch"); }
+    s.theme = b.dataset.t; Tabs.save(data); applyTheme(); renderSettings(); });
   $("s-savekey").onclick = () => {
     const k = $("s-key").value.trim();
     if (!k) { toast("Paste a key first"); return; }
@@ -339,6 +304,9 @@ function renderSettings() {
   $("s-trash").onclick = () => go("#/trash");
   $("s-tips").onclick = () => go("#/gestures");
   $("s-diag").onclick = copyDiagnostics;
+  /* 4.16.0: test fans, to try the Merch table */
+  $("s-testfans")?.addEventListener("click", () => { const m = data.merch || (data.merch = {}); m.test = Math.min(1e6, (m.test || 0) + 1000); Tabs.save(data); renderSettings(); toast("$1,000 in test tips added"); });
+  $("s-testfans-x")?.addEventListener("click", () => { delete data.merch.test; Tabs.save(data); renderSettings(); toast("Test tips removed"); });
   $("s-import").onclick = () => $("file").click();
   $("file").onchange = e => {
     const f = e.target.files[0];

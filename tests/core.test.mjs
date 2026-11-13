@@ -35,13 +35,18 @@ test("version matches the service worker cache name", () => {
 
 test("every app script parses, and index.html loads them", () => {
   // A syntax error stops the whole app from loading, so check before every release.
-  const scripts = fs.readdirSync(root).filter(f => f.endsWith(".js"));
+  const scripts = [...fs.readdirSync(root).filter(f => f.endsWith(".js")), ...fs.readdirSync(path.join(root, "core")).filter(f => f.endsWith(".js")).map(f => "core/" + f)];
   for (const f of scripts) execFileSync(process.execPath, ["--check", path.join(root, f)], { stdio: "pipe" });
   const html = read("index.html");
   assert.match(html, /<script type="module" src="app.js"><\/script>/);
   assert.match(html, /<link rel="stylesheet" href="styles.css">/);
   const shell = read("sw.js");
   for (const f of ["index.html", "styles.css", ...scripts.filter(f => f !== "sw.js")]) assert.ok(shell.includes(`"${f}"`), `${f} is saved for offline`);
+});
+
+test("4.42.7 every part loaded later asks for the running release, so an update can't mix two releases", () => {
+  const scripts = fs.readdirSync(root).filter(f => f.endsWith(".js"));
+  for (const f of scripts) assert.doesNotMatch(read(f), /import\("\.\/[a-z]+\.js"\)/, `${f} loads a part without ?v=`);
 });
 
 test("the service worker never caches AI calls", () => {
@@ -371,6 +376,70 @@ test("inline [G] sheets stay inline", () => {
   assert.equal(C.setChordAt("[G]Walking down", 0, 8, "C"), "[G]Walking [C]down");
 });
 
+/* 4.63.0: placing chords the way a chart does, next to one another and over spaces with no words */
+const UG_VERSE = "F Am G\n      Passed the road to your house";
+const slotsOf = (body, i) => { const ln = C.chordModel(body).find(l => l.kind === "lyric" && l.i === i); return C.chordSlots(ln.text, ln.chords).list.map(c => `${c.chord}@${c.part}${c.word}`); };
+test("4.63.0 chords before the words build UG's lead-in, the words indented past them", () => {
+  let b = "Passed the road to your house";
+  b = C.addChordNear(b, 0, -1, "F");
+  b = C.addChordNear(b, 1, 0, "Am");
+  b = C.addChordNear(b, 1, 1, "G");
+  assert.equal(b, UG_VERSE);
+  assert.deepEqual(slotsOf(b, 1), ["F@lead-1", "Am@lead-1", "G@lead-1"]);
+});
+test("4.63.0 a chord after the last word, over no words", () => {
+  const b = C.addChordNear(UG_VERSE, 1, 2, "F", { word: 5, part: "after" });
+  assert.deepEqual(b.split("\n"), ["F Am G                              F", "      Passed the road to your house"]);
+  assert.deepEqual(slotsOf(b, 1), ["F@lead-1", "Am@lead-1", "G@lead-1", "F@after5"]);
+});
+test("4.63.0 three chords on one word stay on it when it has room, and the line's words never change", () => {
+  let b = "F        Am\nPassed the road";
+  b = C.addChordNear(b, 1, 0, "C"); b = C.addChordNear(b, 1, 1, "G");
+  assert.deepEqual(b.split("\n"), ["F C G    Am", "Passed the road"]);
+  assert.deepEqual(slotsOf(b, 1), ["F@on0", "C@on0", "G@on0", "Am@on1"]);
+});
+test("4.63.0 chords that don't fit on a short word stand alone right after it", () => {
+  let b = "   G\nla la land";
+  b = C.addChordNear(b, 1, 0, "Am"); b = C.addChordNear(b, 1, 1, "Em");
+  assert.deepEqual(slotsOf(b, 1), ["G@on1", "Am@after1", "Em@after1"]);
+  assert.equal(b.split("\n")[1].replace(/\s+/g, " "), "la la land", "only spaces were added");
+  const line = C.parseBlocks(b).find(x => x.words);
+  const drawn = line.words.filter(w => w.parts).map(w => w.parts.map(p => (p.chord || "") + ":" + p.text.trim()).join("|"));
+  assert.deepEqual(drawn, [":la", "G:la", "Am:", "Em:", ":land"], "the page draws Am and Em over the space, not on land");
+});
+test("4.63.0 removing the middle of three chords keeps the others where they were", () => {
+  assert.equal(C.setChordNth("F C G    Am\nPassed the road", 1, 1, null), "F   G    Am\nPassed the road");
+  assert.equal(C.setChordNth(UG_VERSE, 1, 1, null), "F    G\n      Passed the road to your house");
+});
+test("4.63.0 removing every lead chord takes the indent away", () => {
+  let b = UG_VERSE;
+  for (let k = 0; k < 3; k++) b = C.setChordNth(b, 1, 0, null);
+  assert.equal(b, "Passed the road to your house");
+});
+test("4.63.0 inline [G] lines take chords next to one another too", () => {
+  assert.equal(C.addChordNear("[F]Passed the road", 0, 0, "Am"), "[F]P[Am]assed the road");
+  assert.deepEqual(slotsOf(C.addChordNear("[F]Passed the road", 0, -1, "G"), 0), ["G@lead-1", "F@on0"]);
+});
+test("4.63.0 an edit that changes nothing leaves the sheet exactly as it was", () => {
+  for (const b of [UG_VERSE, "F Am G\n      Where they turned out your lights      F", "A            D\nWalking down the river road", "[G]Walking [C]down", "G     C\nla  la land", "F                  Am\n I remember running through the wet grass"]) {
+    const ln = C.chordModel(b).find(l => l.kind === "lyric");
+    assert.equal(C.setChordNth(b, ln.i, 0, C.chordSlots(ln.text, ln.chords).list[0].chord), b);
+  }
+});
+test("4.63.0 rows of chords alone: add one, change it, remove it", () => {
+  let b = C.addChordLine("[Verse]\nla la", 1, ["F", "Am", "G"]);
+  assert.deepEqual(b.split("\n"), ["[Verse]", "la la", "F   Am   G"]);
+  assert.equal(C.chordModel(b)[2].kind, "chords");
+  b = C.setChordLine(b, 2, ["F", "C"]);
+  assert.equal(b.split("\n")[2], "F   C");
+  assert.equal(C.setChordLine(b, 2, []), "[Verse]\nla la");
+});
+test("4.63.0 a chord over a wide space between words stands alone on the page", () => {
+  const line = C.parseBlocks("        G\nla la      land").find(x => x.words);
+  const drawn = line.words.filter(w => w.parts).map(w => w.parts.map(p => (p.chord || "") + ":" + p.text.trim()).join("|"));
+  assert.deepEqual(drawn, [":la", ":la", "G:", ":land"]);
+});
+
 test("chords used are listed in order", () => {
   assert.deepEqual(C.chordsUsed("A    D\nla la\n[E]la [A]la"), ["A", "D", "E"]);
 });
@@ -596,7 +665,8 @@ test("song length: set when never chosen, offer when chosen and different", () =
   assert.equal(C.lengthChoice({ duration: 230, durationSet: true }, 232, st), "none"); // close enough
   assert.equal(C.lengthChoice({}, 0, st), "none");
   assert.equal(C.fitLength(20), 60);
-  assert.equal(C.fitLength(900), 480);
+  assert.equal(C.fitLength(900), 900, "15:00 fits (3.19.0)");
+  assert.equal(C.fitLength(1200), 900);
 });
 
 test("tap tempo: median of the latest run of taps", () => {
@@ -675,7 +745,8 @@ test("tips are spaced 30 seconds apart unless one leads into the next", () => {
 
 test("every name a module imports from another app file is exported there", async () => {
   const fs = await import("node:fs");
-  const files = fs.readdirSync(new URL("..", import.meta.url)).filter(f => f.endsWith(".js") && f !== "sw.js" && f !== "eslint.config.js");
+  const files = [...fs.readdirSync(new URL("..", import.meta.url)).filter(f => f.endsWith(".js") && f !== "sw.js" && f !== "eslint.config.js"),
+    ...fs.readdirSync(new URL("../core", import.meta.url)).filter(f => f.endsWith(".js")).map(f => "core/" + f)];
   const src = Object.fromEntries(files.map(f => [f, fs.readFileSync(new URL("../" + f, import.meta.url), "utf8")]));
   const exported = f => {
     const s = src[f], out = new Set();
@@ -684,9 +755,13 @@ test("every name a module imports from another app file is exported there", asyn
     return out;
   };
   const missing = [];
-  for (const [f, s] of Object.entries(src)) for (const m of s.matchAll(/import\s*\{([^}]*)\}\s*from\s*"\.\/([^"?]+)"/g)) {
-    const have = exported(m[2]);
-    for (const n of m[1].split(",").map(x => x.trim().split(/\s+as\s+/)[0]).filter(Boolean)) if (!have.has(n)) missing.push(`${f} imports ${n} from ${m[2]}`);
+  /* a path relative to the importing file: "./x.js" from core/ is core/x.js, "../core.js" is core.js */
+  const resolve = (from, p) => { const parts = [...from.split("/").slice(0, -1), ...p.split("/")], out = []; for (const x of parts) x === ".." ? out.pop() : x !== "." && out.push(x); return out.join("/"); };
+  for (const [f, s] of Object.entries(src)) for (const m of s.matchAll(/import\s*\{([^}]*)\}\s*from\s*"(\.\.?\/[^"?]+)"/g)) {
+    const to = resolve(f, m[2]);
+    if (!src[to]) { missing.push(`${f} imports from ${m[2]}, which isn't an app file`); continue; }
+    const have = exported(to);
+    for (const n of m[1].split(",").map(x => x.trim().split(/\s+as\s+/)[0]).filter(Boolean)) if (!have.has(n)) missing.push(`${f} imports ${n} from ${to}`);
   }
   assert.deepEqual(missing, []);
 });
@@ -848,6 +923,10 @@ test("sketch: a nudge where another chord clearly holds the melody better", () =
 test("backups keep a song's album art only as an https link", () => {
   assert.equal(C.cleanSong({ id: "a", body: "G", art: "https://is1-ssl.mzstatic.com/x/600x600bb.jpg" }).art, "https://is1-ssl.mzstatic.com/x/600x600bb.jpg");
   assert.equal(C.cleanSong({ id: "a", body: "G", art: "javascript:alert(1)" }).art, undefined);
+  assert.equal(C.cleanSong({ id: "a", body: "G", backing: "band" }).backing, "band");
+  assert.equal(C.cleanSong({ id: "a", body: "G", playAs: "sheet" }).playAs, undefined, "4.4.0: Gig or Sheet per song is gone");
+  assert.equal(C.cleanSong({ id: "a", body: "G", backing: "music" }).backing, undefined);
+  assert.deepEqual(C.cleanSong({ id: "a", body: "G", syncs: [[0.5, 100], [0.2, 90], [0.3, 40], "x", [2, 5]] }).syncs, [[0.2, 90], [0.5, 100]]);
 });
 
 // ---------- Add the words ----------
@@ -885,22 +964,6 @@ test("gig day countdown: same day and before the start only", () => {
   assert.equal(C.gigCountdown(new Date(2026, 9, 15, 20, 0, 0).toISOString(), now), "", "tomorrow: no countdown");
   assert.equal(C.gigCountdown(new Date(2026, 9, 14, 16, 0, 0).toISOString(), now), "", "already started");
   assert.equal(C.gigCountdown("", now), "");
-});
-
-test("arc sweep: fine near the start, reaches the ends exactly, no jumps", () => {
-  const o = { from: 190, a0: 187, a1: 264, y0: 0, max: 4000, fine: 11 };
-  assert.equal(C.arcMap({ ...o, a: 264 }), 4000, "bottom to top of the arc: the end of the song");
-  assert.equal(C.arcMap({ ...o, a: 270 }), 4000, "past the end stays at the end");
-  const small = C.arcMap({ ...o, a: 192 });
-  assert.ok(small > 15 && small < 30, `a 2 degree nudge moves about two lines (${small})`);
-  let prev = 0, biggest = 0;
-  for (let a = 190; a <= 264; a += 0.5) { const y = C.arcMap({ ...o, a }); biggest = Math.max(biggest, y - prev); assert.ok(y >= prev, "always forward"); prev = y; }
-  assert.ok(biggest < 4000 / 20, `no single half-degree step moves more than 5% of the song (${biggest})`);
-  assert.equal(C.arcMap({ ...o, from: 260, y0: 4000, a: 187 }), 0, "top to bottom: the start");
-  const late = C.arcMap({ ...o, from: 262, y0: 1000, a: 264 });
-  assert.ok(late - 1000 < 600, `starting near the top end doesn't squeeze the song into a few degrees (${late})`);
-  assert.equal(C.arcMap({ ...o, a: 200, whole: false }), 110, "one screen: steady fine pace");
-  assert.equal(C.arcMap({ ...o, y0: 4000, a: 230 }), 4000, "already at the end");
 });
 
 // ---- Get the song ----
@@ -1056,11 +1119,13 @@ test("translations never travel: not in a shared song, not in a backup", () => {
   assert.equal(JSON.parse(C.Tabs.export({ songs: [song], sets: [] })).songs[0].de, undefined);
   assert.ok(song.de, "the song itself keeps it");
 });
-test("the AI rules hold: charts never carry lyrics; German only translates the lines it's given", () => {
+test("the AI rules hold: the AI reads lyrics but never writes them; charts carry none; German only translates the lines it's given", () => {
   const find = read("findai.js"), de = read("german.js");
   assert.match(find, /Never include lyrics or any words from the song/);
+  assert.match(find, /Refer to the words only by line number and word number\. Don't write any of the lyrics in your reply\./, "4.41.0: placing answers with positions");
   assert.match(de, /Translate only the lines given\. Never add, complete or look up lyrics\./);
-  assert.match(read("README.md"), /Translation exception \(German practice\)/);
+  assert.match(read("README.md"), /Lyrics and the AI \(4\.41\.0\)/);
+  assert.match(read("README.md"), /Translation exception \(language practice\)/);
 });
 test("deSpans: Common is a small step up from Basic: two more words a line at most, nouns first", () => {
   const sw = [
@@ -1153,6 +1218,8 @@ test("profile: the journal is worked out once from songs already played, then co
   assert.equal(q.rhythm.top, "Saturday evenings");
   C.journalTime(data, 125, now);
   assert.ok(Math.abs(C.profileOf(data, now).hours * 3600 - (10 * 180 + 210 + 125)) < 1e-6, "time played is added");
+  C.journalPractice(data, 600, now);
+  assert.equal(C.profileOf(data, now).practiceSecs, 600, "practice time is told apart (3.24.2)");
 });
 
 test("profile: tuner sessions show which string drifts; a journal from a backup is repaired", () => {
@@ -1209,82 +1276,18 @@ test("drum beats: Auto goes by the song, compound and odd time keep their own, s
   assert.equal(C.drumHits("ballad", 1, 4, 0.667).every(h => h.at === 0), true, "the ballad has no off-beats to swing");
 });
 
-test("bass line: notes follow the chord, the capo and slash chords; styles follow the drum beat", () => {
-  const cb = C.chordBass;
-  assert.deepEqual(cb("G"), { root: 7, bass: 7, third: 4, fifth: 7, sixth: 9 });
-  assert.deepEqual(cb("Am7"), { root: 9, bass: 9, third: 3, fifth: 7, sixth: 10 });
-  assert.equal(cb("G/B").bass, 11); assert.equal(cb("G/B").root, 7);
-  assert.equal(cb("Gsus4").third, null); assert.equal(cb("E5").third, null);
-  assert.equal(cb("Bdim").fifth, 6); assert.equal(cb("Caug").fifth, 8);
-  assert.equal(cb("D7").sixth, 10); assert.equal(cb("Dmaj7").sixth, 9);
-  assert.equal(cb("C", 2).root, 2, "a capo moves the shape up to the sound");
-  assert.equal(cb("C", -1).root, 11);
-  assert.equal(cb("not a chord"), null);
-  const capo = { body: "Capo 2\n\n[Verse]\nG D Em C" };
-  assert.equal(C.soundOffset(capo), 2);
-  assert.equal(C.soundOffset({ ...capo, capoOff: true }), 0, "capo taken off: the chords are already the sound");
-  assert.equal(C.soundOffset({ ...capo, easier: { on: true, capo: 3 } }), 5);
-  assert.equal(C.soundOffset({ body: "G D" }), 0);
-  assert.equal(C.bassStyle("auto", "ballad"), "root"); assert.equal(C.bassStyle("auto", "half"), "root");
-  assert.equal(C.bassStyle("auto", "rock"), "pulse"); assert.equal(C.bassStyle("auto", "four"), "pulse");
-  assert.equal(C.bassStyle("auto", "six8", 6), "fifth"); assert.equal(C.bassStyle("auto", "waltz", 3), "fifth");
-  assert.equal(C.bassStyle("auto", "rock", 4, "full"), "walk");
-  assert.equal(C.bassStyle("walk", "waltz", 3), "fifth", "walking needs four beats");
-  assert.equal(C.bassStyle("pulse", "ballad"), "pulse", "a pick wins");
-  const G = cb("G"), Cc = cb("C"), Am = cb("Am");
-  const m = (st, ch, nx, b, beats = 4) => C.bassHits(st, ch, nx, b, beats).map(h => h.m);
-  assert.deepEqual(m("root", G, Cc, 0), [43]); assert.deepEqual(m("root", G, Cc, 1), []);
-  assert.deepEqual(m("root", G, Cc, 2), [43], "a lighter root on three");
-  assert.deepEqual(m("pulse", G, Cc, 0), [43, 43]); assert.equal(C.bassHits("pulse", G, Cc, 1, 4, 0.58)[1].at, 0.58);
-  assert.deepEqual(m("fifth", G, Cc, 0), [43]); assert.deepEqual(m("fifth", G, Cc, 2), [50]); assert.deepEqual(m("fifth", G, Cc, 1), []);
-  assert.deepEqual([0, 1, 2].map(b => m("fifth", G, Cc, b, 3)[0]), [43, 50, 50], "waltz: root, fifth, fifth");
-  assert.deepEqual([0, 3].map(b => m("fifth", G, Cc, b, 6)[0]), [43, 50], "6/8: root, then fifth");
-  assert.deepEqual([0, 1, 2].map(b => m("walk", G, Cc, b)[0]), [43, 47, 50], "walking: root, third, fifth");
-  assert.equal(m("walk", Am, G, 1)[0], 48, "a minor chord walks up a minor third");
-  assert.equal(m("walk", G, Cc, 3)[0], 49, "approaches C by a half step, from the nearer side");
-  assert.equal(m("walk", G, G, 3)[0], 52, "same chord next: the sixth");
-  assert.equal(m("walk", G, null, 3)[0], 52, "no next chord: the sixth");
-  assert.equal(C.bassHits("root", null, null, 0).length, 0);
-  assert.equal(m("root", cb("G/B"), null, 0)[0], 47, "a slash chord plays its named bass note");
-  for (const st of ["root", "fifth", "pulse", "walk"]) for (const ch of ["C", "F#m", "Bb", "E/G#", "A7", "Dsus2"]) for (let b = 0; b < 4; b++)
-    for (const h of C.bassHits(st, cb(ch), cb("G"), b, 4)) assert.ok(h.m >= 38 && h.m <= 57, `${st} ${ch} ${h.m} stays in the bass range`);
-});
-
-test("bass line: it moves on by itself on chord-only rows and follows the page over lyrics", () => {
-  /* two chord rows of four chords, then two lyric rows of two chords */
-  const rows = [
-    { lo: 0, hi: 3, kind: "bar", r0: 0, r1: 30 }, { lo: 4, hi: 7, kind: "bar", r0: 40, r1: 70 },
-    { lo: 8, hi: 9, kind: "line", r0: 100, r1: 130 }, { lo: 10, hi: 11, kind: "line", r0: 140, r1: 170 }
-  ];
-  const W = C.bassWhere;
-  assert.equal(W(null, rows, 10, true), 0, "starts on the first chord of the row at the reading line");
-  assert.equal(W(0, rows, 10, true), 1, "a bar later, the next chord");
-  assert.equal(W(1, rows, 12, false), 1, "no change between bars");
-  assert.equal(W(3, rows, 10, true), 4, "it runs a little ahead of the page without being pulled back");
-  assert.equal(W(2, rows, 50, true), 3, "and a little behind");
-  assert.equal(W(9, rows, 5, true), 0, "more than a row ahead of the page: back to its row");
-  assert.equal(W(11, rows, 45, true), 4, "after a scroll back");
-  assert.equal(W(3, [rows[0]], 10, true), 3, "the last chord of the song holds");
-  assert.equal(W(5, rows, 100, false), 8, "over lyrics: the first chord while the row begins");
-  assert.equal(W(8, rows, 120, false), 9, "the second chord once the page is halfway through the row");
-  assert.equal(W(9, rows, 140, false), 10, "and the next row's first");
-  assert.equal(W(9, rows, 169, false), 11);
-  assert.equal(W(0, [], 10, true), null);
-  assert.equal(W(null, rows, -50, true), 0, "before the first row: the first chord");
-});
-
 test("song groove: cleaned, resolved against Settings, and said in words", () => {
-  assert.deepEqual(C.cleanGroove({ beat: "half", swing: "light", bass: "walk", src: "ai" }), { src: "ai", beat: "half", swing: "light", bass: "walk" });
+  assert.deepEqual(C.cleanGroove({ beat: "half", swing: "light", bass: "walk", riff: "1.......5.......", src: "ai" }), { src: "ai", beat: "half", swing: "light" }, "4.42.0: a stored bass or riff is dropped");
   assert.deepEqual(C.cleanGroove({ beat: "polka", swing: "full", bass: 3 }), { src: "you", swing: "full" }, "unknown parts are dropped, and src defaults to you");
   assert.deepEqual(C.cleanGroove({ beat: "rock" }, "ai"), { src: "ai", beat: "rock" });
   assert.equal(C.cleanGroove(null), null); assert.equal(C.cleanGroove([1]), null);
   assert.deepEqual(C.cleanGroove({ src: "you" }), { src: "you" }, "a groove with no parts means: keep the defaults");
-  const s = { metroBeat: "four", metroSwing: "light", bassStyle: "root" };
-  assert.deepEqual(C.grooveOf({}, s), { beat: "four", swing: "light", bass: "root", riff: "" }, "no groove: Settings");
-  assert.deepEqual(C.grooveOf({ groove: { beat: "half", bass: "walk", src: "ai" } }, s), { beat: "half", swing: "light", bass: "walk", riff: "" }, "the song's parts win, the rest come from Settings");
+  const s = { metroBeat: "four", metroSwing: "light" };
+  assert.deepEqual(C.grooveOf({}, s), { beat: "four", swing: "light" }, "no groove: Settings");
+  assert.deepEqual(C.grooveOf({ groove: { beat: "half", src: "ai" } }, s), { beat: "half", swing: "light" }, "the song's parts win, the rest come from Settings");
   assert.deepEqual(C.grooveOf({ groove: { swing: "straight", src: "you" } }, s).swing, "straight", "straight on a song beats a swung Setting");
-  assert.deepEqual(C.grooveOf({}, {}), { beat: "auto", swing: "straight", bass: "auto", riff: "" });
-  assert.equal(C.grooveText({ beat: "half", swing: "light", bass: "walk" }), "Half time, light swing, walking bass");
+  assert.deepEqual(C.grooveOf({}, {}), { beat: "auto", swing: "straight" });
+  assert.equal(C.grooveText({ beat: "half", swing: "light" }), "Half time, light swing");
   assert.equal(C.grooveText({ beat: "four", swing: "straight" }), "Four on the floor");
   assert.equal(C.grooveText({ src: "you" }), "the defaults");
   const song = C.cleanSong({ id: "g", body: "G", groove: { beat: "ballad", junk: 1 } });
@@ -1292,38 +1295,8 @@ test("song groove: cleaned, resolved against Settings, and said in words", () =>
   assert.equal(C.cleanSong({ id: "g", body: "G", groove: "shuffle" }).groove, undefined, "a groove of the wrong type is dropped");
 });
 
-test("bass riff: a bar in chord degrees plays on any chord, with swing, and is checked", () => {
-  const R = "1.....5.8.3.7...";
-  assert.equal(C.validRiff(R), true);
-  for (const bad of ["", "1.....5.8.3.7..", "1.....5.8.3.7....", "................", "1.....5.8.3.7..x", null, 5]) assert.equal(C.validRiff(bad), false, `${bad} is not a riff`);
-  assert.deepEqual(C.cleanGroove({ bass: "riff", riff: R }), { src: "you", bass: "riff", riff: R });
-  assert.deepEqual(C.cleanGroove({ bass: "riff" }), { src: "you" }, "the riff style needs a riff");
-  assert.deepEqual(C.cleanGroove({ bass: "walk", riff: "nope" }), { src: "you", bass: "walk" });
-  assert.deepEqual(C.cleanGroove({ bass: "pulse", riff: R }), { src: "you", bass: "pulse", riff: R }, "a riff is kept when another style is picked");
-  assert.equal(C.grooveOf({ groove: { bass: "riff", riff: R } }, {}).riff, R);
-  assert.equal(C.grooveText({ beat: "rock", bass: "riff" }), "Rock, a bass riff");
-  assert.equal(C.bassStyle("riff", "rock", 4, "straight", R), "riff");
-  assert.equal(C.bassStyle("riff", "rock", 4, "straight", ""), "pulse", "no riff: a pulse");
-  assert.equal(C.bassStyle("riff", "waltz", 3, "straight", R), "fifth", "a riff is for four beats");
-  const G = C.chordBass("G"), at = (b, sw) => C.bassHits("riff", G, null, b, 4, sw, R);
-  assert.deepEqual(at(0).map(h => [h.m, h.at]), [[43, 0]]);
-  assert.equal(at(0)[0].len, 1.35, "a note rings until the next one");
-  assert.deepEqual(at(1).map(h => [h.m, h.at]), [[50, 0.5]], "the fifth on the off-beat");
-  assert.deepEqual(at(2).map(h => [h.m, h.at]), [[55, 0], [47, 0.5]], "an octave, then the third");
-  assert.deepEqual(at(3).map(h => [h.m, h.at]), [[53, 0]], "the flat seventh");
-  assert.equal(at(3)[0].len, 0.9, "the last note rings to the end of the bar");
-  assert.equal(C.bassHits("riff", G, null, 1, 4, 0.667, R)[0].at.toFixed(3), "0.667", "swing moves the off-beat eighth");
-  assert.equal(C.bassHits("riff", G, null, 0, 4, 0.5, "1" + "1" + ".".repeat(14))[1].at, 0.25, "sixteenths straight");
-  assert.equal(C.bassHits("riff", G, null, 0, 4, 0.667, "1" + "1" + ".".repeat(14))[1].at.toFixed(2), "0.33", "and swung");
-  assert.deepEqual(C.bassHits("riff", C.chordBass("Am"), null, 2, 4, 0.5, R).map(h => h.m), [57, 48], "the same riff on Am: the minor third, the root up an octave");
-  assert.deepEqual(C.bassHits("riff", G, null, 0, 3, 0.5, R).map(h => h.m), [43], "three beats: not a riff (bassStyle falls back first); the root plays");
-  for (const ch of ["C", "F#m", "Bb", "E/G#", "A7", "Dsus2"]) for (let b = 0; b < 4; b++)
-    for (const h of C.bassHits("riff", C.chordBass(ch), null, b, 4, 0.5, R)) assert.ok(h.m >= 38 && h.m <= 61, `${ch} ${h.m} stays in range`);
-});
-
 // ---------- Plays that outlive a song, credited plays, the Play map ----------
 const dayKey = t => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
-
 test("Plays are kept when a song leaves Recently deleted, and nothing else about it", () => {
   const today = dayKey(Date.now());
   const song = { id: "s", title: "Secret", body: "A D", playLog: { total: 3, last: Date.now(), days: { [today]: 2 } } };
@@ -1405,24 +1378,1390 @@ test("A practice spot is kept to about a kilometre", () => {
   assert.deepEqual(C.coarseSpot(40.71278, -74.00594), { lat: 40.71, lon: -74.01 });
   assert.equal(C.coarseSpot("x", 3), null);
   assert.equal(C.coarseSpot(91, 0), null);
-  assert.equal(C.spotLabel({ lat: 40.71, lon: -74.01 }), "40.71° N, 74.01° W");
-  assert.equal(C.spotLabel(null), "");
 });
 
 test("lifetimePlays adds up the journal's months", () => {
   assert.equal(C.lifetimePlays({ songs: [], journal: { v: 1, months: { "2026-09": { plays: 3 }, "2026-10": { plays: 4 } } } }) >= 0, true);
 });
 
-test("The territory sits on a real map: hexagon spacing in metres, mercator pixels, a zoom that fits", () => {
-  const spot = { lat: 40.71, lon: -74.01 };
-  assert.deepEqual(C.hexCentre(spot, [0, 0]), spot);
-  const e = C.hexCentre(spot, [1, 0]);
-  assert.equal(Math.abs(e.lat - spot.lat) < 1e-9, true, "a neighbour to the east is level");
-  const m = (e.lon - spot.lon) * 111320 * Math.cos(spot.lat * Math.PI / 180);
-  assert.ok(Math.abs(m - 250 * Math.sqrt(3)) < 0.5);
-  assert.ok(C.hexCentre(spot, [0, 1]).lat < spot.lat, "rows go south");
-  const [x, y] = C.mercator(0, 0, 1);
-  assert.deepEqual([x, y], [256, 256]);
-  assert.ok(C.fitZoom(40.71, 1, 340, 340) > C.fitZoom(40.71, 91, 340, 340), "a bigger territory zooms out");
-  for (const n of [0, 1, 7, 91, 500]) { const z = C.fitZoom(40.71, n, 340, 340); assert.ok(z >= 9 && z <= 16); }
+test("Venues name the rings, and the outline leaves out shared edges", () => {
+  assert.equal(C.venueOf(0).name, "Garage");
+  assert.deepEqual([4, 16, 36].map(p => C.venueOf(p).name), ["Open mic", "Coffeehouse", "Club"]);
+  assert.equal(C.venueOf(15).next, "Coffeehouse");
+  assert.equal(C.venueOf(15).toNext, 1);
+  assert.match(C.venueName(9), /World tour/);
+  assert.equal(C.cellsOutline(C.hexSpiral(1)).length, 6);
+  assert.equal(C.cellsOutline(C.hexSpiral(7)).length, 18, "a ring of six around one: 18 outer edges");
+  assert.equal(C.cellsOutline(C.hexSpiral(19)).length, 30);
+});
+
+test("Your scene: density from places, guitarists, the local bar and your percentile", () => {
+  const places = [[40, -74, 1000000]];
+  const city = C.densityAt(40, -74, places), edge = C.densityAt(40.3, -74, places), far = C.densityAt(45, -74, places);
+  assert.ok(city > edge && edge > far, "denser near the centre");
+  assert.equal(Math.round(far), 15, "a thin floor far from anywhere");
+  assert.ok(C.localBar(500) > C.localBar(5), "busier places take more practice to hold");
+  assert.ok(C.localBar(0) > 5 && C.localBar(10000) < 40);
+  assert.ok(Math.abs(C.zOf(0.5)) < 1e-6 && Math.abs(C.zOf(0.975) - 1.96) < 0.01);
+  assert.ok(Math.abs(C.percentileOf(10) - 0.5) < 0.01, "the median player is in the middle");
+  assert.ok(C.percentileOf(30) > 0.85);
+});
+
+test("Rivals are the same for the same place and day, have habits, and grow turf like yours", () => {
+  const now = Date.parse("2026-10-18T20:00:00Z");
+  const a = C.simulateRivals({ seed: C.seedOf("40.71,-74.01"), guitarists: 300, now });
+  const b = C.simulateRivals({ seed: C.seedOf("40.71,-74.01"), guitarists: 300, now });
+  assert.deepEqual(a, b);
+  assert.ok(a.length >= 4 && a.length <= 12);
+  assert.equal(new Set(a.map(r => r.name)).size, a.length, "names are unique");
+  const lapsed = a.find(r => r.habit === "lapsed");
+  assert.ok(lapsed && lapsed.avg7 === 0, "a lapsed player has gone quiet this week");
+  assert.ok(a.some(r => r.habit === "daily" && r.avg7 > 10));
+  for (const r of a) assert.equal(r.cells, C.territory(r.plays).cells);
+  const later = C.simulateRivals({ seed: C.seedOf("40.71,-74.01"), guitarists: 300, now: now + 14 * 864e5 });
+  assert.ok(later.find(r => r.habit === "daily").plays > a.find(r => r.habit === "daily").plays, "they keep playing");
+});
+
+test("Who holds what, and losing an edge after 7 days below the pressure", () => {
+  const user = C.hexSpiral(7);
+  const rival = { id: "r0", home: [2, 0], cells: 7, avg7: 30 };
+  const { owner, turf } = C.sceneMap(user, [rival]);
+  assert.equal(owner.get("0,0"), "you");
+  assert.ok(turf.r0.every(([q, r]) => owner.get(q + "," + r) === "r0"));
+  assert.ok(turf.r0.length < 7, "the rival loses the cells you hold");
+  const p = C.edgePressure([1, 0], [rival], turf, () => 10);
+  assert.equal(p.by, "r0"); assert.equal(p.bar, 30);
+  const data = { songs: [], settings: {}, journal: { v: 1, daysFrom: "2026-09-01", days: {} } };
+  let t;
+  for (let d = 0; d < 7; d++) t = C.tourDay(data, 30, 7, Date.parse("2026-10-01T12:00:00Z") + d * 864e5);
+  assert.equal(t.lost, 1, "7 days below: the edge is lost");
+  assert.equal(t.below, 0);
+  for (let d = 7; d < 70; d++) t = C.tourDay(data, 30, 7, Date.parse("2026-10-01T12:00:00Z") + d * 864e5);
+  assert.equal(t.lost, 6, "never the home cell");
+  assert.deepEqual(C.cleanTour({ lost: "2", below: 99, checked: "x" }), { lost: 2, below: 7, checked: "" });
+});
+
+test("Practice time is kept per day for the daily average", () => {
+  const data = { songs: [], settings: {} }, now = Date.now();
+  C.journalTime(data, 1200, now);
+  assert.equal(C.userAvg7(data, now), 2.9, "20 minutes in a week is about 2.9 a day");
+});
+
+test("No edge is lost in the first week of daily minutes", () => {
+  const data = { songs: [], settings: {}, journal: { v: 1, daysFrom: "2026-10-01", days: {} } };
+  let t; for (let d = 0; d < 6; d++) t = C.tourDay(data, 30, 7, Date.parse("2026-10-01T12:00:00Z") + d * 864e5);
+  assert.equal(t.lost, 0); assert.equal(t.below, 0);
+});
+
+test("Takeover: plays to light a count of hexagons, and the nearest rival hexagon in reach", () => {
+  assert.equal(C.playsForCells(0), 0);
+  for (const n of [1, 2, 7, 8, 19, 25]) { const p = C.playsForCells(n); assert.ok(C.territory(p).cells >= n); assert.ok(p === 1 || C.territory(p - 1).cells < n); }
+  const owner = new Map([["0,0", "you"], ["1,0", "r1"]]);
+  const plan = C.takeoverPlan({ plays: 1, held: 1, lost: 0, owner, rivals: [{ id: "r1", name: "A B" }] });
+  assert.deepEqual(plan.cell, [1, 0]);
+  assert.equal(C.territory(1 + plan.plays).cells >= plan.index + 1, true);
+  assert.equal(C.takeoverPlan({ plays: 1, held: 1, owner: new Map(), rivals: [] }), null);
+});
+
+test("Daily average: a day counts the larger of recorded time and the songs played through that day", () => {
+  /* local days, as the app keeps them (a UTC day was wrong every evening in a western time zone) */
+  const day = k => { const d = new Date(Date.now() - k * 864e5); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  const data = { songs: [{ id: "a", title: "A", body: "[V]\nG", duration: 180, playLog: { total: 14, last: Date.now(), days: { [day(0)]: 7 } } }], sets: [], trash: [], settings: {} };
+  assert.equal(C.userAvg7(data), 3); /* 7 plays x 3 min over 7 days */
+  C.journalTime(data, 1800, Date.now()); /* 30 min recorded: more than the plays suggest */
+  assert.equal(C.userAvg7(data), 4.3);
+});
+
+test("The neck: lessons unlock in order, a lesson done is kept clean, and chords you already play count as known", () => {
+  const data = { songs: [], sets: [], trash: [], settings: {} };
+  let sk = C.skillState(data);
+  assert.equal(sk.next.id, "c:G"); assert.equal(sk.today, false);
+  assert.equal(sk.levels[0].steps[1].state, "locked");
+  assert.deepEqual(sk.levels.slice(3).map(l => l.soon), [true, true, true]);
+  /* 3.21.0: Scales are their own track, open from the start and taken in order */
+  const scales = sk.levels.find(l => l.id === "scales");
+  assert.deepEqual(scales.steps.map(st => st.state), ["now", "locked", "locked", "locked", "locked"]);
+  assert.equal(scales.steps[0].name, "Am pent");
+  C.skillDone(data, "c:G", 0, Date.now());
+  sk = C.skillState(data);
+  assert.equal(sk.next.id, "c:C"); assert.equal(sk.today, true);
+  data.journal = { chords: { C: { n: 9 }, D: { n: 5 } } };
+  assert.equal(C.skillState(data).next.id, "c:Em", "C and D are known from songs");
+  assert.equal(C.cleanSkills({ done: { "c:G": { n: 2, best: 70, at: 5 }, "bad id": {} }, last: 9 }).done["c:G"].best, 70);
+  assert.equal(Object.keys(C.cleanSkills({ done: { "bad id": {} }, last: 9 }).done).length, 0);
+  assert.equal(C.cleanSkills({ done: {}, last: 0 }), null);
+});
+
+test("The neck: the strings of a chord and grading a switch drill", () => {
+  const t = C.chordTargets("C");
+  assert.equal(t[0].hz, 0, "the low E is left out of C");
+  assert.equal(t[1].note, "C");
+  const spb = 1, due = [10, 14, 18, 22];
+  const g = C.gradeSwitches(due, [10.1, 14.6, 17.95], spb);
+  assert.deepEqual([g.on, g.late, g.miss, g.clean], [2, 1, 1, false]);
+  assert.equal(C.gradeSwitches(due, [10, 14, 18, 22.05], spb).clean, true);
+});
+
+test("What I hear: lines follow the room's noise, so a quiet phone microphone still hears a guitar", () => {
+  /* Graham's iPhone (3.8.0 readings): floor 0.0001, loudest strum 0.041, drums 0.0105 */
+  const s = C.strumDetector();
+  let t = 0, hits = 0;
+  for (let i = 0; i < 100; i++) s(0.0001, t += 0.01); /* a quiet second */
+  assert.ok(s.floor() < 0.0005);
+  for (let k = 0; k < 3; k++) {
+    for (let i = 0; i < 30; i++) if (s(i < 3 ? 0.03 : 0.012, t += 0.01)) hits++; /* a strum that rings */
+    for (let i = 0; i < 40; i++) s(0.0002, t += 0.01);
+  }
+  assert.equal(hits, 3, "one strum each, the ring is not a strum");
+  const d = C.strumDetector();
+  t = 0; let drum = 0;
+  for (let i = 0; i < 300; i++) if (d(i % 50 < 3 ? 0.0105 : 0.0001, t += 0.01, 0.0105)) drum++;
+  assert.equal(drum, 0, "the drums alone are under the line");
+  assert.ok(d(0.04, t += 0.01, 0.0105), "a firm strum over the drums is caught");
+  assert.equal(C.pitchRms(0.0001), 0.0007);
+  assert.equal(C.pitchRms(0.1), 0.01);
+});
+
+test("4.77.1: a string left ringing doesn't push the room's floor (and the strum line) up", () => {
+  /* Graham's readings: a plucked G ringing for two seconds took the floor from 0.015 to 0.131 and doubled the strum line */
+  const s = C.strumDetector();
+  let t = 0;
+  for (let i = 0; i < 100; i++) s(0.00015, t += 0.01);
+  const quiet = s.floor();
+  for (let i = 0; i < 200; i++) s(0.02 * Math.exp(-i / 150), t += 0.01); /* two seconds of a ringing string */
+  assert.ok(s.floor() < quiet * 1.6, `floor ${s.floor()} stays near ${quiet}`);
+  let caught = false;
+  for (let i = 0; i < 5; i++) caught = s(i < 2 ? 0.01 : 0.004, t += 0.01) || caught;
+  assert.ok(caught, "a soft strum right after is still caught");
+});
+
+test("The beat's leak into the mic raises the strum line only just after each tick, and digital silence doesn't sink the floor", () => {
+  const p = C.bleedProfile();
+  for (let i = 0; i < 6; i++) p.add(i * 0.01, true, 0.0174); /* 3.8.2 readings: the beat at 1.74 */
+  assert.ok(p.at(0.02, true) >= 0.0174);
+  assert.equal(p.at(0.3, true), 0, "a quarter second later the line is back down");
+  assert.equal(p.at(0.02, false), 0, "the other beats are kept apart");
+  assert.equal(p.at(0.7, true), 0);
+  const s = C.strumDetector();
+  let t = 0;
+  for (let i = 0; i < 50; i++) s(0.00015, t += 0.01);
+  for (let i = 0; i < 50; i++) s(0, t += 0.01);
+  assert.ok(s.floor() > 0.0001, "pure zeros are skipped");
+  assert.equal(s(0.03, t += 0.01, p.at(0.25, true)), true, "a strum between ticks counts at the room's line");
+});
+
+test("A strum pattern around the 1 is graded by the strum nearest the beat; one string is judged on its own", () => {
+  const spb = 60 / 70, due = [10, 10 + 4 * spb];
+  /* down-down-up-down-up: an up strum just before each 1, the down right on it */
+  const pattern = due.flatMap(d => [d - 0.5 * spb, d + 0.02, d + 0.5 * spb, d + spb]);
+  const g = C.gradeSwitches(due, pattern, spb);
+  assert.deepEqual([g.on, g.early, g.late, g.miss], [2, 0, 0, 0]);
+  const A = C.chordTargets("A"), g3 = A[3]; /* the G string, fret 2: A3 */
+  assert.equal(C.judgeTarget(220, g3), "ring");
+  assert.equal(C.judgeTarget(110, g3), "ring", "an octave low still counts for the string listened for");
+  assert.equal(C.judgeTarget(196, g3), "open");
+  assert.equal(C.judgeTarget(220 * 2 ** (1 / 12), g3), "high");
+  assert.equal(C.judgeTarget(300, g3), null);
+  assert.deepEqual(C.stringRange(g3).map(Math.round), [154, 312]);
+});
+
+test("The security policy lets MusicKit fetch Apple's certificate bundle and stream from Apple's CDNs", async () => {
+  const { readFileSync } = await import("node:fs");
+  const csp = readFileSync(new URL("../index.html", import.meta.url), "utf8").match(/Content-Security-Policy" content="([^"]*)"/)[1];
+  const part = name => csp.split(";").map(x => x.trim()).find(x => x.startsWith(name + " "));
+  for (const h of ["https://*.mzstatic.com", "https://*.cdn-apple.com", "https://*.aaplimg.com"]) assert.ok(part("connect-src").includes(h), "connect-src " + h);
+  assert.ok(part("media-src").includes("https://*.mzstatic.com"));
+  assert.ok(!/unsafe-eval|script-src[^;]*\*[^.]/.test(csp), "scripts stay limited");
+});
+
+test("recording sync: marks bend the line between sheet and recording, both ways", () => {
+  assert.equal(C.syncSeconds([], 0.5, 200), 100);
+  assert.equal(C.syncSeconds([[0.5, 140]], 0.5, 200), 140);
+  assert.equal(C.syncSeconds([[0.5, 140]], 0.25, 200), 70);
+  assert.equal(C.syncWhere([[0.5, 140]], 140, 200), 0.5);
+  assert.equal(C.syncWhere([[0.5, 140]], 170, 200), 0.75);
+  assert.equal(C.syncWhere([], 300, 200), 1);
+  /* a new mark replaces a close one and drops those it would cross */
+  assert.deepEqual(C.addSync([[0.5, 100]], 0.51, 104, 200), [[0.51, 104]]);
+  assert.deepEqual(C.addSync([[0.5, 100], [0.7, 150]], 0.6, 160, 200), [[0.5, 100], [0.6, 160]]);
+  assert.deepEqual(C.addSync([], 0.001, 100, 200), []);
+});
+
+test("line timing: LRC is read, sheet lines pair with timed lines in order, nudges win, and only times are kept", () => {
+  const lrc = C.parseLrc("[00:12.50] Hello there my friend\n[00:16.00] How are you\n[00:20.00]\n[00:24.10] Hello there my friend\n[00:28.00] Goodbye now");
+  assert.deepEqual(lrc.map(x => x[0]), [12.5, 16, 24.1, 28]);
+  assert.deepEqual(C.matchLines([{ i: 1, text: "Hello there, my friend" }, { i: 3, text: "how are you?" }, { i: 5, text: "la la" }, { i: 7, text: "Hello there my friend" }, { i: 9, text: "Goodbye now" }], lrc).map(x => x.slice(0, 2)), [[1, 12.5], [3, 16], [7, 24.1], [9, 28]]);
+  assert.deepEqual(C.mergeSyncs([[0.1, 10], [0.3, 30], [0.5, 50], [0.7, 70]], [[0.31, 40]]), [[0.1, 10], [0.31, 40], [0.5, 50], [0.7, 70]]);
+  assert.deepEqual(C.cleanTimed({ h: "k", id: 3, at: [[1, 10], [0, 12], [4, 9], [6, 20]] }), { h: "k", id: 3, at: [[1, 10], [6, 20]] });
+  assert.equal(C.cleanSong({ id: "a", body: "G", timed: { h: "k", at: "x" } }).timed, undefined);
+  assert.notEqual(C.bodyKey("a b"), C.bodyKey("a c"));
+});
+
+/* Synthetic audio for the preview listener: clicks on the beat and the off-beat, and a scale's notes. */
+function synthBeat(bpm, swing, secs = 20, rate = 22050) {
+  const x = new Float32Array(secs * rate), spb = 60 / bpm;
+  const click = (t, amp) => { const i0 = Math.round(t * rate); for (let i = 0; i < 400 && i0 + i < x.length; i++) x[i0 + i] += amp * Math.exp(-i / 60) * Math.sin(i * 0.9); };
+  for (let t = 0; t < secs - 1; t += spb) { click(t, 1); click(t + spb * swing, 0.6); }
+  return x;
+}
+test("preview listening: tempo, swing and key from audio", () => {
+  for (const bpm of [84, 100, 128]) {
+    const f = C.feelOf(synthBeat(bpm, 0.5), 22050);
+    assert.ok(Math.abs(f.bpm - bpm) <= 2, `${bpm} heard as ${f.bpm}`);
+    assert.equal(f.swing, "straight");
+  }
+  assert.equal(C.feelOf(synthBeat(96, 0.67), 22050).swing, "full");
+  /* E major: E G# B ring most, with the other scale notes */
+  const rate = 22050, x = new Float32Array(rate * 10), notes = [[64, 1], [68, 0.8], [71, 0.9], [66, 0.35], [69, 0.35], [73, 0.3], [75, 0.3], [52, 0.9]];
+  for (let i = 0; i < x.length; i++) for (const [m, a] of notes) x[i] += a * 0.1 * Math.sin(2 * Math.PI * 440 * 2 ** ((m - 69) / 12) * i / rate);
+  assert.equal(C.feelOf(x, rate).key, "E");
+  assert.equal(C.keyGap("D", "E"), 2);
+  assert.equal(C.keyGap("Am", "C"), 0, "relative minor counts as the same key");
+  assert.equal(C.keyGap("A", "F"), -4);
+  assert.equal(C.keyGap("?", "E"), null);
+  assert.deepEqual(C.cleanFeel({ bpm: 96.4, swing: "x", key: "F#m", sure: 2 }), { bpm: 96, key: "F#m", sure: 1 });
+});
+
+test("practice counts on the Tour Map: every 4 minutes is a play", () => {
+  const d = { songs: [], settings: {} };
+  const now = Date.parse("2026-10-19T12:00:00Z");
+  const before = C.lifetimePlays(d);
+  C.journalPractice(d, 239, now);
+  assert.equal(C.lifetimePlays(d), before, "under four minutes: not yet");
+  C.journalPractice(d, 2, now);
+  assert.equal(C.lifetimePlays(d), before + 1);
+  C.journalPractice(d, 480, now);
+  assert.equal(C.lifetimePlays(d), before + 3);
+});
+
+test("scales: notes up and back down, on the right strings and frets", () => {
+  const t = C.scaleTargets("Ampent");
+  assert.equal(t.length, 23, "12 up, 11 back down");
+  assert.deepEqual(t.slice(0, 3).map(x => x.note + x.octave), ["A2", "C3", "D3"]);
+  assert.equal(t[11].note + t[11].octave, "C5");
+  assert.equal(t[22].note + t[22].octave, "A2", "ends where it started");
+  assert.deepEqual(C.scaleTargets("Cmajor").slice(0, 8).map(x => x.note), ["C", "D", "E", "F", "G", "A", "B", "C"]);
+  assert.equal(C.scaleTargets("nope").length, 0);
+  assert.equal(C.cleanSkills({ done: { "x:Ampent": { n: 1, at: 5 } } }).done["x:Ampent"].n, 1, "a scale lesson's id is kept");
+});
+test("practice mode: on for a learning song unless turned off; the old recording speed becomes the practice speed", () => {
+  assert.equal(C.practicing({ status: "learning" }), true);
+  assert.equal(C.practicing({ status: "learning", practice: { on: false } }), false);
+  assert.equal(C.practicing({ practice: { on: true } }), true);
+  assert.equal(C.practiceRate({ practice: { on: true, rate: 0.7 } }), 0.7);
+  assert.equal(C.practiceRate({ practice: { on: false, rate: 0.7 } }), 1, "the speed applies only while practicing");
+  const s = C.cleanSong({ id: "a", body: "G", recRate: 0.8 });
+  assert.deepEqual(s.practice, { rate: 0.8 }); assert.equal(s.recRate, undefined);
+  assert.equal(C.cleanSong({ id: "a", body: "G", practice: { on: "x", rate: 2 } }).practice, undefined);
+});
+
+test("chord timing: words share a line's time by syllables, land on the beat, and use the lyrics' own word times when given", () => {
+  const w = ["Walking", "down", "the", "river", "road"];
+  const t = C.wordTimes(w, 10, 14);
+  assert.equal(t[0], 10);
+  assert.ok(t[1] > t[0] && t[4] < 14 && t[4] > t[3], "in order, inside the line");
+  assert.ok(Math.abs((t[1] - t[0]) - 2 * (t[2] - t[1])) < 0.01, "a two-syllable word takes twice the time");
+  const b = C.wordTimes(w, 10, 14, { bpm: 120 });
+  assert.ok(b.every(x => Math.abs(((x - 10) / 0.5) - Math.round((x - 10) / 0.5)) < 0.01), "on the beat (every half second at 120)");
+  assert.deepEqual(C.wordTimes(["a", "b", "c"], 10, 14, { given: [10.2, 11.7, 13.1] }), [10.2, 11.7, 13.1]);
+  const lrc = C.parseLrc("[00:10.00] <00:10.00>Hello <00:10.80>there <00:11.50>friend\n[00:13.00] Plain line");
+  assert.deepEqual(lrc[0], [10, "Hello there friend", [10, 10.8, 11.5]]);
+  assert.deepEqual(lrc[1], [13, "Plain line"]);
+  assert.deepEqual(C.cleanTimed({ h: "k", at: [[1, 10]], w: { 1: [10, 10.8, 11.5], x: [1, 2], 2: [3, 1] } }).w, { 1: [10, 10.8, 11.5] });
+});
+
+test("drums that fit the song: parts by section, a clean bar, simpler and busier, and the hits on each beat", () => {
+  assert.equal(C.partOf("Pre-Chorus"), "prechorus"); assert.equal(C.partOf("Chorus 2"), "chorus"); assert.equal(C.partOf("Verse"), "verse");
+  assert.equal(C.partOf("Guitar solo"), "solo"); assert.equal(C.partOf("Something"), "verse");
+  const bar = { kick: "X.......x.x.....", snare: "....X..o....X...", hat: "x.x.x.x.x.x.x.xO" };
+  const d = C.cleanDrums({ verse: bar, chorus: { kick: "bad", snare: "....X.......X...", hat: "xxxxxxxxxxxxxxxx" }, level: 1 });
+  assert.deepEqual(d.verse, bar); assert.equal(d.chorus.kick, ".".repeat(16), "a bad row becomes rests"); assert.equal(d.level, 1);
+  assert.equal(C.cleanDrums({ intro: bar }), null, "needs a verse or a chorus");
+  const simple = C.drumLevelBar(bar, -1);
+  assert.equal(simple.hat, "x...x...x...x...", "quarter-note hat");
+  assert.equal(simple.snare, "....X.......X...", "no ghost notes");
+  assert.equal(simple.kick, "x.......x.......");
+  const busy = C.drumLevelBar(bar, 1);
+  assert.equal(busy.hat, "xoxoxoxoxoxoxoxO");
+  assert.equal(busy.snare, "...oX..o...oX...");
+  const h = C.barHits(bar, 0, 0.5);
+  assert.deepEqual(h.filter(x => x.k === "kick").map(x => x.at), [0]);
+  assert.deepEqual(h.filter(x => x.k === "hat").map(x => x.at), [0, 0.5]);
+  assert.equal(C.barHits(bar, 3).find(x => x.k === "open").at, 0.75);
+  assert.equal(C.barHits(bar, 0, 0.667).find(x => x.k === "hat" && x.at > 0).at, 0.667, "swung off-beat");
+});
+
+test("a heard song is matched to the library, ignoring a remaster tag and a missing artist", () => {
+  const songs = [{ id: "a", title: "Wonderwall", artist: "Oasis" }, { id: "b", title: "Hallelujah", artist: "" }];
+  assert.equal(C.heardMatch(songs, { title: "Wonderwall (Remastered)", artist: "Oasis" }).id, "a");
+  assert.equal(C.heardMatch(songs, { title: "Hallelujah", artist: "Jeff Buckley" }).id, "b", "a sheet with no artist still matches");
+  assert.equal(C.heardMatch(songs, { title: "Yellow", artist: "Coldplay" }), null, "not in the library");
+  assert.equal(C.heardMatch(songs, { title: "Wonderwall", artist: "Blur" }), null, "another artist's song");
+});
+
+test("The Road (4.0.0): the neck's ladder as legs of stops, merch boxes every third lesson, a headline show at the end, one current stop", () => {
+  const data = { songs: [], sets: [], trash: [], settings: {} };
+  let r = C.roadPath(data);
+  assert.deepEqual(r.legs.map(l => l.name), ["Open chords", "Chord switches", "Scales"]);
+  const open = r.legs[0].stops;
+  assert.deepEqual(open.map(s => s.kind), ["chord", "chord", "chord", "box", "chord", "chord", "chord", "box", "chord", "headline"]);
+  assert.equal(r.current.id, "c:G");
+  assert.equal(r.legs.flatMap(l => l.stops).filter(s => s.state === "now").length, 1, "only one current stop");
+  assert.equal(r.legs[2].stops[0].state, "open", "Scales are open from the start but not the current stop");
+  assert.deepEqual(r.coming, ["Strumming", "Picking", "Fingerstyle and barre"]);
+  for (const c of ["G", "C", "D"]) C.skillDone(data, "c:" + c);
+  r = C.roadPath(data);
+  assert.equal(r.legs[0].stops[3].state, "done", "the box opens once the three lessons before it are done");
+  assert.equal(r.current.id, "c:Em");
+  assert.equal(C.fansOf(data), 3 * C.FANS.lesson + C.FANS.box, "fans: lessons and the opened box");
+});
+
+test("The fretboard Road (4.82.0): a guitar per leg, fret spaces that narrow to a floor, dots, inlays and the double", () => {
+  assert.equal(C.guitarFor("nope").name, "The beater", "an unknown leg gets the beater");
+  assert.deepEqual(Object.keys(C.GUITARS), ["open", "switch", "scales", "strum", "pick", "finger", "encore"]);
+  assert.ok(Object.values(C.GUITARS).every(g => g.name && g.finish && g.board && g.inlay), "every guitar is fully described");
+  const data = { songs: [], sets: [], trash: [], settings: {} };
+  const open = C.roadPath(data).legs[0].stops, lay = C.fretLayout(open);
+  assert.equal(lay.spaces.length, open.length, "one space per stop");
+  const hs = lay.spaces.map(x => x.h);
+  assert.deepEqual(hs.slice(0, 6), [66, 62, 59, 56, 53, 50]);
+  assert.ok(hs.slice(6).every(h => h === C.FRET_MIN), "spacing floors at 48");
+  assert.equal(lay.neck, hs.reduce((a, b) => a + b, 0));
+  assert.equal(lay.height, C.FRET_HEAD + lay.neck + C.FRET_BODY, "heights add up");
+  assert.equal(lay.spaces[0].y, 33, "y is the centre of the space");
+  const dots = lay.spaces.filter(x => x.kind === "dot").map(x => x.string);
+  assert.deepEqual(dots.slice(0, 4), [1, 4, 1, 4], "dots alternate strings");
+  assert.deepEqual(lay.spaces.filter(x => x.kind === "inlay").map(x => x.stop.kind), ["box", "box"], "a box is a single inlay");
+  assert.equal(lay.spaces.at(-1).kind, "double", "the headline is the double inlay, and last");
+  assert.equal(lay.spaces.filter(x => x.kind === "double").length, 1);
+  for (const c of ["G", "C", "D", "Em", "Am", "E", "A"]) C.skillDone(data, "c:" + c);
+  assert.equal(C.guitarNew(data), null, "no guitar to announce until the leg is headlined");
+  C.skillDone(data, "k:open");
+  const gn = C.guitarNew(data);
+  assert.equal(gn?.leg, "open", "the headlined leg earns the next guitar");
+  assert.equal(gn.guitar.name, C.guitarFor("switch").name);
+});
+
+test("The fretboard Road (4.82.0): a new guitar is announced once per headlined leg, and kept through a backup", () => {
+  const data = { songs: [], sets: [], trash: [], settings: {} };
+  assert.equal(C.guitarNew(data), null);
+  assert.deepEqual(C.guitarsEarned(data), []);
+  assert.equal(C.cleanGuitars(null), null);
+  assert.deepEqual(C.cleanGuitars({ seen: ["open", "open", "x y", 7, "switch"] }), { seen: ["open", "switch"] }, "ids are cleaned and de-duplicated");
+  data.guitars = { seen: ["open"] };
+  const back = JSON.parse(JSON.stringify(data));
+  assert.deepEqual(C.cleanGuitars(back.guitars), { seen: ["open"] });
+});
+
+test("Playable songs (4.0.0): songs that use only chords you know, and how many more the next chord opens", () => {
+  const data = { songs: [{ id: "a", title: "A", body: "G   C\nwords\nG   D\nmore" }, { id: "b", title: "B", body: "[G]one [Em]two" }, { id: "t", title: "T", format: "tab", body: "e|--0--|" }], sets: [], trash: [], settings: {} };
+  assert.deepEqual(C.sheetChords(data.songs[0].body), ["G", "C", "D"]);
+  assert.deepEqual(C.sheetChords(data.songs[1].body), ["G", "Em"]);
+  assert.deepEqual(C.playableSongs(data, "G"), { now: 0, of: 2, more: 0 }, "tabs don't count; G alone opens nothing");
+  for (const c of ["G", "C"]) C.skillDone(data, "c:" + c);
+  assert.deepEqual(C.playableSongs(data, "D"), { now: 0, of: 2, more: 1 }, "D opens the first song");
+  data.journal = { chords: { D: { n: 5 }, Em: { n: 6 } } };
+  assert.equal(C.playableSongs(data).now, 2, "chords played in songs five times count as known");
+});
+
+/* a spectrum (dB per bin) with a peak at each frequency and its first overtones, as a guitar chord has */
+const specOf = (hzs, rate = 44100, size = 16384) => {
+  const db = new Float32Array(size / 2).fill(-140);
+  for (const f of hzs) for (const [m, a] of [[1, 0], [2, -8], [3, -14]]) { const i = Math.round(f * m / (rate / size)); db[i] = a; db[i - 1] = a - 6; db[i + 1] = a - 6; }
+  return db;
+};
+const hzsOf = name => C.chordTargets(name).filter(x => x.hz > 0).map(x => x.hz);
+
+test("Chord recognition (4.46.0): a strum of the right chord fits it; another chord does not", () => {
+  const chroma = name => C.chromaOf(specOf(hzsOf(name)), 44100, 16384);
+  assert.equal(C.chromaOf(new Float32Array(8192).fill(-140), 44100, 16384), null, "silence has no notes");
+  for (const name of ["G", "C", "D", "Am", "Em"]) assert.ok(C.strumFit(chroma(name), name) >= C.CHORD_FIT, `${name} fits itself`);
+  assert.ok(C.strumFit(chroma("G"), "F#m") < C.CHORD_FIT, "G is not F#m");
+  assert.ok(C.strumFit(chroma("C"), "F#") < C.CHORD_FIT, "C is not F#");
+  assert.ok(C.strumFit(chroma("Cmaj7"), "C") >= C.CHORD_FIT, "an extended chord is close enough to its plain form");
+  assert.equal(C.strumFit(chroma("G"), "Zz"), null, "no shape, no verdict");
+  assert.equal(C.strumFit(null, "G"), null, "no notes, no verdict");
+});
+
+test("Chord Catch (4.54.0): the targets, the two open chords, two readings in a row, and a ringing chord that can't be caught twice", () => {
+  const sp = name => C.chromaOf(specOf(hzsOf(name)), 44100, 16384);
+  const [G, D, C_, Am] = ["G", "D", "C", "Am"].map(sp);
+  const seq = ["G", "G", "D", "C", "Am", "G"].map(name => ({ name }));
+  const t = C.catchTargets(seq);
+  assert.deepEqual(t.map(x => [x.name, x.first, x.last]), [["G", 0, 1], ["D", 2, 2], ["C", 3, 3], ["Am", 4, 4], ["G", 5, 5]], "a chord repeated in a row is one target");
+  assert.equal(C.targetAt(t, 1), 0); assert.equal(C.targetAt(t, 3), 2); assert.equal(C.targetAt(t, 9), -1);
+  const st = C.catchStart(t);
+  assert.deepEqual(C.catchOpen(st), [0, 1], "the chord you are on and the next");
+  const quick = C.catchStart(C.catchTargets(["D", "G"].map(name => ({ name }))));
+  assert.equal(C.catchHear(quick, D, { strong: 0.75 }), 0, "4.78.1: one clear reading is enough when the show asks for it");
+  const close = C.catchStart(t);
+  assert.equal(C.catchHear(close, G, { strong: 0.75 }), -1, "4.80.2: but not when another chord is near it (G and its relative Em)");
+  assert.equal(C.catchHear(close, G, { strong: 0.75 }), 0, "then two in a row");
+  assert.equal(C.catchHear(st, G), -1, "one reading is not enough");
+  assert.equal(C.catchHear(st, G), 0, "two in a row catch it");
+  assert.ok(st.caught[0]);
+  assert.equal(C.catchHear(st, G), -1, "the same chord still ringing is not caught again"); assert.equal(C.catchHear(st, G), -1);
+  assert.deepEqual(C.catchOpen(st), [1, 2], "4.79.0: G played, so the next two you haven't played: D and C");
+  C.catchAt(st, 2);
+  assert.deepEqual(C.catchOpen(st), [1, 2], "now D and C");
+  assert.equal(C.catchHear(st, Am), -1, "Am is not open"); assert.equal(C.catchHear(st, Am), -1);
+  assert.equal(C.catchHear(st, D), -1); assert.equal(C.catchHear(st, G), -1, "a reading that breaks the pair starts again");
+  assert.equal(C.catchHear(st, D), -1); assert.equal(C.catchHear(st, D), 1, "D caught");
+  /* A to B to A: the second A is caught only after the room stopped sounding like the first */
+  const st2 = C.catchStart(C.catchTargets(["G", "D", "G"].map(name => ({ name }))));
+  C.catchHear(st2, G); assert.equal(C.catchHear(st2, G), 0);
+  C.catchAt(st2, 1); C.catchHear(st2, D); assert.equal(C.catchHear(st2, D), 1);
+  assert.equal(C.catchHear(st2, null), -1, "silence clears the hold");
+  C.catchAt(st2, 2); C.catchHear(st2, G); assert.equal(C.catchHear(st2, G), 2);
+  /* playing the next chord early settles the one you were on as missed; a chord gone by is missed once */
+  const st3 = C.catchStart(C.catchTargets(["G", "D", "C"].map(name => ({ name }))));
+  C.catchHear(st3, D); assert.equal(C.catchHear(st3, D), 1, "D played while G is on is caught");
+  assert.deepEqual(C.catchClose(st3), { missed: [0], got: [] });
+  assert.deepEqual(C.catchClose(st3), { missed: [], got: [] }, "once each");
+  C.catchAt(st3, 2); assert.deepEqual(C.catchClose(st3), { missed: [], got: [] }, "D was caught");
+  C.catchAt(st3, 2);
+  const st4 = C.catchStart(C.catchTargets(["Zz", "G"].map(name => ({ name }))));
+  C.catchHear(st4, G); C.catchAt(st4, 1);
+  assert.deepEqual(C.catchClose(st4), { missed: [], got: [0] }, "a chord with no shape counts when something was heard through it");
+  const st5 = C.catchStart(C.catchTargets(["Zz", "G"].map(name => ({ name })))); C.catchAt(st5, 1);
+  assert.deepEqual(C.catchClose(st5), { missed: [0], got: [] }, "and is missed when nothing was");
+});
+
+test("4.79.0 Chord Catch: play ahead of the song in order, up to four chords past the reading line", () => {
+  const sp = name => C.chromaOf(specOf(hzsOf(name)), 44100, 16384);
+  const ch = Object.fromEntries(["Em", "C", "G", "D"].map(n => [n, sp(n)]));
+  const loop = ["Em", "C", "G", "D", "Em", "C", "G", "D"];
+  const st = C.catchStart(C.catchTargets(loop.map(name => ({ name }))));
+  const play = n => { C.catchHear(st, ch[n]); const r = C.catchHear(st, ch[n]); C.catchHear(st, null); return r; };
+  assert.equal(play("Em"), 0); assert.equal(play("C"), 1); assert.equal(play("G"), 2); assert.equal(play("D"), 3, "the reading line still on Em: four ahead, in order");
+  assert.equal(play("Em"), 4, "the fourth past the reading line");
+  assert.equal(play("C"), -1, "five past is too far");
+  C.catchAt(st, 1);
+  assert.equal(play("C"), 5, "the song moved on, so it opens");
+  const sk = C.catchStart(C.catchTargets(loop.map(name => ({ name }))));
+  C.catchHear(sk, ch.C); assert.equal(C.catchHear(sk, ch.C), 1, "skipping one chord catches the next");
+  assert.deepEqual(C.catchClose(sk), { missed: [0], got: [] }, "and the skipped one is missed");
+});
+
+test("4.80.0 Follow my tempo: the pace moves toward yours, gently, within a quarter of the song's own", () => {
+  assert.equal(C.tempoStep(1, 2.9, 2.9), 1, "on the page's pace, no change");
+  assert.equal(C.tempoStep(1, 2.9, 3.2), 0.97, "about 10% slower: down 3% this change (the most at once)");
+  let k = 1; for (let n = 0; n < 12; n++) k = C.tempoStep(k, 2.9 / k, 3.2); /* the page takes longer as it slows */
+  assert.ok(Math.abs(k - 2.9 / 3.2) < 0.01, `settles on your pace (${k})`);
+  assert.equal(C.tempoStep(1, 2.9, 2.85), 1.0088, "a small gap: half of it");
+  k = 1; for (let n = 0; n < 40; n++) k = C.tempoStep(k, 2.2 / k, 1.6);
+  assert.equal(k, C.FOLLOW.max, "never more than a quarter faster");
+  assert.equal(C.tempoStep(1, 2.9, 6.5), 1, "a gap twice as long is a missed catch, not a tempo");
+  assert.equal(C.tempoStep(1, 0.2, 0.3), 1, "too short to say");
+  assert.equal(C.followAhead(0.8), 0.83, "4.80.1: ahead of the page: a step faster");
+  assert.equal(C.followAhead(1.24), C.FOLLOW.max, "and no faster than a quarter over");
+});
+
+test("4.80.1 Chord Catch: one strum, one catch, so a ringing chord can't catch a later one that shares its notes", () => {
+  const sp = name => C.chromaOf(specOf(hzsOf(name)), 44100, 16384);
+  const [Em, C_, G] = ["Em", "C", "G"].map(sp);
+  const st = C.catchStart(C.catchTargets(["Em", "C", "G", "D", "Em", "C"].map(name => ({ name }))));
+  C.catchHear(st, Em, { on: 1, since: 0.1 }); assert.equal(C.catchHear(st, Em, { on: 1, since: 0.15 }), 0, "Em from its strum");
+  assert.equal(C.catchHear(st, G, { on: 1, since: 0.2 }), -1, "the same strum can't catch G"); assert.equal(C.catchHear(st, G, { on: 1, since: 0.25 }), -1);
+  C.catchHear(st, C_, { on: 2, since: 0.1 }); assert.equal(C.catchHear(st, C_, { on: 2, since: 0.15 }), 1, "a new strum catches C");
+  C.catchHear(st, C_, { on: 3, since: 1.2 }); assert.equal(C.catchHear(st, C_, { on: 3, since: 1.25 }), -1, "long after its strum, a ring is not a catch");
+  assert.equal(C.catchHear(st, Em, { on: 4, since: 0.1 }), -1); assert.equal(C.catchHear(st, Em, { on: 4, since: 0.15 }), -1, "the next Em is not open yet");
+  C.catchHear(st, G, { on: 5, since: 0.1 }); assert.equal(C.catchHear(st, G, { on: 5, since: 0.15 }), 2, "G with its own strum");
+});
+
+test("4.80.2 Chord Catch: a chord is caught only when no other chord of the song fits as well", () => {
+  const sp = name => C.chromaOf(specOf(hzsOf(name)), 44100, 16384);
+  const mix = (a, b, k) => sp(a).map((v, i) => v * (1 - k) + sp(b)[i] * k);
+  const st = C.catchStart(C.catchTargets(["Em", "C", "G", "D"].map(name => ({ name }))));
+  C.catchAt(st, 1); st.caught[0] = true;
+  const near = mix("C", "G", 0.5); /* sounds as much like G as like C */
+  assert.ok(Math.abs(C.strumFit(near, "G") - C.strumFit(near, "C")) < 0.2);
+  const pick = C.strumFit(near, "G") > C.strumFit(near, "C") ? 2 : 1;
+  C.catchHear(st, near); assert.equal(C.catchHear(st, near), pick, "the one that fits best, never the other");
+});
+
+test("4.81.1 a headline show counts with a chords-over-words sheet, not only an [Em] inline one", () => {
+  const body = "[Verse]\nEm          C\nAnother head hangs lowly\nG      D\nChild is slowly taken";
+  const known = Object.fromEntries(["G", "C", "D", "Em", "Am", "E", "A"].map(c => [c, { n: 9 }]));
+  const data = { songs: [{ id: "z", title: "Zombie", body, playLog: { last: Date.now() } }], skills: { done: {} }, journal: { chords: known } };
+  const k = C.skillState(data).levels[0].steps.at(-1);
+  assert.equal(k.song, "z"); assert.equal(k.state, "done");
+});
+
+test("4.82.1 Chord Catch: any chord can be caught next to any other, and is never taken for one that isn't it", () => {
+  /* chords that share notes: one inside another (Am and F inside Fmaj7, C inside Cmaj7 and Cadd9), and the same notes
+     under two names (G and G/B). Before, the bigger chord always tied or won, so the smaller one could never be caught. */
+  const roots = ["C", "D", "E", "F", "G", "A", "Bb"], kinds = ["", "m", "7", "m7", "maj7", "sus2", "sus4", "add9", "6"];
+  const names = roots.flatMap(r => kinds.map(k => r + k)).concat(["G/B", "C/E", "D/F#", "C/B", "Am/G"]).filter(n => C.chordShape(n) && C.chordNotes(n));
+  const sp = Object.fromEntries(names.map(n => [n, C.chromaOf(specOf(hzsOf(n)), 44100, 16384)]));
+  const same = (a, b) => [...C.chordNotes(a)].sort().join() === [...C.chordNotes(b)].sort().join();
+  const heard = (play, due, before) => { const st = C.catchStart(C.catchTargets([before, due].map(name => ({ name })))); st.caught[0] = true; C.catchAt(st, 1); C.catchHear(st, sp[play]); return C.catchHear(st, sp[play]) === 1; };
+  const missed = [], wrong = [];
+  for (const a of names) for (const b of names) if (a !== b) {
+    if (!heard(a, a, b)) missed.push(`${a} after ${b}`);
+    if (!same(a, b) && heard(b, a, b)) wrong.push(`${b} taken for ${a}`);
+  }
+  assert.ok(names.length > 50);
+  assert.deepEqual(missed, [], "every chord can be caught"); assert.deepEqual(wrong, [], "and only by itself");
+  /* the extra note decides it, at CHORD_EXTRA of the sound */
+  const am = sp.Am, fm7 = sp.Fmaj7, mix = k => am.map((v, i) => v * (1 - k) + fm7[i] * k);
+  assert.ok(C.chordLead(am, "Am", "Fmaj7") > 0, "a clean Am is Am"); assert.ok(C.chordLead(fm7, "Fmaj7", "Am") > 0, "a clean Fmaj7 is Fmaj7");
+  assert.equal(C.chordLead(sp.G, "G", "G/B"), null, "G and G/B are one sound");
+});
+
+test("The Gig (Chord Catch): the combo, crowd and bonus fans", () => {
+  const g = C.gigStart();
+  assert.equal(C.gigCrowd(g), 6, "half the crowd before any chord");
+  assert.equal(C.gigPct(g), null);
+  C.catchScore(g, true); C.catchScore(g, false);
+  assert.deepEqual([g.hits, g.misses, g.combo, g.best], [1, 1, 0, 1], "a miss ends the combo and nothing else snaps");
+  for (let i = 0; i < 8; i++) C.catchScore(g, true);
+  assert.equal(g.best, 8); assert.equal(g.combo, 8);
+  assert.equal(C.gigCrowd(g), 11, "9 of the last 10 chords");
+  assert.equal(C.gigPct(g), 90);
+  assert.equal(C.gigFans(g), 9 + 10, "a fan a chord, and 10 for a crowd of 10 or more");
+  assert.equal(C.gigFans(g, true), 38, "an encore doubles it");
+  const data = { songs: [], sets: [], trash: [], settings: {} };
+  assert.deepEqual(C.gigDone(data, "a", g), { fans: 19, tips: 10 + 3 * 11 + 4, pct: 90, request: null }, "4.70.0: tips for the show too");
+  assert.deepEqual(data.gig, { shows: 1, fans: 19, best: { a: 90 } });
+  assert.deepEqual(C.cleanGig({ shows: "2", fans: 5, best: { a: 120, b: 50 } }), { shows: 2, fans: 5, best: { b: 50 } });
+  assert.equal(C.cleanGig({}), null);
+  assert.equal(C.fansOf(data), 19, "bonus fans count toward your fans");
+});
+
+test("Tour quests (4.5.0): the month's tour, tonight's setlist and the request line", () => {
+  const now = new Date(2026, 9, 21, 20, 0).getTime(), day = "2026-10-21";
+  const song = (id, days, body = "[Verse]\nG C\nla") => ({ id, title: id, format: "chords", body, playLog: { total: 0, last: 0, days } });
+  const data = { songs: [song("a", { [day]: 2, "2026-10-02": 9 }), song("b", {}), song("c", {}), song("t", {})], sets: [], trash: [], settings: {}, journal: { days: { [day]: 360 } } };
+  data.songs[3].format = "tab";
+  const st = C.questState(data, now);
+  assert.equal(st.monthName, "October"); assert.equal(st.daysLeft, 10);
+  assert.deepEqual(st.tour, { shows: 11, need: 20, done: false, claimed: false }, "every play this month counts");
+  assert.deepEqual(st.goals.map(g => [g.id, g.have, g.done]), [["two", 2, true], ["crowd", 0, false], ["mins", 5, true]]);
+  const req = st.request.song;
+  assert.ok(["b", "c"].includes(req.id), "a chord song you haven't played this week, never a tab");
+  assert.equal(C.questState(data, now + 3600e3).request.song.id, req.id, "the same one all day");
+  const got = C.questsSettle(data, now);
+  assert.deepEqual(got.map(x => x.fans), [10, 10], "two goals done");
+  assert.deepEqual(C.questsSettle(data, now), [], "credited once");
+  /* a gig of the requested song with a crowd of 12: bonus fans double, the crowd goal and the full setlist */
+  const g = C.gigStart(); for (let i = 0; i < 10; i++) C.catchScore(g, true);
+  const fans = C.gigFans(g), r = C.gigDone(data, req.id, g, false, now);
+  assert.equal(r.fans, fans * 2); assert.equal(r.request, true);
+  assert.equal(C.gigDone(data, req.id, g, false, now).request, null, "once a day");
+  assert.deepEqual(C.questsSettle(data, now).map(x => x.fans), [10, 25], "the crowd goal, then the whole setlist");
+  assert.equal(C.questState(data, now).request.done, true);
+  assert.equal(data.quests.fans, 55 + fans, "20 + 10 + 25 from the setlist, and the doubled bonus");
+  assert.ok(C.fansOf(data, now) >= 55 + fans * 3, "quest fans count toward your fans");
+  /* a new day starts a new setlist */
+  assert.deepEqual(C.questState(data, now + 86400e3).goals.map(x => x.claimed), [false, false, false]);
+  /* 20 shows finish the tour */
+  data.songs[1].playLog.days["2026-10-05"] = 9;
+  assert.equal(C.questsSettle(data, now).find(x => /October Tour/.test(x.label)).fans, 100);
+  const kept = C.cleanQuests(JSON.parse(JSON.stringify(data.quests)));
+  assert.deepEqual(kept, data.quests, "kept through a save");
+  assert.equal(C.cleanQuests({ fans: -4, got: ["x"] }), null);
+});
+
+test("Charts (4.6.0): weekly XP, the chart, promotion and records, rival battles", () => {
+  const mon = new Date(2026, 9, 19, 9).getTime(), wed = mon + 2 * 86400e3;
+  assert.equal(C.weekOf(wed), "2026-10-19"); assert.equal(C.weekOf(new Date(2026, 9, 25, 23).getTime()), "2026-10-19", "Sunday is the same week");
+  const song = { id: "a", title: "A", format: "chords", body: "[Verse]\nG C\nla", playLog: { total: 3, last: 0, days: { "2026-10-20": 3, "2026-10-12": 5 } } };
+  const data = { songs: [song], sets: [], trash: [], settings: {} };
+  C.addXP(data, 7, wed);
+  assert.equal(C.weekXP(data, "2026-10-19"), 37, "10 a play this week, and kept XP");
+  const r1 = C.chartRivals("2026-10-19", 0, 0.5), r2 = C.chartRivals("2026-10-19", 0, 1);
+  assert.equal(r1.length, 9); assert.deepEqual(r1.map(x => x.name), r2.map(x => x.name), "the same players all week");
+  assert.ok(r1.every((x, i) => x.xp <= r2[i].xp), "their XP grows through the week");
+  const st = C.chartState(data, wed);
+  assert.equal(st.name, "Garage"); assert.equal(st.next, "Open mic"); assert.equal(st.rows.length, 10); assert.equal(st.daysLeft, 5);
+  assert.equal(st.you.xp, 37);
+  /* the first look starts the week; the next week settles it */
+  assert.equal(C.chartsSettle(data, wed), null);
+  data.xp.days["2026-10-21"] = 5000;
+  const last = C.chartsSettle(data, wed + 7 * 86400e3);
+  assert.deepEqual([last.rank, last.up, data.charts.tier], [1, true, 1], "first place: up to the Open mic");
+  assert.deepEqual(data.charts.records, [{ tier: 0, week: "2026-10-19", rank: 1 }]);
+  assert.equal(C.chartsSettle(data, wed + 7 * 86400e3), null, "once a week");
+  /* 4.11.0: a quiet week puts you in the bottom 3: back down a tier, the record stays */
+  C.chartsSettle(data, wed + 14 * 86400e3);
+  assert.deepEqual([data.charts.last.xp, data.charts.last.up, data.charts.last.down, data.charts.tier, data.charts.records.length], [0, false, true, 0, 1]);
+  C.chartsSettle(data, wed + 21 * 86400e3);
+  assert.equal(data.charts.tier, 0, "never below the Garage");
+  /* the players behave like people: the shadow stays just ahead of you, weekend players surge late */
+  const fri = C.chartRivals("2026-10-19", 2, 4.5 / 7, 300), sun = C.chartRivals("2026-10-19", 2, 6.9 / 7, 300);
+  const shadow = fri.find(x => x.kind === "shadow");
+  assert.ok(shadow.xp > 300 || shadow.xp === Math.round((90 + 2 * 55) * 1.7 * Math.min(1, 0.25 + 4.5 / 7)), "just ahead of you, unless they can't keep up");
+  const wk = fri.filter(x => x.kind === "weekend");
+  if (wk.length) assert.ok(wk.every(x => sun.find(y => y.id === x.id).xp > x.xp), "weekend players gain over the weekend");
+  assert.deepEqual(new Set([...fri.map(x => x.kind)]).size >= 4, true, "different kinds of players");
+  /* the battle: the player above you, a song of yours, a score to beat */
+  const now = wed + 14 * 86400e3, b = C.startBattle(data, now);
+  assert.equal(b.songId, "a"); assert.ok(b.target >= 55 && b.target <= 95);
+  assert.equal(b.rival, C.chartState(data, now).rival.name);
+  const g = C.gigStart(); for (let i = 0; i < 10; i++) C.catchScore(g, true);
+  const fans0 = C.fansOf(data, now), xp0 = C.weekXP(data, C.weekOf(now));
+  const r = C.gigDone(data, "a", g, false, now);
+  assert.equal(r.battle.result, "won"); assert.equal(r.battle.pct, 100);
+  assert.equal(C.weekXP(data, C.weekOf(now)) - xp0, 10 + 10 + 30, "landed changes, the crowd and the battle");
+  assert.ok(C.fansOf(data, now) - fans0 >= 40, "40 fans for the win");
+  assert.equal(C.gigDone(data, "a", g, false, now).battle, undefined, "one battle a day");
+  const kept = C.cleanCharts(JSON.parse(JSON.stringify(data.charts)));
+  assert.deepEqual(kept, data.charts, "kept through a save");
+  assert.deepEqual(C.cleanXP(JSON.parse(JSON.stringify(data.xp))), data.xp);
+});
+
+test("Your band (4.7.0): friends join as you play; Beat plays the drums in gigs (4.42.0: Bex no longer plays bass)", () => {
+  const data = { songs: [], sets: [], trash: [], settings: {}, journal: { v: 1, months: { "2026-10": { plays: 7 } } } };
+  assert.equal(C.BAND.length, 27, "4.38.0: six more after Bottle-Slide");
+  const st = C.bandState(data);
+  assert.deepEqual(st.joined.map(b => b.id), ["lola", "tilly", "beat"]);
+  assert.deepEqual([st.next.id, st.next.more], ["metro", 3]);
+  assert.deepEqual(C.bandParts(data), { drums: true }, "Beat plays the drums");
+  assert.deepEqual(C.bandMeet(data).map(b => b.id), ["lola", "tilly", "beat"], "new friends, met once");
+  assert.deepEqual(C.bandMeet(data), []);
+  data.journal.months["2026-10"].plays = 15;
+  assert.deepEqual(C.bandMeet(data).map(b => b.id), ["metro", "bex"]);
+  assert.deepEqual(C.bandParts(data), { drums: true }, "Bex joins but plays nothing");
+  data.settings.bandPlays = false;
+  assert.deepEqual(C.bandParts(data), {}, "turned off on the Band tab");
+  assert.deepEqual(C.cleanBand({ seen: ["lola", "nobody"] }), { seen: ["lola"] });
+});
+
+test("Rehearse (4.8.0): the changes you dropped and today's soundcheck", () => {
+  const now = new Date(2026, 9, 21, 20).getTime(), data = { songs: [], sets: [], trash: [], settings: {} };
+  assert.equal(C.soundcheck(data, now).fromMisses, false, "nothing dropped yet: a switch from the neck");
+  C.rehearseMisses(data, { "C>F": 3, "G>Em": 2, "A>D": 1 }, now);
+  C.rehearseMisses(data, { "C>F": 1 }, now - 20 * 86400e3);
+  assert.deepEqual(C.missedChanges(data, now).map(x => [x.id, x.n]), [["s:C-F", 3], ["s:G-Em", 2], ["s:A-D", 1]]);
+  const sc = C.soundcheck(data, now);
+  assert.deepEqual(sc.pairs.map(p => p.id), ["s:C-F", "s:G-Em"], "the two you dropped most");
+  assert.equal(C.soundcheckDone(data, "s:A-D", now), null, "not in today's soundcheck");
+  assert.deepEqual(C.soundcheckDone(data, "s:C-F", now), { done: false, left: 1 });
+  C.rehearseMisses(data, { "A>D": 9 }, now);
+  assert.deepEqual(C.soundcheck(data, now).pairs.map(p => p.id), ["s:C-F", "s:G-Em"], "fixed for the day once started");
+  const xp0 = C.weekXP(data, C.weekOf(now));
+  assert.deepEqual(C.soundcheckDone(data, "s:G-Em", now), { done: true, xp: 20 });
+  assert.equal(C.weekXP(data, C.weekOf(now)) - xp0, 20);
+  assert.equal(C.soundcheckDone(data, "s:G-Em", now).done, false, "20 XP once a day");
+  assert.equal(C.soundcheck(data, now + 86400e3).done, false, "a new one tomorrow");
+  const kept = C.cleanRehearse(JSON.parse(JSON.stringify(data.rehearse)));
+  assert.deepEqual(kept, data.rehearse);
+});
+
+test("Cover requests (4.10.0): your listening becomes the request or a cover quest", () => {
+  const now = new Date(2026, 9, 21, 20).getTime();
+  const data = { songs: [{ id: "a", title: "River Road", artist: "The Wanderers", format: "chords", body: "[Verse]\nG C\nla" }, { id: "b", title: "Other", format: "chords", body: "[Verse]\nG D\nla" }], sets: [], trash: [], settings: {} };
+  assert.equal(C.noteHeard(data, { title: "River Road (Remastered)", artist: "The Wanderers" }, now), true);
+  assert.equal(C.requestSong(data, now).id, "a", "the song you just played is today's request");
+  assert.equal(C.noteHeard(data, { title: "River Road", artist: "The Wanderers" }, now), false, "once");
+  assert.equal(C.noteHeard(data, { title: "Wagon Wheel", artist: "Old Crow" }, now), true);
+  let cv = C.coverState(data, now);
+  assert.deepEqual([cv.title, cv.step], ["Wagon Wheel", 1], "not in the Songbook: get the song");
+  data.songs.push({ id: "w", title: "Wagon Wheel", artist: "Old Crow", format: "chords", body: "[Verse]\nG D Em C\nla" });
+  cv = C.coverState(data, now);
+  assert.deepEqual([cv.song.id, cv.step], ["w", 2], "added: learn its chords");
+  data.journal = { chords: { G: { n: 9 }, D: { n: 9 }, Em: { n: 9 }, C: { n: 9 } } };
+  assert.equal(C.coverState(data, now).step, 3, "then play the gig");
+  const g = C.gigStart(); for (let i = 0; i < 6; i++) C.catchScore(g, true);
+  const base = C.gigFans(g), r = C.gigDone(data, "w", g, false, now);
+  assert.equal(r.cover, true); assert.equal(r.fans, base * 3, "3x bonus fans");
+  assert.equal(C.coverState(data, now), null, "done");
+  assert.deepEqual(C.cleanQuests(JSON.parse(JSON.stringify(data.quests))), data.quests, "kept through a save");
+});
+
+test("Song duels (4.12.0): a challenge by link, answered by a gig, and the record between you", async () => {
+  const now = Date.now(), me = { songs: [{ id: "a", title: "River Road", artist: "W", format: "chords", body: "[Verse]\nG C\nla" }], sets: [], trash: [], settings: {} };
+  const d = C.startDuel(me, me.songs[0], { pct: 88, combo: 14, crowd: 11 }, now);
+  const code = await C.packShare({ song: C.shareable(me.songs[0]), duel: { id: d.id, from: "Graham", pct: 88, combo: 14, crowd: 11 } });
+  const got = await C.unpackShare(code);
+  assert.deepEqual(got.duel, { id: d.id, from: "Graham", pct: 88, combo: 14, crowd: 11 });
+  /* the friend takes it and plays it */
+  const friend = { songs: [{ id: "x", title: "River Road", artist: "W", format: "chords", body: "[Verse]\nG C\nla" }], sets: [], trash: [], settings: {} };
+  C.takeDuel(friend, got.duel, friend.songs[0], now);
+  const g = C.gigStart(); for (let i = 0; i < 10; i++) C.catchScore(g, true);
+  const r = C.gigDone(friend, "x", g, false, now);
+  assert.equal(r.duel.opp, "Graham"); assert.equal(r.duel.mine.pct, 100); assert.equal(C.duelWon(r.duel), true);
+  assert.equal(C.gigDone(friend, "x", g, false, now).duel, undefined, "answered once");
+  /* their score comes back */
+  const back = await C.unpackShare(await C.packShare({ song: C.shareable(friend.songs[0]), duel: { id: d.id, from: "Mike", pct: 100, combo: 10, crowd: 12, reply: true } }));
+  const mine = C.takeDuel(me, back.duel, null, now);
+  assert.deepEqual([mine.opp, mine.theirs.pct, C.duelWon(mine)], ["Mike", 100, false]);
+  assert.deepEqual(C.duelRecord(me, "Mike"), { w: 0, l: 1, last: [false] });
+  assert.deepEqual(C.cleanDuels(JSON.parse(JSON.stringify(me.duels))), me.duels, "kept through a save");
+  assert.equal(C.cleanDuelLink({ id: "x", from: "a", pct: 50 }), null, "a bad id");
+});
+
+test("Friends (4.13.0): the friends list and the Friend quest from XP that rides on duel links", () => {
+  const now = new Date(2026, 9, 21, 20).getTime(), wk = C.weekOf(now);
+  const data = { songs: [{ id: "a", title: "A", format: "chords", body: "[Verse]\nG C\nla", playLog: { total: 0, last: 0, days: { "2026-10-20": 10 } } }], sets: [], trash: [], settings: {} };
+  assert.equal(C.friendQuest(data, now), null, "no friends yet");
+  const d = C.startDuel(data, data.songs[0], { pct: 80, combo: 1, crowd: 1 }, now);
+  C.takeDuel(data, { id: d.id, from: "Mike", pct: 90, combo: 1, crowd: 1, reply: true, xp: 150, wk }, null, now);
+  const fr = C.friendsOf(data, now);
+  assert.deepEqual(fr.map(f => [f.name, f.xp, f.w, f.l]), [["Mike", 150, 0, 1]]);
+  const fq = C.friendQuest(data, now);
+  assert.deepEqual([fq.with, fq.mine, fq.theirs, fq.done], ["Mike", 100, 150, false]);
+  data.songs[0].playLog.days["2026-10-21"] = 6;
+  assert.equal(C.friendQuest(data, now).done, true, "100 + 60 + 150 passes 300");
+  assert.equal(C.friendQuestSettle(data, now), 50); assert.equal(C.friendQuestSettle(data, now), 0, "once a week");
+  assert.equal(C.friendsOf(data, now + 7 * 86400e3)[0].xp, 0, "last week's XP doesn't count");
+  assert.deepEqual(C.cleanDuels(JSON.parse(JSON.stringify(data.duels))), data.duels);
+  assert.deepEqual(C.cleanQuests(JSON.parse(JSON.stringify(data.quests))), data.quests);
+});
+
+test("Tour Map (4.18.0): rivals never share a word in their names, and corners taken count rival hexagons you newly hold", () => {
+  for (const seed of [1, 7, 42, 99, 1234, 98765]) {
+    const rv = C.simulateRivals({ seed, guitarists: 5000 });
+    const words = rv.flatMap(r => r.name.split(" ").length === 2 ? r.name.split(" ") : [r.name]);
+    const firsts = rv.map(r => r.name.split(" ").slice(0, -1).join(" ")), lasts = rv.map(r => r.name.split(" ").at(-1));
+    assert.equal(new Set(firsts).size, rv.length, `no shared first word (seed ${seed})`);
+    assert.equal(new Set(lasts).size, rv.length, `no shared last word (seed ${seed})`);
+    assert.ok(words.length >= rv.length);
+  }
+  const rivals = C.simulateRivals({ seed: 42, guitarists: 5000, userRings: 1 });
+  const data = { songs: [], settings: {} };
+  assert.equal(C.cornersSettle(data, 7, rivals), 0, "the first look only remembers what you hold");
+  assert.equal(data.tour.seen, 7);
+  const { owner } = C.sceneMap(C.hexSpiral(7), rivals), next = C.hexSpiral(60).slice(7);
+  const theirs = next.filter(c => (owner.get(c[0] + "," + c[1]) || "you") !== "you").length;
+  assert.equal(C.cornersSettle(data, 60, rivals), theirs);
+  assert.equal(data.tour.taken || 0, theirs);
+  assert.equal(C.cleanTour(data.tour).taken || 0, theirs, "kept in saves");
+  assert.equal(C.cornersSettle(data, 60, rivals), 0, "nothing new");
+});
+
+test("Levels and badges (4.17.0): XP from plays and gigs, levels that take a little longer each time, badges from what's saved", () => {
+  const now = new Date(2026, 9, 21, 20).getTime();
+  assert.deepEqual([1, 2, 3, 4].map(C.levelStart), [0, 100, 300, 600]);
+  const data = { songs: [], sets: [], trash: [], settings: {} };
+  assert.equal(C.levelOf(data).level, 1);
+  data.xp = { days: { "2026-10-20": 40 } };
+  C.addXP(data, 70, now);
+  assert.equal(data.xp.life, 110, "the lifetime total starts from what days held");
+  assert.equal(C.xpTotal(data), 110);
+  assert.deepEqual(C.levelOf(data), { level: 2, xp: 110, from: 100, to: 300, into: 10, need: 200 });
+  assert.equal(C.cleanXP({ days: {}, life: 5000 }).life, 5000, "kept in saves after the days roll off");
+  const p = C.profileOf(data, now), b = C.badgesOf(data, p);
+  assert.equal(b.all.length, 26, "4.74.0: Songwriter");
+  assert.equal(b.got.length, 0, "nothing played yet");
+  data.gig = { shows: 12, fans: 0, best: {} };
+  const ids = C.badgesOf(data, p).got.map(x => x.id);
+  assert.deepEqual(ids, ["show1", "show10"]);
+});
+
+test("Merch table (4.16.0): Pink and Teal are free to wear, and test fans only add to what you can spend", () => {
+  const now = new Date(2026, 9, 21, 20).getTime();
+  const data = { songs: [], sets: [], trash: [], settings: {} };
+  assert.equal(C.merchWear(data, "pink"), true, "free: no need to buy it");
+  assert.equal(C.merchWorn(data), "pink");
+  assert.equal(C.merchState(data, now).louie, "pink");
+  assert.equal(C.cleanMerch({ louie: "teal" }).louie, "teal", "a free finish survives a backup");
+  assert.equal(C.cleanMerch({ louie: "gold" }), null, "a bought one needs owning");
+  assert.equal(C.MERCH.find(x => x.id === "black").name, "Studio black");
+  const f0 = C.fansToSpend(data, now), xp = C.fansOf(data, now);
+  data.merch.test = 1000;
+  assert.equal(C.fansToSpend(data, now), f0 + 1000);
+  assert.equal(C.fansOf(data, now), xp, "test fans aren't earned fans");
+  assert.deepEqual(C.merchBuy(data, "tweed", now), { ok: true });
+  assert.equal(C.cleanMerch({ test: 1000, spent: 600 }).test, 1000, "kept in saves");
+});
+
+test("Merch table (4.14.0; 4.70.0 tips): spending tips, gear, finishes and the Rain check", () => {
+  const now = new Date(2026, 9, 21, 20).getTime();
+  const data = { songs: [{ id: "a", title: "A", format: "chords", body: "[Verse]\nG C\nla", playLog: { total: 120, last: 0, days: { "2026-10-17": 60, "2026-10-18": 60 } } }], sets: [], trash: [], settings: {} };
+  const f0 = C.fansOf(data, now);
+  assert.ok(f0 >= 1200 && f0 < 1500, "120 plays");
+  assert.equal(C.tipsMigrate(data, now), f0, "4.70.0: the fans you had to spend become tips, once");
+  assert.equal(C.tipsMigrate(data, now), 0, "only once");
+  assert.equal(C.tipsOf(data), f0);
+  assert.deepEqual(C.merchBuy(data, "gold", now), f0 >= 1500 ? { ok: true } : { why: "tips" });
+  if (f0 >= 1500) { data.merch.tspent = 0; data.merch.has = []; delete data.merch.louie; }
+  assert.deepEqual(C.merchBuy(data, "tweed", now), { ok: true });
+  assert.equal(C.tipsOf(data), f0 - 600, "spent");
+  assert.equal(C.fansOf(data, now), f0, "fans are never spent");
+  assert.equal(C.merchState(data, now).louie, "tweed", "worn once bought");
+  assert.deepEqual(C.merchBuy(data, "tweed", now), { why: "have" });
+  assert.equal(C.merchWear(data, "stock"), true); assert.equal(C.merchWear(data, "black"), false, "not bought");
+  /* Rain checks: the 19th and 20th were missed; two checks cover both and the streak holds */
+  assert.equal(C.streakOf(C.playSongs(data), now).days, 0);
+  data.merch.own = { rain: 1 };
+  assert.deepEqual(C.rainSettle(data, now), [], "one check can't cover two nights");
+  data.merch.own.rain = 2;
+  assert.deepEqual(C.rainSettle(data, now), ["2026-10-19", "2026-10-20"]);
+  assert.equal(C.streakOf(C.playSongs(data), now).days, 4);
+  assert.equal(C.weekXP(data, C.weekOf(now), now), 0, "covered nights (this week) add no XP");
+  assert.deepEqual(C.merchBuy(data, "rain", now), { ok: true }); assert.deepEqual(C.merchBuy(data, "rain", now), { ok: true });
+  assert.deepEqual(C.merchBuy(data, "rain", now), { why: "max" }, "two at most");
+  /* Second take: a lost battle today plays again */
+  data.charts = { tier: 0, battle: { day: "2026-10-21", rival: "Jen", songId: "a", target: 70, result: "lost", pct: 50 } };
+  assert.equal(C.secondTake(data, now), false, "none held");
+  data.merch.own.take = 1;
+  assert.equal(C.secondTake(data, now), true); assert.equal(data.charts.battle.result, undefined); assert.equal(data.merch.own.take, 0);
+  /* the Show complete tip names the cheapest thing you can now afford, once */
+  const tip = C.merchTip(data, now);
+  assert.equal(tip?.id, C.fansToSpend(data, now) >= 300 ? "brick" : undefined);
+  assert.deepEqual(C.merchState({ ...data, merch: C.cleanMerch(JSON.parse(JSON.stringify(data.merch))) }, now), C.merchState(data, now), "kept through a save");
+  assert.equal(C.cleanMerch({ own: { rain: 9 }, has: ["zz", "rain"], louie: "gold" }).own.rain, 2);
+});
+
+test("Stage Gels (4.1.0): each section's light from its name", () => {
+  assert.equal(C.gelOf("Verse 2"), "verse");
+  assert.equal(C.gelOf("Chorus"), "chorus");
+  assert.equal(C.gelOf("Pre-Chorus"), "bridge");
+  assert.equal(C.gelOf("Bridge"), "bridge");
+  assert.equal(C.gelOf("Guitar solo"), "solo");
+  assert.equal(C.gelOf("Intro"), "verse");
+});
+
+test("4.21.0 lesson of the day: warm up, the change his songs need, then that song's section at 70%", () => {
+  const body = "[Verse]\n[C]Slip in[Dm]side the [C]eye of your [Dm]mind\n[Chorus]\n[G]So Sally can [C]wait\n[C]Here [Dm]we go [C]again";
+  const other = "[Verse]\n[G]One [C]two [G]three [C]four";
+  const data = { songs: [{ id: "a", title: "Anger", body, status: "learning" }, { id: "b", title: "Porch", body: other }], sets: [], trash: [], settings: {}, skills: { done: { "s:G-C": { n: 2, best: 90, at: 1 } }, last: 1 } };
+  const now = new Date(2026, 9, 21, 10).getTime();
+  const l = C.lessonOfDay(data, now);
+  assert.deepEqual([l.warm.a, l.warm.b], ["G", "C"], "warm up on the switch he passed");
+  assert.equal(l.learn.id, "s:C-Dm", "the change in the learning song he hasn't learned");
+  assert.equal(l.learn.song, "Anger"); assert.equal(l.learn.times, 5);
+  assert.equal(l.play.songId, "a"); assert.equal(l.play.sec, 0); assert.equal(l.play.secName, "Verse");
+  assert.deepEqual(l.done, [false, false, false]); assert.equal(l.now, 0);
+  /* the same all day, even after the library changes */
+  assert.equal(C.lessonDone(data, 0, now).finished, false);
+  data.songs.push({ id: "c", title: "New", body: "[V]\n[E]a [Am]b [E]c [Am]d [E]e [Am]f", status: "learning" });
+  assert.equal(C.lessonOfDay(data, now + 3600e3).learn.id, "s:C-Dm");
+  assert.equal(C.lessonPartOf(data, "s:C-Dm", now), 1);
+  assert.equal(C.lessonPartOf(data, "s:E-Am", now), -1);
+  C.lessonDone(data, 1, now);
+  const before = data.xp?.life || 0;
+  const r = C.lessonDone(data, 2, now);
+  assert.deepEqual(r, { finished: true, xp: C.LESSON_XP });
+  assert.equal(data.xp.life - before, C.LESSON_XP);
+  assert.equal(C.lessonDone(data, 2, now).finished, false, "the XP once");
+  assert.equal(C.lessonOfDay(data, now).finished, true);
+  /* kept through a save */
+  assert.deepEqual(C.cleanRehearse(JSON.parse(JSON.stringify(data.rehearse))).lesson.done.sort(), [0, 1, 2]);
+  /* tomorrow: a new plan, and a learned change is skipped */
+  data.skills.done["s:C-Dm"] = { n: 1, best: 80, at: now };
+  const t = C.lessonOfDay(data, now + 86400e3);
+  assert.notEqual(t.learn.id, "s:C-Dm"); assert.deepEqual(t.done, [false, false, false]);
+});
+
+test("4.21.0 lesson of the day: nothing to build from", () => {
+  assert.equal(C.lessonOfDay({ songs: [], sets: [], trash: [], settings: {} }), null);
+  assert.equal(C.lessonOfDay({ songs: [{ id: "t", title: "Tab", format: "tab", body: "e|--0--|" }], sets: [], trash: [], settings: {} }), null);
+  /* no passed switches and nothing played: G to C to get going */
+  const l = C.lessonOfDay({ songs: [{ id: "a", title: "A", body: "[V]\n[Am]x [F]y [Am]z [F]w" }], sets: [], trash: [], settings: {} });
+  assert.equal(l.learn.id, "s:Am-F"); assert.equal(l.warm.id, "s:G-C"); assert.equal(l.play.sec, 0);
+});
+
+test("4.21.0 lesson of the day: learning the new change mid-lesson doesn't swap the lesson", () => {
+  const data = { songs: [{ id: "a", title: "A", body: "[V]\n[Am]x [F]y [Am]z [F]w", status: "learning" }], sets: [], trash: [], settings: {} };
+  const now = new Date(2026, 9, 21, 10).getTime();
+  C.lessonKeep(data, now);
+  C.skillDone(data, "s:Am-F", 80, now);
+  assert.equal(C.lessonPartOf(data, "s:Am-F", now), 1);
+  assert.equal(C.lessonOfDay(data, now).learn.id, "s:Am-F");
+});
+
+test("4.23.0 Your changes: the three your songs need most that you land least, and the one that's solid", () => {
+  const now = new Date(2026, 9, 21, 10).getTime(), day = dayKey => dayKey;
+  const k = new Date(now); const today = `${k.getFullYear()}-${String(k.getMonth() + 1).padStart(2, "0")}-${String(k.getDate()).padStart(2, "0")}`;
+  const data = { songs: [
+    { id: "a", title: "Anger", body: "[V]\n[C]a [Dm]b [C]c [Dm]d [C]e [Dm]f" },
+    { id: "b", title: "Porch", body: "[V]\n[G]a [C]b [G]c [C]d [G]e [C]f [G]g" },
+    { id: "c", title: "Late", body: "[V]\n[Em]a [Am]b [Em]c [Am]d [G]e [C]f" }
+  ], sets: [], trash: [], settings: {}, rehearse: { lands: { "G>C": { n: 41, days: { [today]: 41 } }, "C>G": { n: 0, days: {} } }, misses: { "G>C": { n: 2, days: { [today]: 2 } }, "Em>Am": { n: 5, days: { [today]: 5 } } } } };
+  data.rehearse.lands["Em>Am"] = { n: 2, days: { [today]: 2 } };
+  const r = C.changesToWork(data, now);
+  assert.equal(r.solid.id, "s:G-C"); assert.equal(r.solid.landed, 41); assert.equal(r.solid.of, 43);
+  assert.equal(r.work[0].id, "s:C-Dm", "not tried yet, and the most in his songs, comes first");
+  assert.match(r.work[0].why, /In Anger, 5 times|In Anger, \d+ times/);
+  assert.equal(r.work[0].tried, false);
+  assert.ok(r.work.some(w => w.id === "s:Em-Am" && w.landed === 2 && w.of === 7 && /Late/.test(w.why)));
+  assert.ok(!r.work.some(w => w.id === "s:G-C"), "the solid one isn't a thing to work on");
+  assert.ok(r.work.length <= 3);
+  /* a window of seven days: old landings don't count */
+  const later = C.changesToWork(data, now + 9 * 86400e3);
+  assert.equal(later.solid, null);
+  /* a library with no changes, or tab songs only */
+  assert.deepEqual(C.changesToWork({ songs: [], sets: [], trash: [], settings: {} }, now), { work: [], solid: null });
+});
+
+test("4.23.0 the changes you land are kept like the ones you drop", () => {
+  const data = { songs: [], sets: [], trash: [], settings: {} };
+  const now = new Date(2026, 9, 21, 10).getTime();
+  C.rehearseMisses(data, { "C>F": 2 }, now, { "G>C": 9, "bad": 3 });
+  assert.equal(data.rehearse.lands["G>C"].n, 9); assert.equal(data.rehearse.lands.bad, undefined);
+  C.rehearseMisses(data, {}, now + 20 * 86400e3, { "G>C": 1 });
+  assert.equal(data.rehearse.lands["G>C"].n, 1, "older than 14 days is dropped");
+  const clean = C.cleanRehearse(JSON.parse(JSON.stringify(data.rehearse)));
+  assert.equal(clean.lands["G>C"].n, 1);
+});
+
+test("4.29.0 Play together links: the tempo rides along, an old start time is dropped", async () => {
+  const song = { title: "A", body: "G C" };
+  const now = await C.unpackShare(await C.packShare({ song, duet: { bpm: 120 } }));
+  assert.deepEqual(now.duet, { bpm: 120 });
+  const old = await C.unpackShare(await C.packShare({ song, duet: { at: Date.now() + 60000, bpm: 500 } }));
+  assert.deepEqual(old.duet, { bpm: 300 }, "the time goes, the tempo is kept in range");
+  assert.equal(old.song.title, "A");
+});
+
+test("4.36.0 languages: Spanish and Russian genders, the sound of Russian kept, German unchanged by default", () => {
+  const L = [{ tokens: ["Grey", "boats", "home"], text: "Grey boats home" }];
+  const ru = C.cleanGerman({ lines: [{ i: 0, de: "Се́рые ло́дки домо́й", tr: "Sérye lódki domóy", s: [{ w: 1, n: 1, l: 1, de: "ло́дки", tr: "lódki", g: "f", lemma: "ло́дка" }, { w: 2, n: 1, l: 1, de: "домо́й", g: "der" }] }] }, L, "ru");
+  assert.equal(ru[0].tr, "Sérye lódki domóy");
+  assert.equal(ru[0].s[0].g, "f"); assert.equal(ru[0].s[0].tr, "lódki");
+  assert.equal(ru[0].s[1].g, "", "a German article isn't a Russian gender");
+  const es = C.cleanGerman({ lines: [{ i: 0, de: "Barcos grises", tr: "x", s: [{ w: 1, n: 1, l: 1, de: "barcos", g: "el" }, { w: 2, n: 1, l: 1, de: "casa", g: "die" }] }] }, L, "es");
+  assert.equal(es[0].s[0].g, "el"); assert.equal(es[0].s[1].g, ""); assert.equal(es[0].tr, undefined, "only Russian keeps a sound line");
+  assert.equal(C.cleanGerman({ lines: [{ i: 0, de: "x", s: [{ w: 0, n: 1, l: 1, de: "Boote", g: "das" }] }] }, L)[0].s[0].g, "das", "German by default");
+  assert.equal(C.langOf({ settings: {} }), "de"); assert.equal(C.langOf({ settings: { lang: "ru" } }), "ru"); assert.equal(C.langOf({ settings: { lang: "fr" } }), "de");
+  assert.equal(C.langChosen({ settings: {}, songs: [] }), false); assert.equal(C.langChosen({ settings: {}, songs: [{ de: {} }] }), true, "a library translated before 4.36.0 counts as German");
+  assert.equal(C.deLangOk({ de: {} }, { settings: { lang: "es" } }), false, "an untagged translation is German");
+  const v = (name, lang) => ({ name, lang });
+  assert.equal(C.bestVoice([v("Anna", "de-DE"), v("Milena", "ru-RU"), v("Monica", "es-ES")], "ru").name, "Milena");
+  assert.equal(C.bestVoice([v("Anna", "de-DE")], "es"), null);
+  const blocks = C.parseBlocks("[V]\nGrey boats home");
+  const out = C.germanBlocks(blocks, { lines: [ru[0]] }, 4, { translit: true });
+  assert.ok(out.some(b => b.tr === "Sérye lódki domóy"), "Fluent carries the sound under the line");
+  assert.ok(C.germanBlocks(blocks, { lines: [ru[0]] }, 4).every(b => !b.tr), "only when asked");
+});
+
+test("4.39.1 Louie's hands: the thumbs up tips the thumb out, and the pointing hand leans toward the bubble", async () => {
+  const { louie } = await import("../louie.js");
+  const up = louie("cheer", { pose: "thumb" });
+  /* 4.86.0: the thumb rises from the back corner of the fist (not the middle) and is short; three knuckles on the front edge */
+  /* 4.86.0: one mitten: the thumb rises from the back of the fist (its tip left of the middle), the curled fingers are creases on the front */
+  const tip = up.match(/<g class="lv-f"><path d="M-11 -1C-13 -8 -14 -18 -13 -27C-14 -35 -15 -42 (-?[\d.]+) -46/);
+  assert.ok(tip && +tip[1] < -4, "the thumb is on the side of the fist, not standing in the middle");
+  assert.match(up, /M2 -21\.5Q8 -20\.5 13\.5 -21\.5M2 -13\.5/, "the curled fingers show as creases");
+  assert.match(louie("happy", { pose: "point" }), /translate\(180 108\) rotate\(40\)/, "the pointing hand leans, never straight up");
+});
+
+test("4.40.0 Opening night: only for a new player, one step at a time, fans once, skip and replay", () => {
+  const fresh = () => ({ songs: [{ id: "s", title: "Harbor Lights", sample: true, body: "[Verse]\nG D\nLights" }], sets: [], trash: [], settings: {} });
+  const d = fresh();
+  assert.equal(C.openingView(d), "leg", "a new player starts on Opening night");
+  assert.equal(C.openingView({ ...fresh(), skills: { done: { "chord-G": { n: 1 } } } }), null, "anyone with a lesson (or a play) never sees it");
+  assert.equal(C.openingAdvance(d, "chord"), false, "steps go in order");
+  assert.equal(C.OPENING[0].id, "who", "4.85.0: Who's playing tonight? comes first");
+  assert.equal(C.openingAdvance(d, "mic"), false, "the microphone waits for the guitarist");
+  assert.equal(C.openingAdvance(d, "who"), true);
+  assert.equal(C.fansOf(d), 0, "making your guitarist pays no fans");
+  assert.equal(C.openingAdvance(d, "mic"), true);
+  assert.equal(C.openingStep(d), 2); assert.equal(C.fansOf(d), C.FANS.lesson, "a step gives lesson fans");
+  for (const id of ["chord", "verse", "pause", "show"]) assert.ok(C.openingAdvance(d, id), id);
+  assert.equal(d.opening.fans, 4 * C.FANS.lesson, "the show itself pays as a play, not as a step");
+  assert.equal(C.openingView(d), "done", "the Road shows it done once");
+  d.opening.seen = 1; assert.equal(C.openingView(d), null);
+  C.openingReplay(d); assert.equal(C.openingView(d), "leg", "Tips & gestures replays it");
+  assert.equal(C.openingStep(d), 1, "a replay skips choosing your guitarist again");
+  C.openingAdvance(d, "mic"); assert.equal(d.opening.fans, 4 * C.FANS.lesson, "no fans twice");
+  const s = fresh(); C.openingSkip(s); assert.equal(C.openingView(s), null, "Skip ends it");
+  assert.deepEqual(C.cleanOpening({ step: 9, fans: 999, micOff: true, done: "x", junk: 1 }), { step: 6, v: 2, fans: 25, micOff: true });
+  assert.equal(C.cleanOpening({ step: 2, fans: 5 }).step, 3, "a save from before 4.85.0 moves up one step");
+  assert.equal(C.cleanOpening({ step: 0 }).step, 0, "one that hadn't started stays at the start");
+  assert.equal(C.cleanOpening({ step: 2, v: 2 }).step, 2, "a current save is left alone");
+  assert.equal(C.cleanOpening("no"), null);
+});
+
+test("4.41.0 chords where the chord sites have them: numbered words in, positions out, the sheet built on the phone", () => {
+  const lyr = "[Verse 1]\nSaw the lights come on at six\nGulls were arguing over tricks\n\n[Chorus]\nCarry me home tonight\nLay me down";
+  const num = C.numberLyrics(lyr);
+  assert.match(num.prompt, /Stanza 1 \(Verse 1\)\n1\| \[1\]Saw \[2\]the/);
+  assert.equal(num.lines.length, 4);
+  const p = C.cleanPlaced({ found: true, sheet: [{ section: "Intro", chords: "G D" }, { section: "Verse 1", stanza: 1 }, { section: "Chorus", stanza: 2 }, { section: "Bad", stanza: 9 }],
+    lines: [{ n: 1, c: [[1, "G"], [3, "D"]] }, { n: 2, c: [[0, "C"], [4, "Em"]] }, { n: 3, c: [[2, "A"]] }, { n: 4, c: [[9, "E"], [1, "Zz"]] }, { n: 99, c: [[1, "G"]] }] }, num);
+  assert.deepEqual(p.lines[4], [[4, "E"]], "a word past the end is after the last word (4.49.6); not-a-chord is dropped");
+  assert.equal(p.sheet.length, 3, "a stanza that doesn't exist is dropped");
+  const body = C.placedSheet("Key: G\n[Verse]\nG D", lyr, p);
+  assert.match(body, /^Key: G\n\n\[Intro\]\nG {3}D\n\n\[Verse 1\]\nG {7}D\nSaw the lights come on at six\nC {21}Em\n {3}Gulls/, "a chord before the singing goes first and the words move past it (4.49.6)");
+  assert.match(body, /\[Chorus\]\n {6}A\nCarry me home tonight/);
+  assert.equal(C.cleanPlaced({ found: false }, num), null);
+  assert.equal(C.cleanPlaced({ found: true, sheet: [], lines: [] }, num), null, "too little to trust");
+  const once = C.placedSheet("", "a b\nc d\n\ne f", C.cleanPlaced({ found: true, sheet: [{ section: "Verse", stanza: 1 }], lines: [{ n: 1, c: [[1, "G"]] }, { n: 2, c: [[1, "D"]] }, { n: 3, c: [[1, "C"]] }] }, C.numberLyrics("a b\nc d\n\ne f")));
+  assert.match(once, /e f/, "a stanza the AI left out is never dropped");
+  const guess = C.mergeWords("[Verse]\nG D Em C\n[Chorus]\nC G", "a b c d e\nf g h i\nj k l m\nn o p q r");
+  assert.equal(C.looksGuessed(guess), true, "the old guess is recognised");
+  assert.equal(C.looksGuessed(body), false);
+  assert.equal(C.lyricsOfSheet(guess), "[Verse]\na b c d e\nf g h i\nj k l m\nn o p q r", "the words back out of a sheet, chords left out");
+  assert.equal(C.cleanSong({ id: "x", body: "a", spots: "placed", spotsTried: 5 }).spots, "placed");
+  assert.equal(C.cleanSong({ id: "x", body: "a", spots: "nope", spotsTried: "x" }).spots, undefined);
+});
+
+test("4.44.0 achievement callouts: a level and a badge are celebrated once; the first run counts what you have as seen", () => {
+  const p = { songsPlayed: 0, chords: [], best: 0, got: 0, barres: 0, tune: { sessions: 0 } };
+  const data = { songs: [], gig: { shows: 1 } };
+  assert.deepEqual(C.achSettle(data, p), [], "first run: nothing, everything you have is seen");
+  assert.ok(data.ach.badges.includes("show1"));
+  data.gig.shows = 10;
+  const got = C.achSettle(data, p);
+  assert.deepEqual(got.map(x => [x.kind, x.word, x.big]), [["badge", "GIGS", "10"]]);
+  assert.deepEqual(C.achSettle(data, p), [], "not again");
+  const had = new Set(["G"]), p2 = { ...p, chords: [{ name: "G" }, { name: "F" }] };
+  assert.deepEqual(C.achSettle(data, p2, had).map(x => x.big), ["F"], "a new chord");
+});
+
+test("4.44.0 callout looks never repeat back to back, and only joined friends celebrate", () => {
+  for (const kind of Object.keys(C.CALLOUT_LOOKS).filter(k => C.CALLOUT_LOOKS[k].length > 1)) for (const last of C.CALLOUT_LOOKS[kind]) for (const r of [0, 0.5, 0.99]) assert.notEqual(C.pickLook(kind, last, r), last, `${kind} after ${last}`);
+  assert.equal(C.pickLook("earn", "pow"), "pow", "4.71.0: what you earned is always a POW");
+  const none = { songs: [] };
+  assert.equal(C.castFor(none, "combo", null, 0), null, "no band yet: Louie alone");
+  const band = { songs: [], journal: { v: 1, months: { "2026-10": { plays: 20 } } } }, joined = C.bandState(band).joined.map(b => b.id);
+  assert.ok(joined.includes("beat"));
+  assert.equal(C.castFor(band, "combo", null, 0), "beat", "Beat takes the combos");
+  assert.notEqual(C.castFor(band, "combo", "beat", 0), "beat", "not the same friend twice in a row");
+  for (let i = 0; i < 20; i++) assert.ok(joined.includes(C.castFor(band, "badge", null, i / 20)), "always one who has joined");
+  assert.equal(C.castFor(band, "join", "beat", 0, "beat"), "beat", "a new member is the one shown");
+});
+
+test("4.49.6 chords played before the singing: an indented line keeps its lead chords ahead of the words", () => {
+  const [b] = C.parseBlocks("Em            C\n  Another head   hangs lowly");
+  assert.ok(b.words[0].lead, "the chord over the indent stands on its own, first");
+  assert.equal(b.words[0].parts[0].chord, "Em");
+  const first = b.words.find(w => !w.space && !w.lead);
+  assert.equal(first.parts.map(p => p.text).join(""), "Another", "the first word carries no chord");
+  assert.equal(first.parts[0].chord, "");
+  const hangs = b.words.find(w => !w.space && w.parts.map(p => p.text).join("") === "hangs");
+  assert.equal(hangs.parts[0].chord, "C", "a chord over a gap between words still rides on the next word");
+  const [one] = C.parseBlocks("G\n Walking down");
+  assert.ok(!one.words.some(w => w.lead), "a one-space indent is not a lead");
+  const two = C.parseBlocks("[Em]  [C]  Another head");
+  assert.equal(two[0].words.filter(w => w.lead).length, 2, "inline chords before an indent are leads too");
+  const de = C.germanBlocks(C.parseBlocks("Em        C\n   head hangs low"), { lines: [{ de: "Kopf hängt tief", s: [] }] }, 4);
+  assert.ok(de[0].words[0].lead, "Fluent keeps the lead in front");
+});
+
+test("4.49.6 spot times: words timed alone, a lead a bar ahead, gaps shared between their neighbours", () => {
+  const t = C.spotTimes(["", "one", "two", "", "three", ""], 10, 18, { bar: 2 });
+  const w = C.wordTimes(["one", "two", "three"], 10, 18);
+  assert.deepEqual([t[1], t[2], t[4]], w, "a gap no longer pushes the words later");
+  assert.equal(t[0], w[0] - 2, "the lead is a bar ahead of the first word");
+  assert.equal(t[3], (w[1] + w[2]) / 2, "a gap chord sits between its words");
+  assert.ok(t[5] > w[2] && t[5] <= 18, "a chord after the words sits before the line ends");
+  const two = C.spotTimes(["", "", "go"], 20, 24, { bar: 4 });
+  assert.deepEqual(two, [16, 18, 20], "two leads share the bar before the words");
+  assert.equal(C.spotTimes(["", "go"], 20, 24, { bpm: 120 })[0], 18, "with no bar given, four beats of the tempo");
+});
+
+test("4.49.6 placing: word 0 is before the singing, chords stay the chart's, stanzas cut into parts, intros written out", () => {
+  const lyr = "Head hangs low\nChild is taken\nBut you see\nIt is not me\nIn your head\nZombie zombie";
+  const num = C.numberLyrics(lyr);
+  assert.equal(C.chartChord("D/F#", new Set(["Em", "C", "G", "D"])), "D", "a slash chord goes back to the chart's chord");
+  assert.equal(C.chartChord("Dsus4", new Set(["D"])), "D");
+  assert.equal(C.chartChord("Cmaj7", new Set(["C"])), "C");
+  assert.equal(C.chartChord("F", new Set(["G"])), "", "a chord the chart doesn't have is dropped");
+  assert.equal(C.chartChord("F", null), "F", "no chart chords: anything goes");
+  const p = C.cleanPlaced({ found: true, sheet: [{ section: "Intro", chords: "Em C G D/F#", repeat: 4 }, { section: "Verse", stanza: 1, from: 1, to: 2 },
+    { section: "Pre-Chorus", stanza: 1, from: 3, to: 4 }, { section: "Chorus", stanza: 1, from: 5, to: 99 }],
+    lines: [{ n: 1, c: [[0, "Em"], [2, "C"]] }, { n: 2, c: [[1, "G"], [4, "D/F#"]] }, { n: 3, c: [[3, "Em"]] }, { n: 5, c: [[1, "G"]] }] }, num, new Set(["Em", "C", "G", "D"]));
+  assert.deepEqual(p.sheet[0], { section: "Intro", chords: ["Em", "C", "G", "D"], repeat: 4 });
+  assert.deepEqual(p.sheet[3], { section: "Chorus", stanza: 1, from: 5, to: 6 }, "a line past the stanza ends it");
+  assert.deepEqual(p.lines[2], [[1, "G"], [4, "D"]], "word past the end kept, chord put back to the chart's");
+  const body = C.placedSheet("", lyr, p);
+  assert.equal((body.match(/^Em {3}C {3}G {3}D$/gm) || []).length, 4, "the intro written out four times, so it takes its time");
+  assert.match(body, /\[Verse\]\nEm {7}C\n {4}Head hangs low\nG {15}D\nChild is taken\n\n\[Pre-Chorus\]\n {8}Em\nBut you see\nIt is not me\n\n\[Chorus\]/, "lead indents the words; after-the-words chord follows them; parts cut");
+  assert.equal(C.placedSheet("", lyr, { ...p, sheet: p.sheet.slice(0, 2) }).match(/But you see/g).length, 1, "lines left out still come at the end, once");
+});
+
+test("4.49.6 lining up: guessed songs and songs placed the older way, never your own edits", () => {
+  assert.equal(C.liningDue({ spots: "guess", body: "" }), "guess");
+  assert.equal(C.liningDue({ spots: "placed", body: "" }), "old", "placed before 4.49.6 is lined up once more");
+  assert.equal(C.liningDue({ spots: "placed", spotsV: C.SPOTS_V, body: "" }), "");
+  assert.equal(C.liningDue({ spots: "mine", body: "" }), "");
+  assert.equal(C.liningDue({ spots: "guess", format: "tab", body: "" }), "");
+  assert.equal(C.cleanSong({ id: "x", body: "a", spotsV: 2 }).spotsV, 2);
+  assert.equal(C.cleanSong({ id: "x", body: "a", spotsV: "2" }).spotsV, undefined);
+});
+
+test("4.49.12 the band skips the beats a stall let pass, on the same grid", () => {
+  assert.equal(C.beatsLate(0.01, 0.5), 0, "a hair late is still played");
+  assert.equal(C.beatsLate(0.6, 0.5), 2, "a stall skips the beats that passed, on the same grid");
+  assert.equal(C.beatsLate(0.5, 0.5), 1);
+  assert.equal(C.beatsLate(2, 0), 0, "no tempo, no skipping");
+});
+
+test("4.65.0 lining up the UG way: the chart sent has no words or columns, stacked chords before and after the words stay stacked", () => {
+  const guess = "Key: F\n[Intro]\nF   Am   G\n\n[Verse]\nF             Am\nWalked the long road home\nG        F\nNever saw it\n\n[Chorus]\n[F]Carry me [Am]over";
+  const chart = C.chartOfSheet(guess);
+  assert.equal(chart, "Key: F\n\n[Intro]\nF Am G\n\n[Verse]\nF Am G\n\n[Chorus]\nF Am", "sections and one pass of their chords, nothing else");
+  assert.equal(C.chartOfSheet("[Verse]\nF Am\nx\nG F\nx\nAm G\nx\nF Am\nx\n\n[Bridge]\nD C G D C G D C G D"), "[Verse]\nF Am G\n\n[Bridge]\nD C G", "4.65.1: one pass of a progression spread over the lines");
+  assert.doesNotMatch(chart, /Walked|Never|Carry/, "no words, so a guessed sheet can't be handed back as the answer");
+  const lyr = "[Verse]\nWalked the long road home\nNever saw it\nRain on the glass\nCold again\n\n[Chorus]\nCarry me over";
+  const num = C.numberLyrics(lyr);
+  const lead = [[0, "F"], [0, "Am"], [0, "G"]];
+  const p = C.cleanPlaced({ found: true, sheet: [{ section: "Verse", stanza: 1 }, { section: "Chorus", stanza: 2 }, { section: "Outro", chords: "F Am G F Am G" }],
+    lines: [{ n: 1, c: lead }, { n: 2, c: [...lead, [4, "F"], [4, "Am"], [4, "G"]] }, { n: 3, c: [...lead, [5, "F"]] }, { n: 4, c: [[1, "Am"], [2, "G"]] }, { n: 5, c: [[1, "F"], [3, "Am"]] }] }, num, new Set(["F", "Am", "G"]));
+  assert.deepEqual(p.lines[1], lead, "three chords on word 0 keep their order");
+  const body = C.placedSheet(chart, lyr, p);
+  assert.match(body, /\[Verse\]\nF Am G\n {8}Walked the long road home\n/, "UG's F Am G before indented words");
+  const slots = n => { const l = C.chordModel(body).filter(x => x.kind === "lyric" && x.chords.length)[n]; return C.chordSlots(l.text, l.chords).list.map(c => `${c.chord}:${c.part}`).join(" "); };
+  assert.equal(slots(0), "F:lead Am:lead G:lead");
+  assert.equal(slots(1), "F:lead Am:lead G:lead F:after Am:after G:after", "a chord group after the last word stays after it");
+  assert.equal(slots(2), "F:lead Am:lead G:lead F:after");
+  assert.equal(slots(3), "Am:on G:on");
+  assert.match(body, /\[Outro\]\nF {3}Am {3}G {3}F {3}Am {3}G/);
+});
+
+test("nameRepeats: the words sung most are the Chorus everywhere, a part sung once is not (4.65.4)", () => {
+  const ch = "F Am\nWe ran along the shore\nG C\nAlways a step behind";
+  const v = (a, b) => `F Am G\n      ${a}\nAm G\n      ${b}`;
+  const body = ["[Verse]", v("One line here", "Two line here"), "", "[Chorus]", ch, "", "[Chorus]", v("Kick it in", "Make it count"), "", "[Verse]", ch, "", "[Bridge]", v("Small and new", "Never a chance"), "", "[Verse]", ch].join("\n");
+  const out = C.nameRepeats(body);
+  assert.deepEqual(out.split("\n").filter(r => /^\[/.test(r)), ["[Verse]", "[Chorus]", "[Verse]", "[Chorus]", "[Bridge]", "[Chorus]"]);
+  assert.equal(out.replace(/\[[^\]]*\]/g, ""), body.replace(/\[[^\]]*\]/g, ""), "only the names change");
+  assert.equal(C.nameRepeats("[Verse]\nA b\nC d"), "[Verse]\nA b\nC d", "nothing repeats: left alone");
+});
+
+test("Fans fade and venues can be lost and won back (4.70.0)", () => {
+  const day = d => new Date(2026, 9, d, 20).getTime();
+  /* 36 plays on the 1st: venue 3 (Coffeehouse) by plays */
+  const data = { songs: [{ id: "a", title: "A", format: "chords", body: "[Verse]\nG C\nla", playLog: { total: 36, last: day(1), days: { "2026-10-01": 36 } } }], sets: [], trash: [], settings: {} };
+  assert.deepEqual(C.fameSettle(data, day(1)), [], "the first time only starts the count");
+  const fans0 = C.fansNow(data, day(1)), ring0 = C.venueNow(data).ring;
+  assert.ok(fans0 > 0 && ring0 > 0);
+  /* two idle days are free */
+  assert.deepEqual(C.fameSettle(data, day(4)), [], "the 2nd and 3rd are grace days");
+  assert.equal(C.fansNow(data, day(4)), fans0);
+  /* then 1% a day */
+  const r = C.fameSettle(data, day(6));
+  assert.equal(r[0].kind, "fade"); assert.ok(r[0].lost >= 2, "the 4th and 5th each cost 1%");
+  /* a Rain check covers a day */
+  data.merch.rainDays = ["2026-10-06"];
+  const before = C.fansNow(data, day(7));
+  assert.deepEqual(C.fameSettle(data, day(7)), [], "the 6th is covered");
+  assert.equal(C.fansNow(data, day(7)), before);
+  /* a month idle: warned, then a venue down */
+  const warn = C.fameSettle(data, new Date(2026, 10, 12, 20).getTime());
+  assert.ok(warn.some(x => x.kind === "warn"), "warned first: " + JSON.stringify(warn));
+  assert.equal(C.venueNow(data).ring, ring0, "still at the venue on the day of the warning");
+  const down = C.fameSettle(data, new Date(2026, 10, 13, 20).getTime());
+  assert.ok(down.some(x => x.kind === "down"), "then back a venue: " + JSON.stringify(down));
+  assert.equal(C.venueNow(data).ring, ring0 - 1);
+  assert.equal(C.venueNow(data).back, 3, "three shows win it back");
+  /* three plays win it back */
+  const p0 = C.lifetimePlays(data);
+  for (let i = 0; i < 3; i++) C.Tabs.logPlay(data, data.songs[0]);
+  assert.equal(C.lifetimePlays(data), p0 + 3);
+  const up = C.fameSettle(data, new Date(2026, 10, 13, 21).getTime());
+  assert.ok(up.some(x => x.kind === "up")); assert.equal(C.venueNow(data).ring, ring0);
+  /* kept through a save */
+  assert.deepEqual(C.cleanFame(JSON.parse(JSON.stringify(data.fame))), Object.fromEntries(Object.entries(data.fame).filter(([, v]) => v)), "kept through a save (zeros left out)");
+  assert.equal(C.cleanFame({ down: -3, day: "x" }), null);
+});
+
+test("Tips for a show (4.70.0): more with a bigger crowd and a longer run; an encore doubles them", () => {
+  const g = C.gigStart(); for (let i = 0; i < 12; i++) C.catchScore(g, true);
+  assert.equal(C.gigTips(g), 10 + 3 * 12 + 6);
+  assert.equal(C.gigTips(g, true), 2 * (10 + 3 * 12 + 6));
+  assert.equal(C.gigTips(C.gigStart()), 5, "an unscored show still gets something");
+});
+
+test("Tune up first (4.72.0): a big swing in humidity or temperature since the last play", () => {
+  const then = { hum: 41, temp: 78, unit: "F", day: "2026-10-22" };
+  assert.deepEqual(C.tuneUpDue(then, { hum: 84, temp: 76, unit: "F" }), { hum: [41, 84], temp: [78, 76], day: "2026-10-22", unit: "F" }, "humidity up 43 points");
+  assert.ok(C.tuneUpDue(then, { hum: 45, temp: 60, unit: "F" }), "18°F colder");
+  assert.equal(C.tuneUpDue(then, { hum: 60, temp: 70, unit: "F" }), null, "a small change");
+  assert.ok(C.tuneUpDue({ hum: 40, temp: 25, unit: "C" }, { hum: 40, temp: 15, unit: "C" }), "10°C");
+  assert.equal(C.tuneUpDue(then, { hum: 90, temp: 20, unit: "C" }), null, "different units are never compared");
+  assert.equal(C.tuneUpDue(null, { hum: 90, temp: 20, unit: "F" }), null);
+});
+
+test("Sing it (4.74.0): one take is split into lines at the breaths", () => {
+  const n = (start, dur) => ({ midi: 60, start, dur });
+  /* three phrases: 0 to 3 s, 3.8 to 6.5 s, 7.4 to 9 s (breaths of 0.8 and 0.9 s), with small gaps inside */
+  const notes = [n(0, .8), n(.85, .9), n(1.8, 1.2), n(3.8, 1), n(4.9, 1.6), n(7.4, .7), n(8.2, .8)];
+  const cuts = C.splitTake(notes, 9.2);
+  assert.deepEqual(cuts, [3.4, 6.95]);
+  const ls = C.takeLines(notes, 9.2, cuts);
+  assert.equal(ls.length, 3);
+  assert.deepEqual(ls.map(l => l.notes.length), [3, 2, 2]);
+  assert.equal(Math.round(ls[1].notes[0].start * 100) / 100, 0.4, "a line's notes are timed from its own start");
+  /* a short phrase joins the one before */
+  assert.deepEqual(C.splitTake([n(0, 2), n(2.6, .4), n(3.6, 2)], 6), [3.3]);
+  /* one long phrase with no breath stays one line */
+  assert.deepEqual(C.splitTake([n(0, 3), n(3.1, 3)], 6.2), []);
+  /* a very long line is cut at its widest gap */
+  assert.deepEqual(C.splitTake([n(0, 6), n(6.3, 6), n(12.4, 3)], 15.5), [6.15]);
+  assert.deepEqual(C.splitTake([], 4), []);
+});
+
+test("4.76.0 merch boxes: a reached box stays shut as the next stop until opened; old saves keep theirs", () => {
+  const skills = { done: { "c:G": { n: 3, best: 90 }, "c:C": { n: 3, best: 90 }, "c:D": { n: 3, best: 90 } } };
+  const old = { songs: [], settings: {}, skills };
+  const was = C.fansOf(old);
+  assert.equal(C.roadPath(old).legs[0].stops[3].state, "done", "a save from before 4.76.0: a reached box counts as opened");
+  assert.equal(C.boxesSeed(old), true); assert.equal(C.fansOf(old), was, "seeding keeps every fan");
+  assert.equal(C.boxesSeed(old), false, "seeds once");
+  const d = { songs: [], settings: {}, skills, boxes: { opened: [] } };
+  const r = C.roadPath(d), box = r.legs[0].stops[3];
+  assert.equal(box.kind, "box"); assert.equal(box.state, "now"); assert.equal(r.current, box, "the shut box is the next stop");
+  assert.equal(r.legs[0].stops[4].state, "open", "the lesson after it can still be played");
+  assert.equal(C.openBox(d, "b:nope-1"), false, "only the next box opens");
+  const before = C.fansOf(d);
+  assert.equal(C.openBox(d, box.id), true);
+  assert.equal(C.fansOf(d), before + C.FANS.box, "opening pays its fans");
+  assert.equal(C.roadPath(d).legs[0].stops[3].state, "done");
+  assert.deepEqual(C.cleanBoxes({ opened: ["b:open-3", "b:open-3", "x", 5] }), { opened: ["b:open-3"] });
+});
+
+test("4.78.0 looks on the Merch table: Light and Dark free, Green Room bought, Headliner earned by headlining", () => {
+  const now = Date.now();
+  const lessons = Object.fromEntries(["G", "C", "D", "Em", "Am", "E", "A"].map(c => [`c:${c}`, { n: 3, best: 90, at: now }]));
+  const data = { songs: [], sets: [], trash: [], settings: { theme: "auto" }, skills: { done: { ...lessons } } };
+  assert.deepEqual([...C.looksOwned(data)].sort(), ["auto", "dark", "light"], "a new player has Auto, Light and Dark");
+  assert.deepEqual(C.merchBuy(data, "headliner", now), { why: "earn" }, "Headliner can't be bought");
+  assert.deepEqual(C.merchBuy(data, "green", now), { why: "tips" });
+  data.merch.tips = 400;
+  assert.deepEqual(C.merchBuy(data, "green", now), { ok: true });
+  assert.equal(data.settings.theme, "green", "buying a look puts it on");
+  assert.equal(C.merchState(data, now).look, "green");
+  assert.equal(C.looksOwned(data).has("headliner"), false, "lessons alone don't earn it");
+  data.skills.done["k:open"] = { n: 3, best: 90, at: now };
+  assert.equal(C.headlined(data, now), true);
+  assert.equal(C.looksOwned(data).has("headliner"), true, "the first headline show earns it");
+  assert.equal(C.merchWear(data, "headliner"), true);
+  assert.equal(data.settings.theme, "headliner");
+  assert.equal(C.merchTip({ songs: [], sets: [], trash: [], settings: {}, merch: { tips: 5000, tconv: 1, lconv: 1, told: ["tweed", "black", "mint", "gold", "brick", "stars", "sunset"] } })?.id, "green", "Show complete can point to Green Room, never to Headliner");
+  /* a look already in use before 4.78.0 stays yours, once */
+  const old = { songs: [], sets: [], trash: [], settings: { theme: "headliner" } };
+  assert.equal(C.looksOwned(old).has("headliner"), true, "kept");
+  assert.deepEqual(old.merch.has, ["headliner"]);
+  assert.deepEqual(C.cleanMerch({ has: ["green", "nope"], lconv: 1, hlseen: 1 }), { has: ["green"], lconv: 1, hlseen: 1 });
+});
+
+test("4.83.0 a quick change written C-G is two chords, a note in brackets is read, and a song says what it did on the Road", () => {
+  assert.ok(C.isChordLine("Dm C-G F (hold)"), "a chord line with a dash change and a note");
+  assert.ok(C.isChordLine("D A-E A (let ring)"));
+  assert.ok(C.isChordLine("Cadd9(no3) G"), "a chord with its own brackets");
+  assert.ok(!C.isChordLine("A-ha said the man"), "words with a dash stay words");
+  assert.ok(!C.isChordLine("(oh) what a night"));
+  const blocks = C.parseBlocks("[Interlude]\nDm C-G F (hold)", 0);
+  assert.deepEqual(blocks.at(-1).items, ["Dm", "C", "G", "F", "(hold)"], "each chord of the change is its own, the note stays a note");
+  assert.deepEqual(C.parseBlocks("C-G", 2).at(-1).items, ["D", "A"], "transposed, both chords move");
+  assert.deepEqual(C.chordsUsed("Dm C-G F (hold)"), ["Dm", "C", "G", "F"]);
+  const song = { id: "s", title: "S", body: "[V]\nE        A\nla la la\nG        D\nla la", playLog: { total: 0, last: 0, days: {} } };
+  const data = { songs: [song], sets: [], trash: [], settings: {}, skills: { done: { "c:A": { n: 1, best: 0, at: 1 } }, last: 1 } };
+  for (let i = 0; i < 3; i++) C.journalPlay(data, song);
+  const note = C.roadNote(data, song);
+  assert.deepEqual(note.find(r => r.chord === "E"), { chord: "E", n: 3, done: false }, "E: 3 of 5 songs");
+  assert.equal(note.find(r => r.chord === "A"), undefined, "a stop done by its lesson isn't mentioned");
+  C.journalPlay(data, song); C.journalPlay(data, song);
+  assert.equal(C.roadNote(data, song).find(r => r.chord === "E").done, true, "the fifth song finishes it");
+  C.journalPlay(data, song);
+  assert.equal(C.roadNote(data, song).find(r => r.chord === "E"), undefined, "after that it isn't news");
+  assert.deepEqual(C.songsWith(data, "E").map(s => s.id), ["s"]);
+  assert.equal(C.KNOW_PLAYS, 5);
+});
+
+test("4.84.0 every guitar has its own inlay material, and the solid-body is on maple", () => {
+  const mats = Object.values(C.GUITARS).map(g => g.mat);
+  assert.ok(mats.every(m => ["pearl", "black", "mop", "abalone", "gold"].includes(m)), "a known material each");
+  assert.ok(new Set(mats).size >= 5, "five different materials across the guitars");
+  assert.equal(C.guitarFor("scales").mat, "black");
+  assert.equal(C.guitarFor("scales").head, "inline", "six in line");
+});
+
+test("4.85.0 your guitarist: cleanMe keeps good fields, drops bad ones, and a backup keeps data.me", () => {
+  assert.equal(C.cleanMe(null), null);
+  const me = C.cleanMe({ skin: 4, hair: "locs", hairCol: "pink", beard: "stubble", glasses: true, extra: "cap", extraCol: "teal", top: "blue", lefty: true, patches: ["leg:open", "b:song1", "leg:open", "bad id!", 5] });
+  assert.deepEqual(me, { skin: 4, hair: "locs", hairCol: "pink", beard: "stubble", glasses: true, extra: "cap", extraCol: "teal", top: "blue", lefty: true, patches: ["leg:open", "b:song1"] });
+  const bad = C.cleanMe({ skin: 9, hair: "mullet", hairCol: "x", beard: 3, extra: "crown", top: "plaid", lefty: "yes", patches: new Array(9).fill(0).map((_, i) => "p" + i) });
+  assert.equal(bad.skin, C.ME_DEFAULT.skin);
+  assert.equal(bad.hair, C.ME_DEFAULT.hair);
+  assert.equal(bad.beard, "none");
+  assert.equal(bad.extra, "none");
+  assert.equal(bad.top, C.ME_DEFAULT.top);
+  assert.equal(bad.lefty, false);
+  assert.equal(bad.patches.length, C.ME_PATCHES, "at most five patches");
+  assert.equal(C.ME_STARTERS.length, 8);
+  assert.ok(C.ME_STARTERS.every(s => C.cleanMe(s).hair === s.hair && s.extra === "none" && !("name" in s)), "starters are valid, hat-free and nameless");
+  const back = C.cleanImport(JSON.parse(JSON.stringify({ songs: [], sets: [], trash: [], settings: {}, me })));
+  assert.deepEqual(back.data.me, me, "an import keeps data.me");
+  assert.equal(C.cleanImport({ songs: [], sets: [], trash: [], settings: {} }).data.me, undefined, "no me, none made up");
+});
+
+test("4.85.0 your guitarist: the look follows the venue and never drops; a hat shows only once bought", () => {
+  assert.equal(C.stageLookOf(0), "tee");
+  assert.equal(C.stageLookOf(1), "tee");
+  assert.equal(C.stageLookOf(3), "vest");
+  assert.equal(C.stageLookOf(5), "leather");
+  assert.equal(C.stageLookOf(6), "stage");
+  assert.equal(C.stageLookOf(99), "stage", "beyond the Festival headliner stays the stage jacket");
+  const data = { songs: [], sets: [], trash: [], settings: {}, fame: { down: 2 } };
+  assert.equal(C.stageLook(data), "tee", "no plays, a tee");
+  data.me = { ...C.ME_DEFAULT, extra: "cap" };
+  assert.equal(C.meOf(data).extra, "none", "a hat you haven't bought doesn't show");
+  data.merch = { has: ["wear-cap"] };
+  assert.equal(C.meOf(data).extra, "cap");
+  assert.equal(C.meOf({ songs: [] }).skin, C.ME_DEFAULT.skin, "no data.me, the default");
+  const buy = { songs: [], sets: [], trash: [], settings: {}, merch: { tips: 300 }, me: { ...C.ME_DEFAULT } };
+  assert.equal(C.merchBuy(buy, "wear-beanie").ok, true);
+  assert.equal(buy.me.extra, "beanie", "buying a hat puts it on");
+  assert.equal(C.merchBuy(buy, "wear-beanie").why, "have");
+});
+
+test("4.85.0 your guitarist: patches, moods and seeded rivals", () => {
+  const data = { songs: [], sets: [], trash: [], settings: {} };
+  assert.deepEqual(C.patchesOf(data), [], "nothing earned, nothing worn");
+  assert.equal(C.meMood(data, Date.now()), "happy");
+  const day = new Date(2026, 9, 28, 21, 0).getTime(), yesterday = new Date(2026, 9, 27, 12, 0).getTime();
+  const key = t => C.dayKey(t);
+  const song = { id: "s", title: "S", body: "G C", playLog: { days: { [key(yesterday)]: 1, [key(yesterday - 86400000)]: 1 } } };
+  const streaky = { songs: [song], sets: [], trash: [], settings: {} };
+  assert.equal(C.meMood(streaky, day), "sleepy", "a streak to lose and not played tonight, late");
+  assert.equal(C.meMood(streaky, new Date(2026, 9, 28, 10, 0).getTime()), "happy", "in the morning there's time");
+  const a = C.rivalMe("Neon Jen", 2), b = C.rivalMe("Neon Jen", 2);
+  assert.deepEqual(a, b, "a rival looks the same every time");
+  assert.equal(a.look, "vest");
+  assert.equal(C.rivalMe("Neon Jen", 5).look, "leather");
+  assert.notDeepEqual(C.rivalMe("Basement Ray", 2), a, "different names look different");
+  assert.ok(C.cleanMe(a), "a rival is a valid guitarist");
+  const worn = C.cleanMe({ ...C.ME_DEFAULT, patches: ["b:nope"] });
+  assert.deepEqual(C.patchesOf({ ...data, me: worn }), [], "a patch you haven't earned isn't worn");
+});
+
+test("4.85.0 guitarist.js draws every hair, pose, mood, look and guitar, and lefty mirrors the body", async () => {
+  const { guitarist } = await import("../guitarist.js");
+  const looks = ["tee", "vest", "leather", "stage"], P = [{ kind: "leg", color: "#8a6a4a", top: "1" }, { kind: "show", color: "#ff5fa8", top: "10" }];
+  for (const hair of C.ME_HAIR) for (const pose of ["play", "hornsUp", "rest"]) for (const mood of ["happy", "cheer", "worried", "sleepy", "proud"]) {
+    const s = guitarist({ ...C.ME_DEFAULT, hair, beard: "beard", glasses: true, extra: "cap" }, { mood, pose, look: looks[mood.length % 4], patches: P, guitar: C.GUITARS.strum });
+    assert.ok(s.startsWith("<svg") && s.endsWith("</svg>") && !s.includes("undefined") && !s.includes("NaN"), `${hair} ${pose} ${mood}`);
+  }
+  for (const g of Object.values(C.GUITARS)) assert.ok(!guitarist(C.ME_DEFAULT, { guitar: g }).includes("undefined"), g.name);
+  assert.ok(guitarist(C.ME_DEFAULT, {}).includes('aria-label="Your guitarist"'));
+  assert.ok(guitarist(C.ME_DEFAULT, { label: "Neon Jen" }).includes('aria-label="Neon Jen"'));
+  assert.ok(guitarist({ ...C.ME_DEFAULT, lefty: true }, {}).includes("scale(-1 1)"), "lefty mirrors");
+  assert.ok(!guitarist(C.ME_DEFAULT, {}).includes("scale(-1 1)"));
+  const bust = guitarist(C.ME_DEFAULT, { crop: "bust", patches: [...P].reverse() });
+  assert.equal((bust.match(/font-size="9.5"/g) || []).length, 1, "the bust wears only the newest patch");
+  assert.notEqual(guitarist(C.ME_DEFAULT, {}).match(/id="t\d+"/)[0], guitarist(C.ME_DEFAULT, {}).match(/id="t\d+"/)[0], "clip ids are unique");
+});
+
+test("4.87.0 every guitar is a picture: head, body and small picture saved for offline, numbers in range, each picture under 60 KB", async () => {
+  const { GUITARS } = await import("../core.js");
+  const PICS = (await import("../art/guitars/pics.js")).default;
+  const shell = read("sw.js");
+  assert.ok(shell.includes(`"art/guitars/pics.js"`));
+  for (const [leg, g] of Object.entries(GUITARS)) {
+    const name = g.body === "swallow" ? "headliner" : g.body, p = PICS[name];
+    assert.ok(p, `${leg} has numbers for ${name}`);
+    for (const part of ["head", "body", "small"]) {
+      const file = `art/guitars/${name}-${part}.webp`;
+      assert.ok(fs.existsSync(path.join(root, file)), `${leg} has ${file}`);
+      assert.ok(shell.includes(`"${file}"`), `${file} is saved for offline`);
+      assert.ok(fs.statSync(path.join(root, file)).size <= 60000, `${file} is small`);
+    }
+    for (const part of ["head", "body"]) assert.ok(p[part].nw > 20 && p[part].cx > 0 && p[part].cx < p[part].w, `${name} ${part}: the neck is inside the picture`);
+    assert.ok(p.body.end > 0 && p.body.end < p.body.bridge && p.body.bridge < p.body.h, `${name}: neck end, then bridge, inside the body`);
+    assert.match(p.lit, /^#[0-9a-f]{6}$/); assert.match(p.shade, /^#[0-9a-f]{6}$/);
+  }
+});
+
+test("4.88.0: trumpet came out; what it saved is cleared on load", () => {
+  const d = C.migrate({ songs: [{ id: "a", body: "G", tpMel: { v: 1, lines: [] }, tpEar: true, tpHardSeen: true }], settings: { v: 6, instrument: "trumpet", tpLevel: "two", tpPart: "hits" } });
+  assert.equal(d.settings.instrument, undefined); assert.equal(d.settings.tpLevel, undefined); assert.equal(d.settings.tpPart, undefined);
+  const s = C.cleanSong(d.songs[0]);
+  assert.equal(s.tpMel, undefined); assert.equal(s.tpEar, undefined); assert.equal(s.tpHardSeen, undefined);
 });

@@ -43,9 +43,16 @@ export const LIB = {
     { id: "a", title: "River Road", artist: "The Wanderers", key: "A", format: "chords", body: SONG, duration: 30 },
     { id: "b", title: "Harbor Lights", artist: "Me", key: "G", format: "chords", body: "[Verse]\nG   C\nLights on the water" }
   ],
-  sets: [], trash: [],
-  settings: { v: 5, controls: "bar", nudge: false, streakMoment: false, tipsSeen: { library: true, song: true, edit: true, add: true, map: true, pause: true, chord: true, play: true, line: true, tap: true, paste: true, menu: true, strobe: true, searchInvite: true, search: true, nn: true, swipe: true }, sampleAdded: true, lastBackup: "2099-01-01T00:00:00Z", countIn: false }
+  sets: [], trash: [], opening: { step: 6, v: 2, done: 1, seen: 1 }, /* 4.40.0: Opening night already played */
+  me: { skin: 2, hair: "shag", hairCol: "brown", top: "red" }, /* 4.85.0: a guitarist already made, so the Road has no sheet to ask for one */
+  settings: { v: 5, controls: "bar", nudge: false, streakMoment: false, tipsSeen: { library: true, song: true, edit: true, add: true, map: true, pause: true, chord: true, play: true, line: true, tap: true, paste: true, menu: true, strobe: true, searchInvite: true, search: true, nn: true, swipe: true }, sampleAdded: true, lastBackup: "2099-01-01T00:00:00Z", countIn: false, plainPlay: true }
 };
+
+/* Wait for a condition that is checked on the test's side (a captured request, a flag), polling every 25 ms. */
+export async function until(cond, ms = 8000) {
+  const t0 = Date.now();
+  while (!(await cond())) { if (Date.now() - t0 > ms) throw new Error("timed out waiting for " + cond); await new Promise(r => setTimeout(r, 25)); }
+}
 
 export let server, browser, base;
 // Each test file calls useBrowser() once: a static server for the repo and one Chromium.
@@ -61,29 +68,64 @@ test.after(async () => { await browser?.close(); server?.close(); });
 
 // A fresh phone with the test library; fails the test on any page error.
 // opts are Playwright context options, plus fixedTime: a date the page's clock stays at.
-export async function phone(t, lib = LIB, { fixedTime, ...opts } = {}) {
+export async function phone(t, lib = LIB, { fixedTime, home = false, ...opts } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, serviceWorkers: "block", hasTouch: true, ...opts });
   if (fixedTime) await ctx.clock.setFixedTime(new Date(fixedTime));
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push(String(e)));
   page.on("console", m => { if (/Content Security Policy/i.test(m.text())) errors.push(m.text()); });
-  await page.goto(base);
-  await page.waitForTimeout(300);
-  await page.evaluate(d => localStorage.setItem("louielite-v1", JSON.stringify(d)), lib);
-  await page.reload();
+  /* The library is in place before the app starts, once per tab (a reload keeps what the test changed).
+     Replacing it after a first load let the app's own first save land on top of it on a busy machine. */
+  await page.addInitScript(json => { try { if (!sessionStorage.getItem("seeded")) { sessionStorage.setItem("seeded", "1"); localStorage.setItem("louielite-v1", json); } } catch { /* blocked */ } }, JSON.stringify(lib));
+  await page.goto(base + (home ? "" : "#/library")); /* most tests start in the Library; home: true starts on Tonight */
   await page.waitForFunction(() => document.getElementById("app")?.childElementCount > 0); /* drawn, rather than a fixed wait */
   t.after(async () => { assert.deepEqual(errors, [], "page errors"); await ctx.close(); });
   return page;
 }
+/* The song speed dial (4.2.0: in Tools). Opened by a tap, it stays open to sweep anywhere. */
+export async function openSpeed(page) {
+  await tool(page, "speed"); await page.waitForSelector(".dial");
+}
+/* Tools (4.32.0) has three tabs: open it (unless it's open), go to the tab that holds the item, and show it.
+   tool() taps the item; showTool() only brings it into view. */
+export async function showTool(page, id) {
+  if (!(await page.locator(".menu.tools").count())) { await page.click("#more"); await page.waitForSelector(".menu.tools"); }
+  const tab = await page.evaluate(id => document.querySelector(`.menu [data-m="${id}"]`)?.closest("[data-panel]")?.dataset.panel, id);
+  if (tab && !(await page.locator(`.menu [data-tab="${tab}"].on`).count())) await page.click(`.menu [data-tab="${tab}"]`);
+}
+export async function tool(page, id) { await showTool(page, id); await page.click(`.menu [data-m="${id}"]`); }
+export const speedText = page => page.evaluate(() => document.getElementById("sv").textContent.trim());
 export const skip = () => !chromium && "Playwright not installed";
 
-// A pretend microphone: a steady tone whose pitch the test sets with window.__hz.
+// A pretend microphone: a steady tone whose pitch the test sets with window.__hz, or a chord: window.__chord is a list
+// of pitches (Hz), each a clean sine, so what the Gig hears has the notes of that chord (4.54.0), strummed twice a second (4.80.1).
 export const FAKE_MIC = `
-window.__hz = 0;
+window.__hz = 0; window.__chord = [];
 navigator.mediaDevices.getUserMedia = async () => {
   const ctx = new AudioContext(), o = ctx.createOscillator(), g = ctx.createGain(), dest = ctx.createMediaStreamDestination();
   o.type = "sawtooth"; g.gain.value = 0; o.connect(g).connect(dest); o.start();
-  setInterval(() => { if (window.__hz) { o.frequency.value = window.__hz; g.gain.value = window.__gain ?? 0.4; } else g.gain.value = 0; }, 20);
+  const voices = Array.from({ length: 6 }, () => { const v = ctx.createOscillator(), vg = ctx.createGain(); v.type = "sine"; vg.gain.value = 0; v.connect(vg).connect(dest); v.start(); return { v, vg }; });
+  setInterval(() => {
+    if (window.__hz) { o.frequency.value = window.__hz; g.gain.value = window.__gain ?? 0.4; } else g.gain.value = 0;
+    /* 4.80.1: the chord is strummed, twice a second (loud, then ringing on quieter), since the show catches a chord from a strum */
+    const ring = (performance.now() % 500) < 300 ? 0.12 : 0.03;
+    voices.forEach((x, i) => { const hz = window.__chord?.[i]; if (hz) { x.v.frequency.value = hz; x.vg.gain.value = ring; } else x.vg.gain.value = 0; });
+  }, 20);
   return dest.stream;
 };`;
+/* Plays, in the page, the chord the song is on (4.54.0): the chord you're on, or the next one if it is already caught */
+export const CHORD_PLAYER = `
+setInterval(async () => {
+  const C = await import("/core.js");
+  const all = [...document.querySelectorAll("#sheet .c[data-ch]:not(.st-rep)")], i0 = Math.max(0, all.findIndex(e => e.classList.contains("st-on")));
+  const el = all.slice(i0).find(e => !/st-got|st-miss/.test(e.className));
+  window.__chord = el ? C.chordTargets(el.dataset.ch).filter(t => t.hz > 0).map(t => t.hz) : [];
+}, 100);`;
+
+
+/* After a screen change the browser's view transition (a short cross-fade) holds taps off the new screen until it ends. */
+export async function settled(page) {
+  await page.evaluate(() => new Promise(ok => requestAnimationFrame(() => requestAnimationFrame(ok))));
+  await page.waitForFunction(() => !document.getAnimations().some(a => /view-transition/.test(a.effect?.pseudoElement || "")));
+}

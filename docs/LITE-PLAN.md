@@ -1,6 +1,6 @@
 # Louie Lite plan: Louie's features in the amp look, without the game
 
-Status: approved by Graham 2026-11-13. Nothing here is built yet. One release at the end, shipped when Graham says ship.
+Status: approved by Graham 2026-11-13. Build in progress on branch lite-3. Nothing here is built yet. One release at the end, shipped when Graham says ship.
 
 ## Ground rules for whoever builds this
 
@@ -96,7 +96,34 @@ Status: approved by Graham 2026-11-13. Nothing here is built yet. One release at
 - Later, for iOS: Apple's App Attest proves calls come from the app.
 - Steps Claude can't do (Vercel environment variable, the key-value store, the Anthropic spend limit, the token Worker's allowed sites) go to Grok as one prompt when that stage starts.
 
-## Build order (one branch, one release)
+## Approach change (Opus, 2026-11-13, for speed)
+
+Graham asked for it in his hands as soon as possible. Rebuilding dozens of Louie features on the 2.49 code would take far longer than starting from Louie 4.89.1, where every feature already works and is tested, and taking the game out. So branch `lite-3` holds Louie 4.89.1's code with:
+- storage keys renamed `tabs-*` / `tabs.*` to `louielite-*` / `louielite.*` (never shares Louie's data);
+- the Library as home (`route()` maps "" and "road" to "library");
+- no tab bar (`renderRoute`), no Opening night (`openingOn` returns false), no scored show (`canGig` returns false).
+The 2.49 code on `main` is only the starting point that's live now; `lite-3` replaces it at ship.
+
+## Build steps on `lite-3` (each [Sonnet] unless marked)
+
+Rules: one task per commit, `eslint .` and `node tests/quick.mjs` before each push to `lite-3` (not main). Tests for removed game screens are deleted with the screen. When something doesn't match this plan, write it under Surprises at the end and move on.
+
+1. Take out the game. Delete and unhook: road.js, fretboard.js, art/guitars, tour.js, charts.js (keep the weekly chart: see 6), duel.js, band.js, friends.js, guitarist.js, maker.js, art/guitarist.js, merch.js, opening.js, hud.js stat bar and tab bar (keep the More items as rows in Settings: Tuner, Rehearse, Your playing, Tour Map, Support), callout combo kinds, POW for fans and tips, fans/tips/venues and their fading, the Requested card, cover requests, rival battles, the Friend quest. Chord Catch: gig.js scoring, catchHear, combos, crowd, Show complete scoring, Wait for me, What I hear, the mic chord check in lessons. Sing it: drop the Guitar and Both modes; Strum it goes (and vendor/basic-pitch if nothing else uses it). Remove the matching README sections, docs and tests. SHELL in sw.js follows.
+2. Start at the first line when not playing along with the recording (skip the intro wait); with the recording, keep the wait.
+3. Follow my tempo on strum timing only (strumDetector onsets, no chord check); same limits as 4.80.0.
+4. Lesson of the day: the switch step becomes the click plus an "I got it" tap; string checks keep the mic. Your changes: rows show songs that use the change, drills done, last practiced; no "landed".
+5. End card (Show complete without scoring): what you played, time, sections, XP, Louie's line, Encore, Share.
+6. Light progress: the weekly chart on XP from plays (no battles), XP, levels, badges without combo or fan badges, callouts without combos, on Your playing (profile.js); Tour Map stays.
+7. Louie: all finishes free in Settings > Look (Stock blue, Pink, Teal, Tweed, Black, Mint, Gold) plus Amp (default): body black tolex (SVG pattern fill), shade #0f0f11, highlight #b8935a, face #d9bd85, face shade #b08b4f, grille #2e2116, slat #4a3524, pupil #1a120d, cheek and tongue #c8804f, lamp #ffb24a (values in the mockup canvas).
+8. [Opus check after] The amp look: a new look `amp` as the only theme family (Dark default, Light), built from 2.49's amp materials (`--bronze`, `--plate`, `--recess`, `--copper`, `--chrome`, `--lamp-*`, tolex; copy from main's styles.css "amp theme" section) restyling the v4 components: buttons 56/42/32 in copper and chrome, chips with lamps, cards with bronze piping, sheets frosted, the song bar as the gold plate with Back, Tools and Play, title in New York serif, body in system sans (drop Fredoka/Nunito). Match the mockup canvas screens. Palettes Festival, Neon, Green Room and Headliner go.
+9. Library home to match mockup 2: title "Library" (not Songbook) with Sets and Settings buttons, Today strip, filters in one row (All, Can play, Learning, Favorites), count line, search bar plus the music-note add button. Back button removed on home.
+10. Tuner: the guided headstocks from 4.89.1 inside 2.49's amp tuner face (tolex, channel button menu, pilot lamp).
+11. Support: ko-fi.com/louieguitar, Louie in the Amp finish.
+12. Accept a Louie backup on import (songs, sets, recordings, timing; game fields dropped).
+13. AI on the server: Vercel function, device token, caps, Get the song cap, own-key fallback. Needs Grok's setup prompt first (Opus writes it).
+14. App name Louie, version 3.0.0, README and CLAUDE.md rewritten for Louie Lite, then the check by a separate agent and screenshots for Graham. Ship = merge `lite-3` to main when Graham says ship (he said ship on 2026-11-13: ship when 1 to 12 are done and tested; 13 can follow).
+
+## Build order (original, superseded by the steps above)
 1. Mockups (Opus): done and approved 2026-11-13, on the Design canvas https://claude.ai/artifact/91PLusrfWHZJX87dDbbNBw. Build to match them.
 2. Shell (Sonnet): remove the ring, folding bar, button system, Tools sheet, pause gives the page back, filters row, readability.
 3. Song page (Sonnet): 13 to 16, 18 to 20, 22, 23, 52, start at the first line.

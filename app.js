@@ -1,13 +1,17 @@
 // Tabs app: screens and interaction. core.js holds the logic that has unit tests.
-import { playCredited, playSongs, bassHits, bassStyle, bassWhere, chordBass, drumHits, drumStyle, DRUM_SWING, grooveOf, grooveText, soundOffset, gigCountdown, streakOf, pickNudge, changesOf, weatherMood, germanBlocks, sungText, deSource, DE_LEVELS, Tabs, SPEEDS, playsThisWeek, playCount, searchSongs, sortSongs, lastPlayed, TUNINGS, detectTuning, nextSet, untilLabel, parseSheet, parseBlocks, wrapTab, guessKey, transposeKey, prefersFlats, detectPaste, chordShape, indexLetter, appleTrackId, artistSortName, VERSION, restyle, firstLyric, bodyCapo, journalTime, journalGot, streakMoment } from "./core.js";
+import { achSettle, profileOf, MAX_LENGTH, openingOn, spotTimes, liningDue, practicing, practiceRate, keyGap, journalPractice, addSync, mergeSyncs, syncSeconds, syncWhere, playCredited, playSongs, soundOffset, germanBlocks, sungText, deSource, DE_LEVELS, Tabs, SPEEDS, playsThisWeek, playCount, sortSongs, TUNINGS, detectTuning, parseBlocks, wrapTab, guessKey, transposeKey, prefersFlats, detectPaste, parseSheet, sheetChords, chordShape, appleTrackId, VERSION, restyle, firstLyric, bodyCapo, journalTime, journalGot, streakMoment, knownChords, questsSettle, bandMeet, merchWorn, LANGS, langOf, langChosen, deLangOk, looksOwned } from "./core.js";
 import { openDial } from "./dial.js";
-import { askMotion, ringActive, setupRing, teardownRing } from "./ring.js";
-import { $, I, app, esc, followKeyboard, icon, layer, leaveHooks, oneHandMQ, onLeave, onScroll, toast, sound } from "./ui.js";
-import { addToSet, coverCache, coverDel, coverLoadAll, fullWhen, keyColor, newSet, nextLine, nextUp, playSet, renderSet, setCover, setCtx, setKeys, setLength, setRun, setSongs, whenText, setSetCtx } from "./sets.js";
-import { ago, backupNow, copyDiagnostics, loadLibrary, needsBackup, noteError } from "./store.js";
-import { chordTapped, coach, coachTip, demoLine, demoMap, demoNN, demoPause, demoSearch, demoTap, dismissCoach, markSeen, markUsed, renderGestures, searchOpened, songCoach, takeDemo, tick, tipDue, tipsSeen, used } from "./coach.js";
+import { setupFold, teardownFold } from "./fold.js";
+import { $, app, esc, icon, layer, leaveHooks, oneHandMQ, onLeave, onScroll, toast, sound } from "./ui.js";
+import { addToSet, coverCache, coverDel, coverLoadAll, nextLine, nextUp, renderSet, setCtx, setRun, setSongs, setSetCtx } from "./sets.js";
+import { copyDiagnostics, loadLibrary, noteError } from "./store.js";
+import { chordTapped, coach, coachTip, demoLine, demoMap, demoPause, demoTap, markSeen, markUsed, renderGestures, songCoach, takeDemo, tick, tipDue, tipsSeen, used } from "./coach.js";
 import { duetSheet, moreBtn, renderImport, shareSet, shareSong } from "./share.js";
-import { appleSearchURL, listenSheet, openLink, recordingLength } from "./listen.js";
+import { appleSearchURL, hasMusic, musicLead, onFeel, aboutSheet, timeLines, listenSheet, musicClock, openLink, pauseMusic, prepareMusic, rateWorks, recordingLength, seekMusic, setMusicRate, startMusic } from "./listen.js";
+import { STATUS, bindShelf, chipsHTML, filter, homeHooks, leaveSearch, query, refreshLibrary, renderLibrary, renderList, searching, setFilter, setSearchFrom, setsShelf, showPasteCard, todayKey } from "./library.js";
+import { AI, BPM_STORE, aiError, aiKey, aiLastStop, askClaude, bpmKey, busy, cleanSheet, parseJSON, readPhoto } from "./aihelp.js";
+import { BAND_MAX, BEATS, beatAt, beatMode, beatName, setBeat, beatTrack, drumJobs, drumsFor, grooveFor, metro, metroDrums, metroOn, metroPace, metroPreview, metroVol, recLength, startMetronome, stopMetronome, tempoFor } from "./audio.js";
+import { stagePlay, stageStop, stageOpen, stageBeat, coverOn, coverOff } from "./stage.js";
 
 
 // ---------- State ----------
@@ -16,15 +20,6 @@ let data = await loadLibrary(); /* see store.js */
 const setData = d => { data = d; };
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") Tabs.flush(); });
 window.addEventListener("pagehide", () => Tabs.flush());
-let query = "";
-let filter = "all";
-const setFilter = f => { filter = f; };
-// Search mode: tapping the bar moves it to the top and folds the library away, so
-// results sit between the bar and the keyboard. (iPhone doesn't resize the page
-// for the keyboard; it pushes the page up instead, which hid results at the top.)
-let searching = false;
-let keepSearch = false; /* back from a song opened from results: show the results again */
-onLeave(r => { if (r.name !== "library" && searching) { searching = false; document.body.classList.remove("searching"); } });
 
 // The phone's own text size (iPhone: Settings > Display & Brightness > Text Size)
 // scales the lyrics, so a larger system size means larger songs too.
@@ -45,662 +40,106 @@ document.addEventListener("visibilitychange", () => {
 });
 // Theme: Automatic (the default) follows the phone's light or dark appearance.
 const phoneLight = () => !!window.matchMedia?.("(prefers-color-scheme: light)").matches;
-window.matchMedia?.("(prefers-color-scheme: light)").addEventListener?.("change", () => { if (data.settings.theme !== "dark" && data.settings.theme !== "light") applyTheme(); });
+window.matchMedia?.("(prefers-color-scheme: light)").addEventListener?.("change", () => { if (data.settings.theme === "auto" || !data.settings.theme) applyTheme(); });
 function applyTheme() {
   sysText = readSysText();
-  const t = data.settings.theme;
-  const light = t === "light" || (t !== "dark" && phoneLight());
-  document.body.classList.toggle("stage", !!data.settings.stage);
+  const t0 = data.settings.theme, t = looksOwned(data).has(t0) ? t0 : "auto"; /* 4.78.0: a look you don't have yet is Auto */
+  const green = t === "green", head = t === "headliner", light = green || t === "light" || (t !== "dark" && !head && phoneLight());
   document.documentElement.dataset.theme = light ? "light" : "dark";
-  document.documentElement.dataset.tolex = data.settings.tolex ? "on" : "off";
-  document.querySelector('meta[name="theme-color"]').content = light ? "#f3f0eb" : "#0c0d0f";
+  /* 4.0.0: Light is Festival Poster, Dark is Neon Midnight, Green is Green Room (a light look) */
+  /* 4.77.0: Headliner is a dark look: violet, gold and blaze orange on black */
+  document.documentElement.dataset.look = green ? "green" : head ? "headliner" : light ? "festival" : "neon";
+  /* 4.14.0: the finish Louie wears, bought at the Merch table */
+  const wear = merchWorn(data);
+  if (wear === "stock") delete document.body.dataset.wear; else document.body.dataset.wear = wear;
+  document.querySelector('meta[name="theme-color"]').content = green ? "#e6efe7" : head ? "#16171b" : light ? "#eaf3ff" : "#1d1640";
 }
 
 
 const go = h => { location.hash = h; };
+/* From Tonight: open a song and start it playing; open the Library with search ready. */
+let playNext = null, searchNext = false, lastHome = "library"; /* where a song's Back goes: Tonight or the Library */
+const playSong = id => { playNext = id; go("#/song/" + encodeURIComponent(id)); };
+/* The Gig (4.1.0): open the song and play it as a scored show. gigHooks are set by gig.js while a show is on. */
+const gigHooks = { on: false, held: false, credited: null, stopped: null, resume: null, leave: null, band: null };
+/* Play opens the Gig (4.2.0). The Gig is words first (4.46.0). Practicing a section or slower, a tab and Play together play the plain sheet.
+   plainPlay (tests only, never set by the app) keeps Play plain. */
+const canGig = song => song.format !== "tab" && !(practicing(song) && (song.loop || practiceRate(song) < 1)) && !scroll.duet && false; /* Louie Lite: no scored show (Chord Catch) */
+const gigsOn = song => canGig(song);
+/* 4.20.0: the face says what plays with you: the recording or the band (nothing when neither will) */
+const playWith = song => !song ? "" : usesMusic(song) ? "ALONG WITH THE RECORDING" : beatMode() === "kick" ? "WITH THE BASS DRUM" : beatMode() === "click" ? "WITH THE METRONOME" : "";
+/* 4.52.0: a show you paused is held on the song page; Play picks it up again */
+const playFace = (on, song) => `${icon(on ? "pause" : "play")}<span>${on ? "PAUSE" : gigHooks.held ? "RESUME" : "PLAY"}${!on && !gigHooks.held && playWith(song) ? `<small class="pw-with">${playWith(song)}</small>` : ""}</span>`;
+const playLabel = (song, on) => on ? "Pause auto-scroll" : gigHooks.held ? "Resume the show" : gigsOn(song) ? "Play as a gig" : "Start auto-scroll";
+/* Play's label, after Practice changes */
+function refreshPlay(song) {
+  const pb = $("play");
+  if (!pb || viewing !== song || scroll.on) return;
+  pb.setAttribute("aria-label", playLabel(song, false));
+  pb.innerHTML = playFace(false, song);
+}
+/* Achievement callouts (4.44.0, #77): after a play, a new chord, a level and new badges each get a moment.
+   The streak moment comes first when there is one, so the callouts wait a little. */
+const chordsHad = () => new Set(profileOf(data).chords.map(c => c.name));
+let calloutMod = null; /* one load, so callouts keep the order they were asked for */
+export const showCallout = c => (calloutMod ||= lazy("callout.js")).then(m => m.callout(data, c));
+function celebrate(had) {
+  const got = achSettle(data, profileOf(data), had);
+  Tabs.save(data);
+  if (got.length) setTimeout(() => got.forEach(showCallout), 900);
+}
+/* Your band (4.7.0): a play that brings in a new friend says so (4.44.0: with a callout, the friend in it) */
+function bandToast() {
+  const fresh = bandMeet(data);
+  if (!fresh.length) return;
+  Tabs.save(data);
+  fresh.slice(0, 2).forEach(f => setTimeout(() => showCallout({ kind: "join", word: "JOINED YOUR BAND", big: FRIEND_NAMES[f.id] || f.id, who: f.id }), 2000));
+  const names = fresh.map(f => FRIEND_NAMES[f.id] || f.id);
+  setTimeout(() => toast(`${names.join(" and ")} joined your band!`, null, { label: "Meet", fn: () => go("#/band") }), 2500);
+}
+const FRIEND_NAMES = { lola: "Lola", tilly: "Tilly", beat: "Beat", metro: "Metro", bex: "Bex", jax: "Jax", milo: "Milo", pip: "Pip", key: "Key", strap: "Strap", slide: "Slide", shaker: "Shaker", pickup: "Pickup", humb: "Humb", reverb: "Reverb", triangle: "Triangle", whammy: "Whammy", looper: "Looper" };
+/* Tour quests (4.5.0): a play that finishes a goal says so */
+function questToast() {
+  const got = questsSettle(data);
+  if (!got.length) return;
+  Tabs.save(data);
+  toast(got.map(x => `${x.label}: +${x.fans} fans`).join(" · "));
+  /* 4.71.0: and a POW for what it paid */
+  showCallout({ kind: "earn", pow: got.length > 1 ? "WHAM!" : "POW!", word: got.length > 1 ? "SETLIST DONE" : "QUEST DONE", big: `+${got.reduce((n, x) => n + x.fans, 0)} fans` });
+}
+let songSpeed = null; /* the song page's speed dial, for the Tools sheet */
+let gigNext = null;
+let gigFrom = null; /* 4.66.0: where the last show was started from, so the song page's Back returns there */
+const playGig = (id, opts = {}) => { gigNext = { id, ...opts }; if (opts.from) gigFrom = { id, from: opts.from }; if (route().name === "song" && route().id === id) return openGigNow(); go("#/song/" + encodeURIComponent(id)); };
+function openGigNow() { const g = gigNext; gigNext = null; if (g && viewing?.id === g.id) lazy("gig.js").then(m => { if (viewing?.id === g.id && route().name === "song" && $("sheet")) m.openGig(viewing, g); }); }
+const openSearch = (from = "") => { searchNext = true; setSearchFrom(from); go("#/library"); };
+/* The Neck's Learning list opens a song on the section you last practiced (3.24.2). */
+let sectionNext = null;
+const openAtSection = id => { sectionNext = id; go("#/song/" + encodeURIComponent(id)); };
+/* 4.21.0: the lesson of the day opens its song at a section (its order among the section labels, -1 for
+   the whole song), looped in Practice mode at a speed. loopHooks.pass hears each pass of a loop. */
+let lessonOpen = null;
+export const loopHooks = { pass: null };
+const openLessonSong = (id, sec, rate) => { lessonOpen = { id, sec, rate }; go("#/song/" + encodeURIComponent(id)); };
+function applyLessonOpen(song, lo) {
+  const lines = sheetLines();
+  if (!lines.length) return;
+  let a = 0, b = lines.length - 1;
+  if (lo.sec >= 0) {
+    const el = lines.filter(x => x.classList.contains("sec"))[lo.sec];
+    if (el) { a = lines.indexOf(el); let j = a + 1; while (j < lines.length && !lines[j].classList.contains("sec")) j++; while (j - 1 > a && lines[j - 1].classList.contains("gap")) j--; b = j - 1; }
+  }
+  song.loop = { a, b, build: false };
+  song.loop.name = lo.sec >= 0 ? loopName(song) : "Whole song";
+  song.practice = { ...(song.practice || {}), rate: lo.rate };
+  setPracticing(song, true);
+}
 const route = () => {
   const [, name = "", id = ""] = location.hash.split("/");
-  return { name: name || "library", id: decodeURIComponent(id) };
+  return { name: (!name || name === "road") ? "library" : name, id: decodeURIComponent(id) }; /* Louie Lite: the Library is home */
 };
 const keyOf = s => s.format === "tab" ? "TAB" : (s.key || guessKey(s.body || ""));
 
-
-// ---------- Library ----------
-// ---- Today: the practice streak and one song for today ----
-// The quiet stat line under the title grows into a Today line: seven dots for
-// the last week (today dashed until you play), the streak, and at most one
-// nudge that opens a song. The nudge waits on a gig day (Up next has the
-// floor) and goes once you've played today. Weather comes from Open-Meteo for
-// a city chosen in Settings, fetched once a day; no location access.
-const WX = "louielite.wx.v1";
-const NUDGE_ICON = { change: "fretboard", streak: "flame", rain: "rain", cold: "snow", clear: "sun", hot: "sun", learn: "note", idle: "heart" };
-const todayKey = () => new Date().toDateString();
-function wxMood() {
-  const p = data.settings.place;
-  if (!p) return "";
-  let c = null;
-  try { c = JSON.parse(localStorage.getItem(WX) || "null"); } catch {}
-  if (c && c.day === todayKey() && c.lat === p.lat && c.lon === p.lon) return weatherMood(c.code, c.tmax);
-  fetchWeather(p);
-  return "";
-}
-let wxAsked = "";
-async function fetchWeather(p) {
-  const ask = todayKey() + p.lat + p.lon;
-  if (wxAsked === ask) return;
-  wxAsked = ask;
-  try {
-    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}&daily=weather_code,temperature_2m_max&timezone=auto&forecast_days=1`);
-    if (!r.ok) return;
-    const j = await r.json();
-    const code = j?.daily?.weather_code?.[0], tmax = j?.daily?.temperature_2m_max?.[0];
-    if (code == null) return;
-    try { localStorage.setItem(WX, JSON.stringify({ day: todayKey(), lat: p.lat, lon: p.lon, code, tmax })); } catch {}
-    const el = $("today");
-    if (el && route().name === "library" && !searching) { el.outerHTML = todayHTMLOrSpot(...weekStats()); bindToday(); }
-  } catch { /* offline: no weather today */ }
-}
-const weekStats = () => { const w = playSongs(data).map(s => playsThisWeek(s)); return [w.reduce((a, b) => a + b, 0), w.filter(Boolean).length]; };
-function todayHTML(weekTotal, weekSongs) {
-  const plays = weekTotal ? `${weekTotal} play${weekTotal === 1 ? "" : "s"} this week` : "";
-  if (data.settings.nudge === false) return weekTotal ? `<div class="weekly" id="today">This week: ${weekTotal} play${weekTotal === 1 ? "" : "s"} across ${weekSongs} song${weekSongs === 1 ? "" : "s"}</div>` : "";
-  const st = streakOf(playSongs(data));
-  const n = pickNudge({ songs: data.songs, mood: wxMood(), gigToday: data.sets.some(x => gigCountdown(x.when)) });
-  if (!plays && !n) return "";
-  const dots = `<span class="t-dots" aria-hidden="true">${st.week.map((on, i) => `<i class="${on ? "on" : i === 6 ? "now" : ""}"></i>`).join("")}</span>`;
-  const stat = st.days >= 2 ? `<b>${st.days}-day streak</b>${plays ? ` · ${plays}` : ""}` : plays ? `This week: ${plays.replace(" this week", "")} across ${weekSongs} song${weekSongs === 1 ? "" : "s"}` : "";
-  return `<div class="today" id="today">
-    ${stat ? `<button class="weekly t-stat" id="t-stat" aria-label="${st.days >= 2 ? `${st.days}-day practice streak${st.today ? "" : ", not played yet today"}. ` : ""}Your changes this week">${st.days >= 2 ? dots : ""}<span>${stat}</span>${icon("chev", "chev")}</button>` : ""}
-    ${n ? `<button class="nudge" id="nudge" data-song="${esc(n.songId)}">${icon(NUDGE_ICON[n.kind] || "note")}<span><small>${esc(n.text)}</small><b>${esc(n.title)}</b></span>${icon("chev", "chev")}</button>` : ""}
-  </div>`;
-}
-// An empty, hidden #today keeps a place for the line when there's nothing to
-// show yet, so a forecast that arrives after the library is drawn can still
-// fill it in (with no plays this week the weather never appeared).
-const todayHTMLOrSpot = (...a) => todayHTML(...a) || `<div id="today" hidden></div>`;
-function bindToday() {
-  $("nudge")?.addEventListener("click", e => go("#/song/" + encodeURIComponent(e.currentTarget.dataset.song)));
-  $("t-stat")?.addEventListener("click", showChanges);
-}
-// Changes: the chord changes you played this week, from songs played to
-// their end, and the ones your songs have that you play least.
-function showChanges() {
-  const { most, work } = changesOf(data.songs);
-  const max = Math.max(1, ...most.map(c => c.week));
-  const row = (c, w) => `<div class="chg${w ? " work" : ""}"><b>${esc(c.a)}<em>→</em>${esc(c.b)}</b><div class="bar"><i style="width:${Math.max(4, Math.round(c.week / max * 100))}%"></i></div><small>${c.week}</small></div>`;
-  const first = work[0];
-  layer.innerHTML = `<div class="scrim" id="chg-scrim"></div><div class="panel card" role="dialog" aria-label="Your changes this week">
-    <div class="pc-head">${icon("fretboard")}<span>Your changes this week</span></div>
-    ${most.length ? `<div class="chg-lab">Most played</div><div class="chg-list">${most.map(c => row(c)).join("")}</div>` : `<p class="foot" style="margin:6px 2px 10px">Play a song to its end and its changes show up here.</p>`}
-    ${work.length ? `<div class="chg-lab">To work on</div><div class="chg-list">${work.map(c => row(c, true)).join("")}</div>` : ""}
-    <p class="foot pn">Counted when a song plays to its end, in the shapes you play. To work on: changes your songs have that you play least.</p>
-    <div class="actions"><button class="btn" id="chg-x">Close</button>${first ? `<button class="btn primary" id="chg-go">Play ${esc(first.a)} to ${esc(first.b)}</button>` : ""}</div></div>`;
-  const close = () => { layer.innerHTML = ""; };
-  $("chg-scrim").onclick = close; $("chg-x").onclick = close;
-  $("chg-go")?.addEventListener("click", () => { close(); go("#/song/" + encodeURIComponent(first.best.id)); });
-}
-
-function renderLibrary() {
-  const hasFav = data.songs.some(s => s.favorite);
-  const hasTab = data.songs.some(s => s.format === "tab");
-  const hasLearn = data.songs.some(s => s.status === "learning");
-  if ((filter === "fav" && !hasFav) || (filter === "tab" && !hasTab) || (filter === "learn" && !hasLearn)) filter = "all";
-  const week = playSongs(data).map(s => playsThisWeek(s)), weekTotal = week.reduce((a, b) => a + b, 0), weekSongs = week.filter(Boolean).length;
-  const tunerBtn = cls => `<button class="${cls}" id="tunerbtn" aria-label="${tunedRecently() ? "Tuner" : "Tuner. Not tuned in the last few hours"}">${icon("fork")}${tunedRecently() ? "" : '<i class="dotmark"></i>'}</button>`;
-  app.innerHTML = `
-    <div class="head">
-      <h1 class="title script">Library</h1>
-      <div class="row-btns">
-        <button class="ib glass" id="youbtn" aria-label="Your playing">${icon("pick")}</button>
-        ${tunerBtn("ib glass")}
-        <button class="ib glass" id="settings" aria-label="Settings">${icon("gear")}</button>
-      </div>
-    </div>
-    ${todayHTMLOrSpot(weekTotal, weekSongs)}
-    ${data.songs.length ? `<div class="chips" id="chips">
-      <button class="chip ${filter === "all" ? "on" : ""}" data-f="all">All</button>
-      <button class="chip ${filter === "sets" ? "on" : ""}" data-f="sets">Sets</button>
-      ${hasFav ? `<button class="chip ${filter === "fav" ? "on" : ""}" data-f="fav">Favorites</button>` : ""}
-      ${hasLearn ? `<button class="chip ${filter === "learn" ? "on" : ""}" data-f="learn">Learning</button>` : ""}
-      ${hasTab ? `<button class="chip ${filter === "tab" ? "on" : ""}" data-f="tab">Tabs</button>` : ""}
-    </div>` : ""}
-    ${filter === "all" && data.songs.length ? setsShelf() : ""}
-    ${needsBackup() ? `<div class="bk glass" id="bk">
-      <span class="tile">${icon("cloud")}</span>
-      <div class="bk-t"><b>Back up your library</b><span>${data.settings.lastBackup ? `Last backup ${ago(data.settings.lastBackup)}` : "Not backed up yet"}. Save it to iCloud Drive.</span></div>
-      <div class="bk-b"><button class="btn sm" id="bk-later">Later</button><button class="btn sm primary" id="bk-go">Back up</button></div>
-    </div>` : ""}
-    <div id="list"></div>
-    <div class="dock-fade"></div>
-    <div class="dock kb">
-      <label class="cmd glass float">
-        ${icon("search")}
-        <input id="q" type="text" inputmode="search" enterkeyhint="go" placeholder="Search, or paste a song" value="${esc(query)}" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Search or paste a song">
-        <button class="clear" id="clear" aria-label="Clear search" ${query ? "" : "hidden"}>${icon("x")}</button>
-      </label>
-      <button class="add" id="add" aria-label="Add song"><svg class="add-note" viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="add-silver" x1="0" y1="0" x2=".3" y2="1"><stop offset="0" stop-color="#f4f4f6"/><stop offset=".5" stop-color="#c9cacf"/><stop offset="1" stop-color="#9a9ba1"/></linearGradient></defs><g fill="url(#add-silver)" stroke="#6d6e74" stroke-width=".35"><path d="M8.2 6.4 19 4v12.3h-1.8V6.3L10 7.9v10.3H8.2z"/><ellipse cx="6.4" cy="18.1" rx="2.6" ry="2.1" transform="rotate(-20 6.4 18.1)"/><ellipse cx="15.6" cy="16.2" rx="2.6" ry="2.1" transform="rotate(-20 15.6 16.2)"/></g></svg><i class="add-bdg" aria-hidden="true">+</i></button>
-      <button class="qcancel" id="qcancel">Cancel</button>
-    </div>`;
-  bindToday();
-  $("settings").onclick = () => go("#/settings");
-  $("youbtn").onclick = () => go("#/you");
-  $("tunerbtn").onclick = () => openTuner("standard", () => route().name === "library" && renderLibrary());
-  $("bk-later")?.addEventListener("click", () => { data.settings.backupSnooze = Date.now() + 2 * 86400000; Tabs.save(data); $("bk").remove(); });
-  $("bk-go")?.addEventListener("click", async () => { if (await backupNow()) { $("bk")?.remove(); toast("Backed up"); } });
-  $("add").onclick = () => newSong();
-  app.querySelectorAll("[data-f]").forEach(b => b.onclick = () => { filter = b.dataset.f; renderLibrary(); });
-  bindShelf();
-  const q = $("q");
-  const enterSearch = () => {
-    if (searching) return;
-    searching = true;
-    document.body.classList.add("searching");
-    window.scrollTo(0, 0);
-    renderList();
-    searchOpened();
-  };
-  const exitSearch = () => {
-    searching = false;
-    query = ""; q.value = ""; $("clear").hidden = true;
-    document.body.classList.remove("searching");
-    q.blur();
-    dismissCoach(true);
-    renderLibrary();
-  };
-  /* Move the bar before the keyboard opens, so iPhone has nothing to push up. */
-  q.addEventListener("pointerdown", e => {
-    if (searching) return;
-    e.preventDefault();
-    enterSearch();
-    q.focus({ preventScroll: true });
-  });
-  q.addEventListener("focus", () => { enterSearch(); window.scrollTo(0, 0); });
-  /* Closing the keyboard (its checkmark doesn't tap the page) also closes a search tip. */
-  q.addEventListener("blur", () => dismissCoach());
-  q.addEventListener("blur", () => setTimeout(() => { if (searching && !query.trim() && document.activeElement !== q && route().name === "library" && !layer.innerHTML) exitSearch(); }, 200));
-  $("qcancel").onclick = e => { e.preventDefault(); exitSearch(); };
-  if (keepSearch && query.trim()) searching = true;
-  keepSearch = false;
-  if (searching) document.body.classList.add("searching");
-  /* Search a beat after typing pauses, not on every key. */
-  let typing = 0;
-  q.oninput = () => { query = q.value; $("clear").hidden = !query; clearTimeout(typing); typing = setTimeout(renderList, query.length > 2 ? 90 : 0); };
-  q.onkeydown = e => {
-    if (e.key !== "Enter") return;
-    clearTimeout(typing); renderList();
-    const first = app.querySelector("#list .row");
-    if (first) first.click();
-  };
-  q.addEventListener("paste", e => {
-    const text = e.clipboardData?.getData("text") || "";
-    /* A pasted share link opens the same "Shared with you" sheet as tapping it. */
-    const link = text.match(/#\/import\/([zj][A-Za-z0-9_-]+)/);
-    if (link) { e.preventDefault(); q.blur(); return renderImport(link[1]); }
-    if (text.trim().split("\n").filter(l => l.trim()).length < 2) return;
-    e.preventDefault();
-    q.blur();
-    showPasteCard(detectPaste(text));
-  });
-  $("clear").onclick = e => { e.preventDefault(); query = ""; q.value = ""; $("clear").hidden = true; renderList(); q.focus(); };
-  renderList();
-  followKeyboard();
-  /* After the first song: invite a tap on search, which does more than find. */
-  if ((used("chord") || tipsSeen().play) && tipDue("searchInvite") && !searching) setTimeout(() => {
-    if (route().name !== "library" || layer.innerHTML || searching || document.activeElement === q || !coachTip("searchInvite")) return;
-    demoSearch();
-  }, 900);
-}
-
-// ---- Up next and the sets shelf (library, All view) ----
-function setsShelf() {
-  if (!data.sets.length) return "";
-  const up = nextSet(data.sets);
-  const rest = data.sets.filter(x => x !== up)
-    .sort((a, b) => (a.when && b.when ? Date.parse(a.when) - Date.parse(b.when) : a.when ? -1 : b.when ? 1 : 0));
-  const len = x => { const n = setSongs(x).length; return `${n} song${n === 1 ? "" : "s"}${n ? ` · ${Math.round(setLength(x) / 60)} min` : ""}`; };
-  return `
-    ${up ? `<div class="upnext" id="upnext" role="button" tabindex="0" aria-label="Up next: ${esc(up.name)}, ${esc(fullWhen(up.when))}" style="--tint:${keyColor(setKeys(up)[0], up.name, 0.22)}">
-      <div class="un-cv">${setCover(up, { small: true, notext: true })}</div>
-      <div class="un-t"><div class="lab">Up next · ${gigCountdown(up.when) ? "Today" : esc(whenText(up.when))}</div><b>${esc(up.name)}</b>
-        ${gigCountdown(up.when) ? `<div class="un-cd glow" id="un-cd" aria-hidden="true">${gigCountdown(up.when)}</div>` : ""}
-        <span>${gigCountdown(up.when) ? `until ${esc(whenText(up.when, false))} · ${len(up)}` : `${len(up)} · ${esc(untilLabel(up.when))}`}${up.where ? ` · ${esc(up.where)}` : ""}</span></div>
-      ${setSongs(up).length ? `<button class="un-play" id="un-play" aria-label="Play ${esc(up.name)}">${icon("play")}</button>` : ""}
-    </div>` : ""}
-    <div class="label lrow shelf-h"><span>Your sets</span><button class="linkbtn sh-all" id="sh-all">See all</button></div>
-    <div class="shelf" id="shelf">
-      ${rest.map(x => `<button class="sh-it" data-sh="${esc(x.id)}" aria-label="${esc(x.name)}"><div class="sh-cv">${setCover(x, { fs: 14, small: true })}</div><div class="sh-t">${esc(x.name)}</div><div class="sh-s">${x.when ? esc(whenText(x.when)) : len(x)}</div></button>`).join("")}
-      <button class="sh-it sh-new" id="sh-new" aria-label="New set"><div class="sh-cv">${icon("plus")}</div><div class="sh-t">New set</div></button>
-    </div>`;
-}
-let gigTimer = 0;
-onLeave(() => clearInterval(gigTimer));
-function bindShelf() {
-  const up = nextSet(data.sets);
-  /* Gig day: the countdown ticks every second while the library is open. */
-  clearInterval(gigTimer);
-  if ($("un-cd")) gigTimer = setInterval(() => { const el = $("un-cd"), t = el && gigCountdown(up.when); if (!el) return clearInterval(gigTimer); if (t) el.textContent = t; else { clearInterval(gigTimer); renderLibrary(); } }, 1000);
-  $("upnext")?.addEventListener("click", e => { if (!e.target.closest("#un-play")) go("#/set/" + encodeURIComponent(up.id)); });
-  $("un-play")?.addEventListener("click", () => playSet(up));
-  $("sh-all")?.addEventListener("click", () => { filter = "sets"; renderLibrary(); });
-  $("sh-new")?.addEventListener("click", () => newSet());
-  app.querySelectorAll("[data-sh]").forEach(b => b.onclick = () => go("#/set/" + encodeURIComponent(b.dataset.sh)));
-}
-
-const STATUS = { learning: "Learning", got: "Got it" };
-const SORTS = { title: "A–Z", artist: "Artist", recent: "Recently played", most: "Most played" };
-// A lyric that matched the search, with the matching words marked.
-function lyricHit(line, q) {
-  const i = line.toLowerCase().indexOf(q.trim().toLowerCase());
-  if (i < 0) return `“${esc(line)}”`;
-  const n = q.trim().length;
-  let from = Math.max(0, i - 24);
-  if (from) { const sp = line.indexOf(" ", from); from = sp >= 0 && sp < i ? sp + 1 : from; } /* start on a whole word */
-  return `“${from ? "…" : ""}${esc(line.slice(from, i))}<mark>${esc(line.slice(i, i + n))}</mark>${esc(line.slice(i + n))}”`;
-}
-function songRow(s, hit) {
-  const wk = playsThisWeek(s), sort = data.settings.sort, n = playCount(s);
-  const when = sort === "recent" && lastPlayed(s) ? ago(new Date(lastPlayed(s)).toISOString()) : "";
-  const stat = sort === "most" && n ? `${n} play${n === 1 ? "" : "s"}` : when ? `Played ${when}` : wk && `Played ${wk}× this week`;
-  const sub = hit ? `<span class="hit">${hit}</span>`
-    : [esc(s.artist || "Unknown artist"), STATUS[s.status] && `<span class="st ${s.status}">${STATUS[s.status]}</span>`, stat].filter(Boolean).join(" · ");
-  return `<button class="row" data-id="${esc(s.id)}"${s.id === lastOpened ? ' style="view-transition-name: song-title"' : ""}>
-    <div class="txt"><div class="t">${esc(s.title)}</div><div class="a">${sub}</div></div>
-    ${s.favorite ? `<svg class="heart" viewBox="0 0 24 24" aria-label="Favorite" role="img">${I.heart}</svg>` : ""}
-    <span class="k">${esc(keyOf(s))}</span>
-  </button>`;
-}
-
-const sortBy = sort => `<label class="sortby">${esc(SORTS[sort])}${icon("chev", "chev")}<select id="sort" aria-label="Sort songs">${Object.entries(SORTS).map(([k, v]) => `<option value="${k}" ${k === sort ? "selected" : ""}>${v}</option>`).join("")}</select></label>`;
-// A–Z index on the right edge of a long list: touch or drag to jump to a letter.
-function bindIndex(list, sorted, sort) {
-  document.querySelector(".azx")?.remove();
-  document.body.classList.remove("has-azx");
-  if (!["title", "artist"].includes(sort) || sorted.length < 25 || searching) return;
-  const firsts = new Map();
-  list.querySelectorAll(".list [data-id]").forEach(row => {
-    const song = sorted.find(x => x.id === row.dataset.id);
-    const L = song ? indexLetter(sort === "artist" ? artistSortName(song) || "#" : song.title) : "#";
-    if (!firsts.has(L)) firsts.set(L, row);
-  });
-  const letters = [..."#ABCDEFGHIJKLMNOPQRSTUVWXYZ"].filter(L => firsts.has(L));
-  if (letters.length < 4) return;
-  const x = document.createElement("div");
-  x.className = "azx";
-  x.setAttribute("aria-label", "Jump to letter");
-  x.innerHTML = letters.map(L => `<button data-l="${L}" tabindex="-1" aria-label="${L === "#" ? "Numbers" : L}">${L}</button>`).join("") + `<b class="azx-pop" hidden></b>`;
-  document.body.appendChild(x);
-  document.body.classList.add("has-azx");
-  const pop = x.querySelector(".azx-pop");
-  let cur = "";
-  const jump = (clientY, final) => {
-    const btns = [...x.querySelectorAll("[data-l]")];
-    const hit = btns.reduce((a, b) => Math.abs(b.getBoundingClientRect().top + b.offsetHeight / 2 - clientY) < Math.abs(a.getBoundingClientRect().top + a.offsetHeight / 2 - clientY) ? b : a);
-    const L = hit.dataset.l;
-    if (L !== cur) {
-      cur = L; tick();
-      const row = firsts.get(L);
-      window.scrollTo({ top: row.getBoundingClientRect().top + scrollY - 120 });
-      pop.textContent = L; pop.hidden = false;
-      pop.style.top = (hit.getBoundingClientRect().top + hit.offsetHeight / 2 - x.getBoundingClientRect().top) + "px";
-    }
-    if (final) setTimeout(() => { pop.hidden = true; cur = ""; }, 500);
-  };
-  x.addEventListener("pointerdown", e => { e.preventDefault(); x.setPointerCapture?.(e.pointerId); x.classList.add("on"); jump(e.clientY); markUsed("index"); });
-  x.addEventListener("pointermove", e => { if (x.classList.contains("on")) jump(e.clientY); });
-  const end = e => { if (!x.classList.contains("on")) return; x.classList.remove("on"); jump(e.clientY, true); };
-  x.addEventListener("pointerup", end); x.addEventListener("pointercancel", end);
-}
-onLeave(() => { document.querySelector(".azx")?.remove(); document.body.classList.remove("has-azx"); });
-function renderList() {
-  const list = $("list");
-  document.querySelector(".azx")?.remove(); document.body.classList.remove("has-azx");
-  if (!data.songs.length) {
-    list.innerHTML = `<div class="empty">No songs yet.<br>Paste a chord sheet into the bar below,<br>or tap + to write one.</div>`;
-    return;
-  }
-  const q = query.trim().toLowerCase();
-  if (filter === "sets" && !searching) {
-    const sets = data.sets.filter(x => !q || x.name.toLowerCase().includes(q));
-    list.innerHTML = `
-      <div class="label">Sets</div>
-      ${!data.sets.length ? `<p class="empty-hint">A set is a list of songs in playing order, for a gig or a practice session. Play it and each song leads into the next.</p>` : ""}
-      <div class="list glass">
-        ${sets.map(x => { const n = setSongs(x).length; return `<button class="row" data-set="${esc(x.id)}">
-          <div class="row-cv">${setCover(x, { small: true, notext: true })}</div>
-          <div class="txt"><div class="t">${esc(x.name)}</div><div class="a">${x.when ? `${esc(fullWhen(x.when))} · ` : ""}${n} song${n === 1 ? "" : "s"}${n ? ` · about ${Math.round(setLength(x) / 60)} min` : ""}</div></div>
-          ${icon("chev", "chev")}</button>`; }).join("")}
-        <button class="row newset" id="newset"><div class="txt"><div class="t">${icon("plus")} New set</div></div></button>
-      </div>`;
-    list.querySelectorAll("[data-set]").forEach(el => el.onclick = () => go("#/set/" + encodeURIComponent(el.dataset.set)));
-    $("newset").onclick = () => newSet();
-    return;
-  }
-  if (searching && !q) {
-    /* Before typing: recently played songs, ready to tap. */
-    const recentSongs = sortSongs(data.songs.filter(s => lastPlayed(s)), "recent").slice(0, 8);
-    const shown = recentSongs.length ? recentSongs : sortSongs(data.songs, "title");
-    list.innerHTML = `<p class="empty-hint" style="margin:4px 0 12px">Search titles, artists or a line from the lyrics. Paste a chord sheet here to add it.</p>
-      ${aiKey() && data.songs.length ? `<button class="nextidea glass" id="nextidea">${icon("wand")}<span><b>What can I play next?</b>Songs that use the chords you already know</span>${icon("chev", "chev")}</button>` : ""}
-      <div class="label">${recentSongs.length ? "Recently played" : "All songs"}</div><div class="list glass">${shown.map(s => songRow(s)).join("")}</div>`;
-    bindRows(list);
-    $("nextidea")?.addEventListener("click", () => nextSongs());
-    return;
-  }
-  const pool = searching ? data.songs : data.songs.filter(s =>
-    (filter !== "fav" || s.favorite) && (filter !== "tab" || s.format === "tab") && (filter !== "learn" || s.status === "learning"));
-  /* Searching: title and artist matches first, then songs whose lyrics have the words. */
-  const found = q ? searchSongs(pool, q) : null;
-  const sort = SORTS[data.settings.sort] ? data.settings.sort : "title";
-  const recent = !q && filter === "all" && sort !== "recent" && data.songs.length >= 4 && !data.sets.length
-    ? data.songs.filter(s => s.opened).sort((a, b) => b.opened - a.opened).slice(0, 2) : [];
-  const sorted = found ? found.map(x => x.song) : sortSongs(pool, sort);
-  const hits = new Map((found || []).filter(x => x.line).map(x => [x.song.id, lyricHit(x.line, q)]));
-
-  list.innerHTML = `
-    ${recent.length ? `<div class="label">Recent</div><div class="recent">${recent.map(s => `
-      <button class="rc glass" data-id="${esc(s.id)}">
-        <div class="t">${esc(s.title)}</div>
-        <div class="a">${esc(s.artist || "Unknown artist")}</div>
-      </button>`).join("")}</div>` : ""}
-    ${q ? "" : `<div class="label lrow"><span>${filter === "fav" ? "Favorites" : filter === "tab" ? "Tabs" : filter === "learn" ? "Learning" : "All songs"}</span>
-      ${sortBy(sort)}</div>`}
-    ${sorted.length ? `<div class="list glass" style="${q ? "margin-top:18px" : ""}">${sorted.map(s => songRow(s, hits.get(s.id))).join("")}</div>${q ? findCard(query, true) : ""}` : findCard(query)}`;
-  $("sort")?.addEventListener("change", e => { data.settings.sort = e.target.value; Tabs.save(data); renderList(); });
-  bindRows(list);
-  bindFind(list);
-  bindIndex(list, sorted, q ? "" : sort);
-}
-// swipe a song in the list. Left shows Delete (a long swipe deletes
-// at once; Undo brings it back, and it stays in Recently deleted for 30
-// days). Right toggles Favorite. Only on the plain list, never the cards.
-let swOpen = null;
-function closeSwipe() { if (!swOpen) return; const r = swOpen; swOpen = null; r.style.transform = ""; r.parentNode.querySelectorAll(".sw-act").forEach(a => a.style.width = ""); setTimeout(() => r.parentNode?.classList.remove("swiping"), 200); }
-function swipeDelete(id) {
-  const song = data.songs.find(x => x.id === id);
-  if (!song) return;
-  swOpen = null;
-  const entry = Tabs.deleteSong(data, id);
-  renderLibrary();
-  toast(`Deleted "${song.title}"`, null, { label: "Undo", fn: () => { Tabs.restore(data, entry); renderLibrary(); toast("Restored"); } });
-}
-function bindSwipe(list) {
-  list.querySelectorAll(".list .row[data-id]").forEach(row => {
-    const wrap = document.createElement("div");
-    wrap.className = "sw";
-    row.before(wrap);
-    wrap.innerHTML = `<button class="sw-act sw-fav" tabindex="-1" aria-hidden="true">${icon("heart")}</button><button class="sw-act sw-del" tabindex="-1" aria-label="Delete">${icon("trash")}</button>`;
-    wrap.appendChild(row);
-    const del = wrap.querySelector(".sw-del"), fav = wrap.querySelector(".sw-fav");
-    del.onclick = e => { e.stopPropagation(); swipeDelete(row.dataset.id); };
-    let x0 = 0, y0 = 0, dx = 0, on = false, dead = false, base = 0;
-    const paint = d => {
-      row.style.transform = d ? `translateX(${d}px)` : "";
-      del.style.width = Math.max(0, -d) + "px"; fav.style.width = Math.max(0, d) + "px";
-      del.classList.toggle("go", -d > row.offsetWidth * 0.6); fav.classList.toggle("go", d > 72);
-    };
-    row.addEventListener("pointerdown", e => { if (e.pointerType === "mouse" && e.button) return; x0 = e.clientX; y0 = e.clientY; dx = 0; on = false; dead = false; base = swOpen === row ? -84 : 0; if (swOpen && swOpen !== row) closeSwipe(); });
-    row.addEventListener("pointermove", e => {
-      if (dead || (!x0 && !y0)) return;
-      const mx = e.clientX - x0, my = e.clientY - y0;
-      if (!on) { if (Math.abs(my) > 10 && Math.abs(my) > Math.abs(mx)) { dead = true; return; } if (Math.abs(mx) < 12) return; on = true; wrap.classList.add("swiping"); try { row.setPointerCapture(e.pointerId); } catch {} }
-      dx = base + mx; paint(dx);
-    });
-    const end = () => {
-      if (!on) { x0 = y0 = 0; return; }
-      on = false; x0 = y0 = 0; row.dataset.swiped = "1"; setTimeout(() => delete row.dataset.swiped, 400);
-      if (-dx > row.offsetWidth * 0.6) { paint(-row.offsetWidth); setTimeout(() => swipeDelete(row.dataset.id), 160); return; }
-      if (dx > 72) {
-        const song = data.songs.find(x => x.id === row.dataset.id);
-        if (song) { song.favorite = !song.favorite; Tabs.save(data); tick(); toast(song.favorite ? "Added to Favorites" : "Removed from Favorites"); }
-        paint(0); setTimeout(renderLibrary, 220); return;
-      }
-      if (-dx > 50) { paint(-84); swOpen = row; return; }
-      paint(0); if (swOpen === row) swOpen = null; setTimeout(() => wrap.classList.remove("swiping"), 200);
-    };
-    row.addEventListener("pointerup", end);
-    row.addEventListener("pointercancel", end);
-  });
-  /* The first time, one row slides a little to show the trash, then settles. */
-  const first = list.querySelector(".list .sw .row");
-  if (first && !searching && data.songs.length > 2 && coachTip("swipe")) {
-    const w = first.parentNode, d = w.querySelector(".sw-del");
-    setTimeout(() => { w.classList.add("swiping", "hint"); first.style.transform = "translateX(-72px)"; d.style.width = "72px";
-      setTimeout(() => { first.style.transform = ""; d.style.width = ""; setTimeout(() => w.classList.remove("swiping", "hint"), 400); }, 1100); }, 900);
-  }
-}
-document.addEventListener("pointerdown", e => { if (swOpen && !e.target.closest(".sw")) closeSwipe(); }, true);
-function bindRows(list) {
-  bindSwipe(list);
-  list.querySelectorAll("[data-id]").forEach(el => el.onclick = () => {
-    if (el.dataset.swiped) { delete el.dataset.swiped; return; }
-    setSetCtx(null);
-    if (searching) { keepSearch = !!query.trim(); searching = false; document.body.classList.remove("searching"); }
-    // Name this row's title so it glides into the song header.
-    list.querySelectorAll("[data-id], .t").forEach(t => t.style.viewTransitionName = "");
-    el.querySelector(".t").style.viewTransitionName = "song-title";
-    go("#/song/" + encodeURIComponent(el.dataset.id));
-  });
-}
-
-// ---------- AI help (optional, your own Anthropic key) ----------
-// No server: the key stays in this browser's storage and is sent only to
-// api.anthropic.com, using Anthropic's header for direct browser access.
-// Without a key the app works as usual and the AI options don't appear.
-const AI = { store: "louielite.apikey.v1", fast: "claude-haiku-5-5", vision: "claude-sonnet-5-5" };
-function aiKey() { try { return localStorage.getItem(AI.store) || ""; } catch { return ""; } }
-/* The GetSongBPM key, stored the same way (read by Get the song and Settings). */
-const BPM_STORE = "louielite.bpmkey.v1";
-function bpmKey() { try { return localStorage.getItem(BPM_STORE) || ""; } catch { return ""; } }
-
-// stream: the reply arrives as it's written. A long reply (German practice)
-// otherwise keeps the connection silent for a minute or more, and iPhone gives
-// up on it, which looks like "Could not reach Anthropic".
-// Why the last reply ended ("end_turn", "max_tokens", "refusal"...), for the
-// "What came back" note when a reply has no text.
-let lastStop = "";
-const aiLastStop = () => lastStop;
-async function askClaude({ model = AI.fast, system, content, maxTokens = 8000, key = aiKey(), stream = false }) {
-  let r;
-  lastStop = "";
-  try {
-    r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
-      body: JSON.stringify({ model, max_tokens: maxTokens, system, messages: [{ role: "user", content }], ...(stream ? { stream: true } : {}) })
-    });
-  } catch { throw Object.assign(new Error("network"), { status: 0, model }); }
-  if (!r.ok) {
-    // Read Anthropic's error body so the real reason can be explained.
-    const j = await r.json().catch(() => ({}));
-    throw Object.assign(new Error(j?.error?.message || "HTTP " + r.status), { status: r.status, model });
-  }
-  if (stream && r.body && /event-stream/.test(r.headers.get("content-type") || "")) {
-    const reader = r.body.getReader(), dec = new TextDecoder();
-    let buf = "", text = "";
-    try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        for (let k = buf.indexOf("\n\n"); k >= 0; k = buf.indexOf("\n\n")) {
-          const data = buf.slice(0, k).split("\n").filter(l => l.startsWith("data:")).map(l => l.slice(5).trim()).join("");
-          buf = buf.slice(k + 2);
-          if (!data) continue;
-          let ev; try { ev = JSON.parse(data); } catch { continue; }
-          if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") text += ev.delta.text;
-          else if (ev.type === "message_delta" && ev.delta?.stop_reason) lastStop = ev.delta.stop_reason;
-          else if (ev.type === "error") throw Object.assign(new Error(ev.error?.message || "stream error"), { status: ev.error?.type === "overloaded_error" ? 529 : 500, model });
-        }
-      }
-    } catch (e) { if (e.status) throw e; throw Object.assign(new Error("network"), { status: 0, model }); }
-    return text;
-  }
-  const j = await r.json();
-  lastStop = j.stop_reason || "";
-  return (j.content || []).filter(c => c.type === "text").map(c => c.text).join("");
-}
-
-// Plain-English reasons, mapped from Anthropic's status codes.
-function aiError(e) {
-  const m = e?.message || "", st = e?.status;
-  if (st === 400 && /web search/i.test(m)) return "Web search is turned off for this key's organization. An admin can turn it on in the Anthropic Console under Settings > Capabilities.";
-  if (st === -1) return "Couldn't make sense of that. Try again, or keep the original.";
-  if (!st) return "Could not reach Anthropic. Check the connection, and turn off any content blocker or VPN filtering for this site.";
-  if (st === 401) return "Key not recognized. Copy it again from the Anthropic Console (it starts with sk-ant-).";
-  if (st === 403) return "Key is valid but not allowed to do this. Check the key's workspace permissions in the Console.";
-  if (st === 400 && /credit|balance|billing/i.test(m)) return "The account has no credit. Add credit under Billing in the Console.";
-  if (st === 404) return `Model not found (${e.model}). The model name may need updating.`;
-  if (st === 413 || /too large|exceeds/i.test(m)) return "That photo is too large. Try a closer, simpler shot of the page.";
-  if (st === 429) return "Rate or spend limit reached. Check Limits in the Console, or wait a minute.";
-  if (st >= 500) return "Anthropic is busy or down. Try again in a few minutes.";
-  return `Request failed (HTTP ${st}).`;
-}
-
-// The first whole JSON object in a reply. Skips code fences, words before or
-// after, and stray braces in that text (a "{" in a note ahead of the
-// JSON made Play next fail every time). A trailing comma is forgiven.
-function parseJSON(text) {
-  const t = String(text);
-  for (let i = t.indexOf("{"); i >= 0; i = t.indexOf("{", i + 1)) {
-    let depth = 0, str = false, esc = false;
-    for (let k = i; k < t.length; k++) {
-      const c = t[k];
-      if (str) { if (esc) esc = false; else if (c === "\\") esc = true; else if (c === '"') str = false; continue; }
-      if (c === '"') str = true;
-      else if (c === "{") depth++;
-      else if (c === "}" && --depth === 0) {
-        const s = t.slice(i, k + 1);
-        for (const x of [s, s.replace(/,\s*([}\]])/g, "$1")]) { try { const j = JSON.parse(x); if (j && typeof j === "object") return j; } catch { /* next */ } }
-        break;
-      }
-    }
-  }
-  throw Object.assign(new Error("bad json"), { status: -1, raw: t.slice(0, 600) });
-}
-
-const CLEAN_SYSTEM = `You format guitar chord sheets for a phone app. The input is one song, pasted from a website or photographed from a page.
-Reply with JSON only, no other text: {"title": string, "artist": string, "key": string, "format": "chords" or "tab", "sheet": string}
-Rules for "sheet":
-- Chords go on their own line directly above the lyric line, each chord starting at the column of the syllable where it changes.
-- Section labels go on their own line in square brackets, like [Intro], [Verse 1], [Chorus], [Bridge]. One blank line between sections.
-- Lines of only chords (intros, instrumentals) stay as chord lines. ASCII tab lines are kept exactly as written.
-- If the source states a capo, put [Capo N] as the first line.
-- Keep the song's words and chords exactly as given. Do not add, complete, translate or correct lyrics, do not invent chords, and do not transpose.
-- Use standard chord spellings: G, Am, F#m7, Bb, Dsus4, D/F#.
-- Remove everything that is not the song: ads, ratings, comments, site menus, credits, strumming legends, chord diagram text.
-"title", "artist": from the source if present, else "". "key": the key if stated or clear from the chords (like G or Em), else "". "format": "tab" only if the song is mainly ASCII tab.`;
-
-// Clean up pasted text, or read a photographed page, into the app's chord sheet format.
-async function cleanSheet({ text, image }) {
-  const content = image
-    ? [{ type: "image", source: { type: "base64", media_type: image.type, data: image.data } },
-       { type: "text", text: "Transcribe the chord sheet on this page." }]
-    : [{ type: "text", text: "Clean up this pasted song:\n\n" + text }];
-  const out = parseJSON(await askClaude({ model: image ? AI.vision : AI.fast, system: CLEAN_SYSTEM, content }));
-  const sheet = String(out.sheet || "").replace(/\r\n?/g, "\n").replace(/\s+$/, "");
-  if (!sheet.trim()) throw Object.assign(new Error("empty"), { status: -1 });
-  const d = detectPaste(sheet);
-  return {
-    title: String(out.title || d.title || "").trim(),
-    artist: String(out.artist || d.artist || "").trim(),
-    key: String(out.key || "").trim().slice(0, 4),
-    format: out.format === "tab" || d.format === "tab" ? "tab" : "chords",
-    body: d.title ? d.body : sheet,
-    sections: d.sections
-  };
-}
-
-// Shrink a photo to a size the API accepts quickly, as JPEG base64.
-async function readPhoto(file, max = 1600) {
-  const url = URL.createObjectURL(file);
-  try {
-    const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = url; });
-    const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
-    const c = document.createElement("canvas");
-    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
-    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-    return { type: "image/jpeg", data: c.toDataURL("image/jpeg", 0.85).split(",")[1] };
-  } finally { URL.revokeObjectURL(url); }
-}
-
-const busy = label => `<span class="spin" aria-hidden="true"></span>${label}`;
-
-// ---------- Paste card ----------
-function showPasteCard(original) {
-  markUsed("paste");
-  let cleaned = null, useCleaned = false, working = false;
-  const cur = () => (useCleaned && cleaned) || original;
-  layer.innerHTML = `
-    <div class="scrim" id="scrim"></div>
-    <div class="panel card kb" role="dialog" aria-label="Save pasted song">
-      <div class="pc-head">${icon("clip")}<span id="p-what"></span><span style="flex:1"></span>
-        <div class="seg mini" id="p-ver" hidden><button data-v="0">Original</button><button data-v="1">Cleaned</button></div>
-      </div>
-      <div class="preview" id="p-prev"></div>
-      <div class="tags" id="p-tags"></div>
-      <div class="ai-note" id="p-note" hidden></div>
-      <div class="fields glass">
-        <label class="fld"><span class="lab">Title</span><input id="p-title" value="${esc(original.title)}" placeholder="Song title" autocomplete="off"></label>
-        <label class="fld"><span class="lab">Artist</span><input id="p-artist" value="${esc(original.artist)}" placeholder="Optional" autocomplete="off"></label>
-      </div>
-      <div class="actions">
-        <button class="btn" id="p-edit">Review</button>
-        ${aiKey() ? `<button class="btn" id="p-clean">${icon("wand")}Clean up</button>` : ""}
-        <button class="btn primary" id="p-save">Save to Library</button>
-      </div>
-    </div>`;
-  const show = () => {
-    const d = cur();
-    $("p-what").textContent = `${d.format === "tab" ? "Tab" : "Chord sheet"} ${useCleaned ? "cleaned up" : "detected"}`;
-    $("p-prev").innerHTML = parseSheet(d.body).slice(0, 6).map(l =>
-      l.kind === "chords" ? `<span class="ch">${esc(l.text)}</span>` : l.kind === "section" ? `[${esc(l.text)}]` : esc(l.text)).join("\n");
-    const key = d.key || (d.format === "chords" ? guessKey(d.body) : "");
-    const tags = [d.format === "tab" ? "Tab" : "Chords", key && `Key ${key}`, d.sections && `${d.sections} section${d.sections === 1 ? "" : "s"}`].filter(Boolean);
-    $("p-tags").innerHTML = tags.map(t => `<span class="tag">${esc(t)}</span>`).join("");
-    $("p-ver").hidden = !cleaned;
-    layer.querySelectorAll("#p-ver button").forEach(b => b.classList.toggle("on", (b.dataset.v === "1") === useCleaned));
-  };
-  show();
-  const close = () => { layer.innerHTML = ""; };
-  $("scrim").onclick = () => { if (!working) close(); };
-  layer.querySelectorAll("#p-ver button").forEach(b => b.onclick = () => { useCleaned = b.dataset.v === "1"; show(); });
-  $("p-clean")?.addEventListener("click", async () => {
-    if (working) return;
-    if (cleaned) { useCleaned = true; show(); return; }
-    working = true;
-    const btn = $("p-clean");
-    btn.disabled = true; btn.innerHTML = busy("Cleaning");
-    $("p-note").hidden = true;
-    try {
-      cleaned = await cleanSheet({ text: original.body });
-      useCleaned = true;
-      // Fill in what the cleanup found, without overwriting anything typed.
-      if (!$("p-title").value.trim() && cleaned.title) $("p-title").value = cleaned.title;
-      if (!$("p-artist").value.trim() && cleaned.artist) $("p-artist").value = cleaned.artist;
-      show();
-      btn.innerHTML = `${icon("check")}Cleaned`;
-    } catch (e) {
-      $("p-note").textContent = aiError(e); $("p-note").hidden = false;
-      btn.disabled = false; btn.innerHTML = `${icon("wand")}Clean up`;
-    }
-    working = false;
-  });
-  const fields = () => {
-    const d = cur();
-    return { title: $("p-title").value.trim(), artist: $("p-artist").value.trim(), format: d.format, key: useCleaned ? (d.key || "") : "", body: d.body };
-  };
-  $("p-save").onclick = () => {
-    if (working) return;
-    const f = fields();
-    if (!f.title) { $("p-title").focus(); toast("Add a title first"); return; }
-    const s = Tabs.addSong(data, f);
-    close(); query = "";
-    go("#/song/" + encodeURIComponent(s.id));
-  };
-  $("p-edit").onclick = () => { if (working) return; const f = fields(); close(); newSong(f); };
-  if (!original.title) setTimeout(() => $("p-title")?.focus(), 250);
-  followKeyboard();
-}
 
 // ---------- Song view ----------
 let scroll = { on: false, raf: 0, last: 0, carry: 0, lock: null };
@@ -709,6 +148,10 @@ function renderViewer(id) {
   const song = data.songs.find(s => s.id === id);
   if (!song) return go("#/");
   const isChords = song.format !== "tab";
+  prepareMusic(song);
+  onFeel(s2 => { if (s2 === song) { paintListenChip(song); coverOn(song); } });
+  /* once the sheet is drawn: time its lines from the lyrics (3.17.0) */
+  setTimeout(() => { if (viewing === song) timeLines(song, lyricLines); }, 700);
   if (song.transpose === undefined) song.transpose = data.settings.transpose || 0;
   if (song.speed === undefined) song.speed = data.settings.startSpeed || SPEEDS.medium; // then each song keeps its own
   if (song.size === undefined) song.size = 1;
@@ -718,23 +161,26 @@ function renderViewer(id) {
   app.classList.add("viewer");
   /* Back goes where the song was opened from: its set, when played from one. */
   const fromSet = (() => { const x = setCtx && data.sets.find(z => z.id === setCtx.id); return x && setSongs(x)[setCtx.idx]?.id === song.id ? x : null; })();
-  const back = fromSet ? { to: "#/set/" + encodeURIComponent(fromSet.id), label: `Back to ${fromSet.name}` } : { to: "#/", label: "Back to library" };
-  diag.armed = false; diag.rowKey = null; diag.pinned = null; diag.scrolling = false; diag.block = null;
+  /* 4.66.0: a show started from Tour or Charts comes back there with the page's own Back */
+  const via = gigFrom?.id === song.id ? gigFrom.from : "";
+  const back = fromSet ? { to: "#/set/" + encodeURIComponent(fromSet.id), label: `Back to ${fromSet.name}` } : via === "tour" ? { to: "#/tour", label: "Back to the Tour" } : via === "charts" ? { to: "#/charts", label: "Back to the Charts" } : lastHome === "road" || via === "road" ? { to: "#/", label: "Back to the Road" } : { to: "#/library", label: "Back to the Songbook" };
+  diag.pinned = null; diag.scrolling = false; diag.block = null;
+  /* One song screen (4.2.0): the song at the top (back, title, favorite), its chips, the song map,
+     the chords, the sheet, and at the bottom Tools and Play. Play opens the Gig. */
   app.innerHTML = `
-    <div class="head">
-      <button class="ib glass" data-go="${back.to}" aria-label="${esc(back.label)}">${icon("back")}</button>
-      <div class="row-btns">
-        <button class="ib glass fav ${song.favorite ? "on" : ""}" aria-label="Favorite" aria-pressed="${!!song.favorite}">${icon("heart")}</button>
-        <button class="ib glass more" id="more-top" aria-label="More for this song" aria-haspopup="menu">${icon("dots")}${menuHasNew() ? '<i class="newdot"></i>' : ""}</button>
-      </div>
+    <div class="head ehead"></div>
+    <div class="shead">
+      <button class="sh-btn sh-back" data-go="${back.to}" aria-label="${esc(back.label)}">${icon("back")}</button>
+      ${coverBtn(song)}
+      <div class="sh-t"><h1 class="song-title" style="view-transition-name: song-title">${esc(song.title)}</h1><button class="meta" id="meta" aria-label="About this song"></button></div>
+      <button class="sh-btn fav ${song.favorite ? "on" : ""}" aria-label="Favorite" aria-pressed="${!!song.favorite}">${icon("heart")}</button>
     </div>
     ${(() => { const x = setCtx && data.sets.find(z => z.id === setCtx.id); const list = x ? setSongs(x) : [];
       if (!x || list[setCtx.idx]?.id !== song.id) { setSetCtx(null); return ""; }
       return `<div class="setbar"><button class="sb" id="sprev" aria-label="Previous song" ${setCtx.idx === 0 ? "disabled" : ""}>${icon("back")}</button>
         <button class="setname" data-go="#/set/${encodeURIComponent(x.id)}">${esc(x.name)} · ${setCtx.idx + 1} of ${list.length}</button>
         <button class="sb" id="snext" aria-label="Next song" ${setCtx.idx === list.length - 1 ? "disabled" : ""}>${icon("chev")}</button></div>`; })()}
-    <h1 class="song-title" style="view-transition-name: song-title">${esc(song.title)}</h1>
-    <div class="metarow"><div class="meta" id="meta"></div><button class="stat" id="stat" aria-label="Learning status"></button><button class="stat listen" id="listen" aria-label="${song.listen ? `Listen on ${esc(song.listen.service)}` : "Find a recording to listen to"}">${icon("note")}${song.listen ? esc(song.listen.service) : "Listen"}</button><button class="stat dechip" id="dechip" hidden aria-label="German practice"></button>${songTuning(song) !== "standard" ? `<button class="stat tunechip" id="tunechip" aria-label="Tuning: ${TUNINGS[songTuning(song)].name}. Open the tuner">${icon("fork")}${TUNINGS[songTuning(song)].name}</button>` : ""}</div>
+    <div class="metarow"><button class="stat" id="stat" aria-label="Learning status"></button>${songTuning(song) !== "standard" ? `<button class="stat tunechip" id="tunechip" aria-label="Tuning: ${TUNINGS[songTuning(song)].name}. Open the tuner">${icon("fork")}${TUNINGS[songTuning(song)].name}</button>` : ""}</div>
     ${song.sketch?.lines?.length ? `<div class="skrow" id="skrow"><button class="stat sk-hear" id="sk-hear" hidden>${icon("play")}<span>Your recording</span></button>
       <div class="seg mini sk-style" role="group" aria-label="Chord style">${["simple", "rich"].map(st => `<button data-st="${st}" class="${(song.sketch.style || "simple") === st ? "on" : ""}" aria-pressed="${(song.sketch.style || "simple") === st}">${st === "simple" ? "Simple" : "Rich"}</button>`).join("")}</div></div>` : ""}
     <div id="strip"></div>
@@ -755,30 +201,18 @@ function renderViewer(id) {
     <div class="dock-fade"></div>
     <div class="dock">
       <div class="pw glass float">
-      <div class="nn" id="nn"></div>
       <div class="looprow" id="looprow"></div>
       <div class="player">
-        <button class="play" id="play" aria-label="Start auto-scroll">${icon("play")}</button>
-        <span class="jewel" id="jewel" aria-hidden="true"></span>
-        <button class="sb oh oh-back" data-go="${back.to}" aria-label="${esc(back.label)}">${icon("back")}</button>
-        <button class="sb oh fav ${song.favorite ? "on" : ""}" aria-label="Favorite" aria-pressed="${!!song.favorite}">${icon("heart")}</button>
-        <button class="sb oh more" id="more" aria-label="More for this song" aria-haspopup="menu">${icon("dots")}${menuHasNew() ? '<i class="newdot"></i>' : ""}</button>
-        <button class="oh dialbtn" id="dialbtn" aria-label="Song speed. Hold and sweep to change">${icon("gauge")}<span></span></button>
+        <button class="tl more tools" id="more" aria-label="Tools" aria-haspopup="dialog">${icon("sliders")}<span class="tl-w">Tools</span>${menuHasNew() ? '<i class="newdot"></i>' : ""}</button>
         ${(() => { const x = setCtx && data.sets.find(z => z.id === setCtx.id); const list = x ? setSongs(x) : [];
-          return x && list[setCtx.idx]?.id === song.id ? `<button class="oh dialbtn setdial" id="setdial" aria-label="${esc(x.name)}, song ${setCtx.idx + 1} of ${list.length}. Hold and sweep to pick a song">${icon("listplus")}<span>${setCtx.idx + 1} of ${list.length}</span></button>` : ""; })()}
-        <div class="speed">
+          return x && list[setCtx.idx]?.id === song.id ? `<button class="tl dialbtn setdial" id="setdial" aria-label="${esc(x.name)}, song ${setCtx.idx + 1} of ${list.length}. Hold and sweep to pick a song">${icon("listplus")}<span>${setCtx.idx + 1} of ${list.length}</span></button>` : ""; })()}
+        <div class="speed" hidden>
           ${byLength()
-            ? `<input type="range" id="speed" min="60" max="480" step="5" value="${540 - songLength(song)}" aria-label="Song length">`
+            ? `<input type="range" id="speed" min="${540 - MAX_LENGTH}" max="480" step="1" value="${540 - songLength(song)}" aria-label="Song length">`
             : `<input type="range" id="speed" min="4.5" max="99" step="4.5" value="${song.speed}" aria-label="Scroll speed for this song">`}
           <span id="sv"></span>
         </div>
-        ${isChords ? `<button class="sb nnbtn ${data.settings.diagrams === true ? "on" : ""}" id="nnbtn" aria-label="Now and Next chords" aria-pressed="${data.settings.diagrams === true}">${icon("fretboard")}</button>` : ""}
-        <div class="vsep"></div>
-        <div class="step" aria-label="${isChords ? "Transpose" : "Text size"}">
-          <button class="sb" id="down" aria-label="${isChords ? "Transpose down" : "Smaller text"}">${icon("minus")}</button>
-          <span class="v" id="val"></span>
-          <button class="sb" id="up" aria-label="${isChords ? "Transpose up" : "Larger text"}">${icon("plus")}</button>
-        </div>
+        <button class="play" id="play" aria-label="${playLabel(song, false)}">${playFace(false, song)}</button>
       </div>
       </div>
     </div>`;
@@ -803,13 +237,13 @@ function renderViewer(id) {
   };
   paintStat();
   $("tunechip")?.addEventListener("click", () => openTuner(songTuning(song)));
-  $("listen").onclick = () => listenSheet(song);
-  $("dechip").onclick = () => germanSheet(song, () => draw());
+  $("meta").onclick = () => openAbout(song);
+  bindCover(song);
   $("stat").onclick = () => {
     song.status = !song.status ? "learning" : song.status === "learning" ? "got" : undefined;
     if (!song.status) delete song.status;
     if (song.status === "got") journalGot(data, song);
-    Tabs.save(data); paintStat();
+    Tabs.save(data); paintStat(); paintLoop(song);
     toast(song.status === "learning" ? "Learning" : song.status === "got" ? "Got it" : "Status cleared", $("stat"));
   };
   curPaintStat = paintStat;
@@ -828,46 +262,44 @@ function renderViewer(id) {
     const baseKey = isChords ? (song.key || guessKey(song.body || "")) : "";
     const key = transposeKey(baseKey, steps); // the key it sounds in
     const capoTxt = capo ? `Capo <b>${capo}</b>` : "";
+    const best = data.gig?.best?.[song.id];
     $("meta").innerHTML = [
       song.artist && `<span>${esc(song.artist)}</span>`,
-      key && `<span>Key <b>${esc(key)}</b></span>`,
+      best != null && `<span>Best show ${best}%</span>`,
       capoTxt && `<span>${capoTxt}</span>`,
       !isChords && `<span>Tab</span>`
-    ].filter(Boolean).join('<span class="dot"></span>');
+    ].filter(Boolean).join('<span class="dot"></span>') + `<span class="sh-ab">about this song${icon("chev")}</span>`;
     $("csub").innerHTML = [song.artist && esc(song.artist), key && `Key <b>${esc(key)}</b>`, capoTxt, !isChords && "Tab"]
       .filter(Boolean).join(" · ");
     SUBS = easy ? easy.subs || {} : {};
     const sheet = $("sheet");
-    const val = $("val");
     sheet.style.setProperty("--tab-size", (14 * song.size).toFixed(1) + "px");
-    sheet.style.setProperty("--lyric-size", (17 * song.size * sysText * (data.settings.stage ? 1.2 : 1)).toFixed(1) + "px");
+    sheet.style.setProperty("--lyric-size", (17 * song.size * sysText).toFixed(1) + "px");
     // With a capo the shapes sit lower than the sound: shift the chords down by the capo.
     // A chart's own capo, taken off: the shapes go up to the key it sounds in.
     const off = isChords && song.capoOff ? bodyCapo(song.body) : 0;
     const body = off ? (song.body || "").replace(/\[?capo\s*(\d{1,2})\]?/i, "No capo (Capo $1 taken off)") : song.body || "";
     let blocks = parseBlocks(body, isChords ? steps - capo + off : 0, isChords && prefersFlats(baseKey, steps - capo));
     /* German practice: only while the translation matches the words on screen. */
-    const lvl = song.deLevel || 0, fresh = song.de && song.de.src === deSource(sungText(blocks));
-    if (lvl && fresh) blocks = germanBlocks(blocks, song.de, lvl, { english: data.settings.deEnglish === true });
+    const lvl = song.deLevel || 0, fresh = deLangOk(song, data) && song.de.src === deSource(sungText(blocks));
+    if (lvl && fresh) blocks = germanBlocks(blocks, song.de, lvl, { english: data.settings.deEnglish === true, translit: langOf(data) === "ru" && data.settings.deTranslit !== false });
     paintDeChip(song, fresh, lvl);
     renderBlocks(sheet, blocks);
+    if (isChords) fitText(sheet, song);
     renderStrip(sheet, isChords, song);
     layoutDiagrams(sheet, isChords);
-    if (isChords) {
-      val.textContent = steps ? (steps > 0 ? "+" : "") + steps : "0";
-      val.classList.toggle("zero", !steps);
-    } else {
-      val.textContent = Math.round(song.size * 100) + "%";
-      val.classList.toggle("zero", song.size === 1);
-    }
   };
   draw();
   redraw = () => { draw(); paintLoop(song); buildMap(); };
   viewing = song;
+  coverOn(song); /* 4.61.0: the song's cover is the room behind the whole song screen */
+  fitTitle(song);
   paintLoop(song);
   setTimeout(buildMap, 50);
   if (setCtx?.autoplay) { setCtx.autoplay = false; setTimeout(() => { if (viewing === song && !scroll.on) startScroll(song); }, 400); }
-  else setTimeout(() => songCoach(song), 600);
+  else setTimeout(() => { if (openingOn(data)) import(`./opening.js?v=${VERSION}`).then(m => { if (viewing === song && !m.onSong(song)) songCoach(song); }); else songCoach(song); }, 600); /* 4.40.0: Opening night says what this step wants */
+  /* 4.41.0: a song whose chords were guessed is lined up from the chord sites, once, in the background */
+  if (aiKey() && liningDue(song)) setTimeout(() => { if (viewing === song) lazy("findai.js").then(m => m.relineSong(song)); }, 1500);
 
   const speed = $("speed");
   // Song length style: the slider sets how long the song takes (right = shorter = faster).
@@ -881,7 +313,6 @@ function renderViewer(id) {
     }
     const db = $("dialbtn")?.querySelector("span");
     if (db) db.textContent = $("sv").textContent;
-    ringApi?.refresh();
   };
   showSpeed();
   speed.oninput = () => {
@@ -891,9 +322,11 @@ function renderViewer(id) {
   /* One hand: the speed is a dial in the corner (dial.js). Hold the time in
      the bar and sweep; a tap opens it to sweep anywhere. Arrow keys step it. */
   /* A change can be undone right away (in case a thumb moved it by mistake). */
+  /* The length is kept to the second (a recording's own length, 3.13.1); a thumb moves it 5 s at a time. */
+  const dialStep = () => byLength() ? 5 : +speed.step;
   const speedDial = e => { const was = { v: speed.value, d: song.duration, set: song.durationSet, sp: song.speed };
-    openDial({ min: +speed.min, max: +speed.max, step: +speed.step, value: +speed.value, label: "Song speed", event: e,
-      marks: byLength() ? [2, 3, 4, 5, 6, 7].map(m => 540 - m * 60) : null,
+    openDial({ min: +speed.min, max: +speed.max, step: dialStep(), value: +speed.value, label: "Song speed", event: e,
+      marks: byLength() ? [2, 3, 4, 5, 6, 8, 10, 15].map(m => 540 - m * 60) : null,
       read: v => byLength() ? { big: mmss(540 - v), small: "SONG LENGTH" } : { big: (v / SPEEDS.medium).toFixed(1) + "x", small: "SPEED" },
       input: v => { speed.value = v; speed.oninput(); },
       done: (v, changed) => { if (changed) toast(byLength() ? `Length ${mmss(songLength(song))}` : `Speed ${$("sv").textContent}`, null, { label: "Undo", fn: () => {
@@ -908,7 +341,7 @@ function renderViewer(id) {
       const d = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 }[e.key];
       if (!d) return;
       e.preventDefault();
-      speed.value = Math.min(+speed.max, Math.max(+speed.min, +speed.value + d * +speed.step)); speed.oninput();
+      speed.value = Math.min(+speed.max, Math.max(+speed.min, +speed.value + d * dialStep())); speed.oninput();
     });
   }
   /* In a set: hold "4 of 9" and sweep through the set's songs; let go to open one. */
@@ -923,11 +356,22 @@ function renderViewer(id) {
   };
   $("setdial")?.addEventListener("pointerdown", e => { e.preventDefault(); setDial(e); });
   $("setdial")?.addEventListener("click", e => { if (e.detail === 0) setDial(null); });
-  /* Key (or text size for a tab): a dial of the keys around the song's own. */
+  /* German practice (4.20.0: from Tools only): the sheet, with the levels once the song is translated, else a way to translate it. */
+  songDeOpen = () => germanSheet(song, () => draw());
+  /* One hand (3.19.0): the bar is out while paused and folds into Play's corner while playing (fold.js). */
+  /* Folded, Play keeps one partner: in a set the next song, otherwise the Library. */
+  const foldNav = () => {
+    const x = fromSet, list = x ? setSongs(x) : [], nx = x && list[setCtx?.idx + 1];
+    if (nx) return { html: `<span class="fn-t">${esc(nx.title)}</span><small>${setCtx.idx + 2} of ${list.length}</small>${icon("chev")}`, label: `Next song: ${nx.title}`, run: () => { stopScroll(); $("snext")?.click(); } };
+    return null; /* 4.73.0: no Songbook button beside Pause (left from version 3); Pause, then the page's Back */
+  };
+  foldApi = setupFold({ back: { label: back.label, run: () => go(back.to) }, playing: () => scroll.on, nav: foldNav, band: () => bandSheet(song) });
+  refreshSpeed = () => { if (viewing !== song || !speed.isConnected) return; if (byLength()) speed.value = 540 - songLength(song); showSpeed(); };
+  /* A linked Apple Music song without its recording length yet: look it up once. */
+  if (song.listen && song.listen.length === undefined && appleTrackId(song.listen.url)) recordingLength(song, song.listen.url, { quiet: true });
+
+  /* Key (3.20.0): tap "Key A" under the title for a dial of the keys around the song's own. */
   const keyDial = () => {
-    if (!isChords) return openDial({ min: 0.6, max: 1.6, step: 0.1, value: song.size, label: "Text size", cls: "key",
-      read: v => ({ big: `${Math.round(v * 100)}%`, small: "TEXT SIZE" }),
-      input: v => { song.size = +v.toFixed(2); Tabs.save(data); draw(); } });
     const base = song.key || guessKey(song.body || ""), steps = Array.from({ length: 12 }, (_, i) => i - 5), was = song.transpose || 0;
     openDial({ labels: steps.map(n => base ? transposeKey(base, n) : `${n > 0 ? "+" : ""}${n}`), value: (song.transpose || 0) + 5, label: "Key", cls: "key",
       tick: i => base ? transposeKey(base, steps[i]) : String(steps[i]),
@@ -935,71 +379,18 @@ function renderViewer(id) {
       input: i => { song.transpose = steps[i]; Tabs.save(data); draw(); },
       done: (i, changed) => { if (changed) toast(`Key ${base ? transposeKey(base, steps[i]) : steps[i]}`, null, { label: "Undo", fn: () => { song.transpose = was; Tabs.save(data); draw(); } }); } });
   };
-  /* German practice: the level dial once the song is translated, else the sheet to translate it. */
-  songDeOpen = () => { const fresh = song.de && song.de.src === deSource(sungText(parseBlocks(song.body || ""))); if (fresh && !deJobs.has(song.id)) deDial(); else germanSheet(song, () => draw()); };
-  /* German practice level on the corner dial: Off, Basic … Fluent. */
-  const deDial = () => {
-    const was = song.deLevel || 0;
-    openDial({ labels: DE_LEVELS, value: was, label: "German level", cls: "key",
-      tick: i => DE_LEVELS[i].slice(0, i === 3 ? 5 : 6),
-      read: i => ({ big: DE_LEVELS[i], small: i ? "GERMAN" : "GERMAN OFF" }),
-      input: i => { song.deLevel = i; if (i) data.settings.deLevel = i; Tabs.save(data); draw(); },
-      done: (i, changed) => { if (changed) toast(i ? `German: ${DE_LEVELS[i]}` : "German off", null, { label: "Undo", fn: () => { song.deLevel = was; Tabs.save(data); draw(); } }); } });
+  curKeyDial = keyDial;
+  /* Play: the Gig, or plain auto-scroll while practicing, for a tab, or with Play as a gig off (Settings > Playing). */
+  $("play").onclick = () => {
+    if (scroll.on) return stopScroll();
+    if (gigHooks.resume) return gigHooks.resume();
+    if (gigsOn(song)) return playGig(song.id);
+    startScroll(song);
   };
-  /* One hand: the island, hold Play for the ring, Play follows your hand (ring.js). */
-  const inSet = !!$("setdial");
-  ringApi = setupRing({
-    settings: data.settings,
-    items: [
-      /* Back lives in the island; the ring holds what you reach for mid-song.
-         what you touch while playing sits lowest, nearest the thumb's
-         natural sweep; Tuner joins; German moves to More. Each place is the
-         next one along the arc. */
-      { id: "metro", short: "Tempo", label: () => `Metronome ${data.settings.metronome ? "on" : "off"}`, icon: icon("metro"), active: () => !!data.settings.metronome, run: anchor => toggleMetronome(song, anchor) },
-      { id: "key", short: isChords ? "Key" : "Size", label: isChords ? "Key" : "Text size", icon: isChords ? `<b class="ri-t">${song.transpose ? `${song.transpose > 0 ? "+" : ""}${song.transpose}` : "Key"}</b>` : icon("text"), run: () => keyDial() },
-      isChords && { id: "nn", short: "Chords", label: () => `Now and Next ${data.settings.diagrams === true ? "on" : "off"}`, icon: icon("fretboard"), active: () => data.settings.diagrams === true, run: () => $("nnbtn")?.click() },
-      { id: "tuner", short: "Tuner", label: "Tuner", icon: icon("fork") + (tunedRecently() ? "" : '<i class="dotmark"></i>'), run: () => { if (scroll.on) stopScroll(); openTuner(songTuning(song)); } },
-      { id: "fav", short: "Favorite", label: "Favorite", icon: icon("heart"), active: () => !!song.favorite, run: () => app.querySelector(".player .fav")?.click() },
-      { id: "more", short: "More", label: "More", icon: icon("dots"), run: anchor => songMenu(song, anchor, draw) },
-      inSet && { id: "set", short: "Set", label: "Set", icon: icon("listplus"), run: () => setDial(null) }
-    ].filter(Boolean).map((it, i) => ({ ...it, slot: i })),
-    grab: () => { hold.touching = true; hold.active = true; clearTimeout(hold.timer); },
-    letGo: () => { hold.touching = false; releaseSoon(250); },
-    where: () => { const line = innerHeight * READ_AT; let name = ""; for (const el of document.querySelectorAll("#sheet > .sec")) { if (el.getBoundingClientRect().top <= line) name = el.textContent.trim(); else break; } return name; },
-    back: { label: back.label, run: () => go(back.to) },
-    playing: () => scroll.on,
-    followMode: () => data.settings.follow || "hand",
-    rose: () => ringHint(),
-    opened: () => markUsed("ringHint")
-  });
-  offerMotion();
-  refreshSpeed = () => { if (viewing !== song || !speed.isConnected) return; if (byLength()) speed.value = 540 - songLength(song); showSpeed(); };
-  /* A linked Apple Music song without its recording length yet: look it up once. */
-  if (song.listen && song.listen.length === undefined && appleTrackId(song.listen.url)) recordingLength(song, song.listen.url, { quiet: true });
-
-  const step = dir => {
-    if (isChords) song.transpose = ((((song.transpose || 0) + dir) + 17) % 12) - 5; // -5..+6
-    else song.size = Math.min(1.6, Math.max(0.6, +(song.size + dir * 0.1).toFixed(2)));
-    Tabs.save(data);
-    /* Quick repeated taps draw once, on the next frame. */
-    if (!drawFrame) drawFrame = requestAnimationFrame(() => { drawFrame = 0; if (viewing === song) draw(); });
-  };
-  let drawFrame = 0;
-  $("down").onclick = () => step(-1);
-  $("up").onclick = () => step(1);
-  $("play").onclick = () => scroll.on ? stopScroll() : startScroll(song);
-  $("nnbtn")?.addEventListener("click", () => {
-    const on = data.settings.diagrams !== true;
-    data.settings.diagrams = on;
-    Tabs.save(data);
-    $("nnbtn").classList.toggle("on", on);
-    $("nnbtn").setAttribute("aria-pressed", on);
-    diag.nn = on && diag.seq.length > 0;
-    diag.idx = null;
-    updateDiagrams();
-    toast(on ? "Now and Next on" : "Now and Next off", $("nnbtn"));
-  });
+  songSpeed = () => speedDial(null);
   window.scrollTo(0, 0);
+  /* 4.72.0: Tune up first, when the air has changed a lot since your last play */
+  if (!song.isNew && data.settings.place && data.settings.playAir) setTimeout(() => { if (viewing === song && !scroll.on) lazy("tuneup.js").then(m => m.tuneUpCheck(song)); }, 900);
   fab.lastY = 0; fab.reveal = 1;
 }
 
@@ -1007,36 +398,29 @@ function renderViewer(id) {
 // on their word; tab systems are re-wrapped by measure to the screen width.
 let redraw = null;
 let refreshSpeed = () => {}; /* the song page's speed slider, after the length changes */
-let ringApi = null;
-onLeave(() => { teardownRing(); ringApi = null; });
-// Once, on a phone: offer to let Play rise when you pick the phone up. iPhone
-// asks for the motion sensors only from a tap, so it's a button on a note.
-function offerMotion() {
-  const s = data.settings;
-  if (!ringActive(s) || (s.follow || "hand") !== "hand" || s.motionAsked || typeof window.DeviceMotionEvent?.requestPermission !== "function") return;
-  s.motionAsked = true; Tabs.save(data);
-  setTimeout(() => toast("Let Play rise to your thumb when you pick up the phone?", null, { label: "Allow", fn: async () => {
-    if (!(await askMotion())) { s.follow = "touch"; Tabs.save(data); toast("Play will rise when you touch the screen instead"); }
-  } }), 1500);
-}
+let foldApi = null;
+onLeave(r => { clearTimeout(ttTimer); stripRO?.disconnect(); teardownFold(); foldApi = null; stageStop(); if (r?.name !== "song") coverOff(); }); /* 4.61.1: songs in a set keep the cover between them */
 // Substitutions from Make it easier for the song on screen: shape name → easier chord.
 let SUBS = {};
 function chordLabel(text) {
   let name = String(text).split(/\s+/)[0].replace(/^\(|\)$/g, "");
   if (SUBS[name]) { text = String(text).replace(name, SUBS[name]); name = SUBS[name]; }
-  return chordShape(name) ? `<span class="c" data-ch="${esc(name)}"><span class="ct">${esc(text)}</span></span>` : `<span class="c">${esc(text)}</span>`;
+  /* 4.83.0: a note in brackets on a chord line ("(hold)") is read, not played */
+  return chordShape(name) ? `<span class="c" data-ch="${esc(name)}"><span class="ct">${esc(text)}</span></span>` : (/^\(.*\)$/.test(String(text)) ? `<span class="c cnote"><i>${esc(text)}</i></span>` : `<span class="c">${esc(text)}</span>`);
 }
+/* 4.56.0: a chart's header note ("Capo 2", "Strum: D-DU-UDU") is read, not played: not the line you're on */
+const NOTE = /^(capo \d+|strum: [dux\- ]+)( · (capo \d+|strum: [dux\- ]+))?$/i;
 function renderBlocks(sheet, blocks) {
   /* German practice: a German word carries its card's key and its noun gender. */
   const txt = p => p.de ? `<span class="de${p.de.g ? " g-" + p.de.g : ""}" data-de="${esc(p.de.k)}">${esc(p.text)}</span>` : esc(p.text);
-  const word = w => w.space ? " " : `<span class="w">${w.parts.map(p => p.chord
+  const word = w => w.space ? " " : `<span class="w${w.lead ? " lead" : ""}">${w.parts.map(p => p.chord
     ? `<span class="sg${p.free ? " free" : ""}">${chordLabel(p.chord)}<span class="l">${txt(p)}</span></span>`
     : txt(p)).join("")}</span>`;
-  const under = b => b.en ? `<span class="de-en">${esc(b.en)}</span>` : "";
+  const under = b => (b.tr ? `<span class="de-tr">${esc(b.tr)}</span>` : "") + (b.en ? `<span class="de-en">${esc(b.en)}</span>` : "");
   sheet.innerHTML = blocks.map((b, i) => {
     if (b.kind === "section") return `<div class="sec">${esc(b.text)}</div>`;
     if (b.kind === "blank") return `<div class="gap"></div>`;
-    if (b.kind === "lyric") return `<div class="ly">${b.segs ? b.segs.map(txt).join(" ") : esc(b.text)}${under(b)}</div>`;
+    if (b.kind === "lyric") return `<div class="ly${NOTE.test(String(b.text || "").trim()) && !(b.chords || []).length ? " note" : ""}">${b.segs ? b.segs.map(txt).join(" ") : esc(b.text)}${under(b)}</div>`;
     if (b.kind === "chords") return `<div class="crow">${b.items.map(chordLabel).join("")}</div>`;
     if (b.kind === "pair") return `<div class="pr">${b.words.map(word).join("")}${under(b)}</div>`;
     return `<div class="tabsys" data-i="${i}"></div>`;
@@ -1058,19 +442,17 @@ function renderBlocks(sheet, blocks) {
   });
 }
 // ---------- Chord diagrams ----------
-// Paused: tap any chord for its fingering. Playing: a fixed Now and Next panel in
-// the dock shows the chord at the reading line and the ones coming up, and the
-// current line stays bright while the others dim. Nothing moves over the lyrics.
-const CARD_W = 54, CARD_H = 78;
+// Paused: tap a chord, in the song or in the chord chips, and its fingering shows in a card above Play
+// (4.50.0), so nothing is drawn over the lyrics. Playing: the current line stays bright while the others dim.
 const READ_AT = 0.4; // reading line, as a share of screen height
-let diag = { seq: [], blocks: [], idx: null, block: null, nn: true, focus: true };
+let diag = { seq: [], blocks: [], block: null, focus: true };
 
-function chordSVG(name, scale = 1) {
+function chordSVG(name, scale = 1, { named = true } = {}) {
   const c = chordShape(name);
   if (!c) return "";
   const sx = i => 9 + i * 7.2, top = 30, fh = 10, base = c.base || 1;
   const rowY = f => top + (f - base + 0.5) * fh;
-  let g = `<text x="26" y="13" text-anchor="middle" class="dn">${esc(name)}</text>`;
+  let g = named ? `<text x="26" y="13" text-anchor="middle" class="dn">${esc(name)}</text>` : "";
   c.frets.forEach((f, i) => {
     if (f < 0) g += `<path class="dx" d="M${sx(i) - 2.4} 21.5L${sx(i) + 2.4} 26.5M${sx(i) + 2.4} 21.5L${sx(i) - 2.4} 26.5"/>`;
     else if (f === 0) g += `<circle class="do" cx="${sx(i)}" cy="24" r="2.4"/>`;
@@ -1086,53 +468,90 @@ function chordSVG(name, scale = 1) {
     if (c.fingers[i]) g += `<text class="dk" x="${sx(i)}" y="${rowY(f) + 1.9}" text-anchor="middle">${c.fingers[i]}</text>`;
   });
   if (base > 1) g += `<text class="db" x="48" y="${rowY(base) + 2.4}">${base}</text>`;
-  return `<svg width="${52 * scale}" height="${76 * scale}" viewBox="0 0 52 76" role="img" aria-label="${esc(name)} chord fingering">${g}</svg>`;
+  /* 4.61.1: a tile that shows the name above the diagram leaves it out of the picture, and crops the empty top */
+  return `<svg width="${52 * scale}" height="${(named ? 76 : 56) * scale}" viewBox="0 ${named ? 0 : 20} 52 ${named ? 76 : 56}" role="img" aria-label="${esc(name)} chord fingering">${g}</svg>`;
+}
+
+/* 4.51.0 (Graham, 2026-10-24): the text size is the one that fits the song's longest line on one line, so a
+   line of the song is a line on screen, from 14 to 22 px (larger with the phone's own text size). Text size in
+   Tools scales that up or down. Measured once per draw, each line laid out on one line. */
+const FIT_MIN = 14, FIT_MAX = 22;
+let fitWait = false;
+function fitText(sheet, song) {
+  const base = 17 * sysText;
+  sheet.style.setProperty("--lyric-size", base.toFixed(1) + "px");
+  const lines = sheet.querySelectorAll(":scope > .pr, :scope > .ly, :scope > .crow");
+  if (!lines.length) return;
+  sheet.classList.add("measure");
+  let widest = 0;
+  for (const el of lines) widest = Math.max(widest, el.getBoundingClientRect().width);
+  sheet.classList.remove("measure");
+  const room = sheet.clientWidth * 0.95 - 4; /* lines keep 5% on the right, clear of the song map, and 4 px for rounding between measuring and drawing (4.63.1) */
+  /* measured in the fallback font while the app's own is still loading: measure again once it's in */
+  if (document.fonts?.status === "loading" && !fitWait) { fitWait = true; document.fonts.ready.then(() => { fitWait = false; if (viewing === song && $("sheet") === sheet) redraw?.(); }); }
+  const fit = widest > 0 ? base * room / widest : base;
+  sheet.style.setProperty("--lyric-size", (Math.min(FIT_MAX * sysText, Math.max(FIT_MIN, fit)) * (song.size || 1)).toFixed(1) + "px");
 }
 
 // Record every chord label and every line, top to bottom, for the reading line.
 function layoutDiagrams(sheet, isChords) {
-  sheet.querySelectorAll(".dpop, .prow").forEach(el => el.remove());
+  showChordPop(null);
   const top = sheet.getBoundingClientRect().top;
   diag.seq = isChords ? [...sheet.querySelectorAll(".c[data-ch]")].map(el => ({
     el, name: el.dataset.ch, y: el.getBoundingClientRect().top - top
   })) : [];
-  /* For the bass: the chord rows (a chord-only row has a bar per chord). */
-  diag.brows = [];
-  diag.seq.forEach((it, i) => {
-    const el = it.el.closest(".crow, .pr") || it.el, last = diag.brows[diag.brows.length - 1];
-    if (last?.el === el) last.hi = i;
-    else { const r = el.getBoundingClientRect(); diag.brows.push({ el, lo: i, hi: i, kind: el.classList.contains("crow") ? "bar" : "line", r0: r.top - top, r1: r.bottom - top }); }
-  });
-  // Screen rows of chords, for the paused diagrams.
-  const left0 = sheet.getBoundingClientRect().left;
-  diag.rows = [];
-  for (const it of diag.seq) {
-    const r = it.el.getBoundingClientRect();
-    let row = diag.rows.find(x => Math.abs(x.top - it.y) < 6);
-    if (!row) diag.rows.push(row = { top: it.y, items: [] });
-    if (!row.items.some(x => x.name === it.name)) row.items.push({ name: it.name, x: r.left - left0 + Math.min(r.width, 40) / 2 });
-  }
-  diag.blocks = [...sheet.children].filter(el => !el.classList.contains("dpop") && !el.classList.contains("prow"))
-    .map(el => ({ el, y: el.getBoundingClientRect().top - top }));
-  diag.nn = isChords && data.settings.diagrams === true && diag.seq.length > 0;
+  diag.blocks = [...sheet.children].map(el => ({ el, y: el.getBoundingClientRect().top - top }));
   diag.focus = ["always", "playing", "off"].includes(data.settings.focus) ? data.settings.focus : "always";
-  diag.idx = null; diag.block = null; diag.rowKey = null;
+  diag.block = null;
   updateDiagrams();
-  showPausedRow();
 }
 
-function card(name, scale, opacity = 1) {
-  return `<div class="card" style="width:${(CARD_W * scale).toFixed(1)}px;height:${(CARD_H * scale).toFixed(1)}px;opacity:${opacity}">${chordSVG(name, scale)}</div>`;
+/* Chord timing (3.22.0): each chord on a timed line gets the time of the word it sits on (the line's
+   time shared out by syllables, or the lyrics' own word times) on the beat of the measured tempo.
+   Chords between timed lines are placed in between. null when nothing is timed. */
+const chordTimeCache = { key: "", times: null };
+function chordTimes(song) {
+  const at = song.timed?.at;
+  if (!at?.length || !diag.seq.length) return null;
+  const bpm = song.listen?.feel?.bpm || 0;
+  const key = `${song.id}|${at.length}|${diag.seq.length}|${bpm}|${Math.round(diag.seq[diag.seq.length - 1].y)}`;
+  if (key === chordTimeCache.key) return chordTimeCache.times;
+  const lines = sheetLines(), when = new Map(at), order = at.map(x => x[0]), per = new Map();
+  const times = diag.seq.map(it => {
+    const row = it.el.closest(".pr"), li = row ? lines.indexOf(row) : -1;
+    if (!when.has(li)) return null;
+    let pl = per.get(li);
+    if (!pl) {
+      const ws = [...row.querySelectorAll(".w")], start = when.get(li), nx = order.find(i => i > li);
+      const end = Math.min(nx !== undefined ? when.get(nx) : start + 8, start + 12);
+      const words = ws.map(w => { const c = w.cloneNode(true); c.querySelectorAll(".c").forEach(x => x.remove()); return c.textContent.trim(); });
+      pl = { ws, t: spotTimes(words, start, end, { bpm, given: song.timed.w?.[li], bar: bpm ? (song.beats || 4) * 60 / bpm : 0 }) };
+      per.set(li, pl);
+    }
+    const k = pl.ws.indexOf(it.el.closest(".w"));
+    return k >= 0 ? pl.t[k] : null;
+  });
+  /* chords on untimed rows (an intro of chords, a line the lyrics didn't match): in between */
+  const known = times.map((t, i) => t != null ? i : -1).filter(i => i >= 0);
+  if (!known.length) { chordTimeCache.key = key; chordTimeCache.times = null; return null; }
+  for (let n = 0; n + 1 < known.length; n++) {
+    const p = known[n], q = known[n + 1];
+    for (let i = p + 1; i < q; i++) times[i] = times[p] + (times[q] - times[p]) * (i - p) / (q - p);
+  }
+  /* a chord ahead of the singing (4.49.6) never comes before the chord played before it */
+  for (let i = 1; i < times.length; i++) {
+    if (times[i] == null || times[i - 1] == null || times[i] > times[i - 1]) continue;
+    const q = times.slice(i + 1).find(t => t != null && t > times[i - 1]);
+    times[i] = q != null ? (times[i - 1] + q) / 2 : times[i - 1] + 0.05;
+  }
+  chordTimeCache.key = key; chordTimeCache.times = times;
+  return times;
 }
-
 function updateDiagrams() {
   const sheet = $("sheet");
   const playing = scroll.on && !!sheet;
-  document.body.classList.toggle("nn-on", playing && diag.nn);
   if (!sheet) return;
   if (!playing) {
-    sheet.querySelectorAll(".c.now").forEach(el => el.classList.remove("now"));
-    diag.idx = null;
     if (!diag.scrolling) applyPaused();
     return;
   }
@@ -1147,32 +566,8 @@ function updateDiagrams() {
   for (let i = 0; i < diag.blocks.length; i++) if (sheetTop + diag.blocks[i].y <= line) b = i;
   while (b < diag.blocks.length - 1 && !isLine(diag.blocks[b].el)) b++;
   setCurrent(diag.blocks[b]?.el);
-
-  if (!diag.nn) return;
-  // Current chord: the last chord that has reached the reading line.
-  let idx = 0;
-  for (let i = 0; i < diag.seq.length; i++) if (sheetTop + diag.seq[i].y <= line) idx = i;
-  if (idx === diag.idx) return;
-  diag.seq[diag.idx]?.el.classList.remove("now");
-  diag.idx = idx;
-  const now = diag.seq[idx];
-  now.el.classList.add("now");
-  // Next: the following chords, skipping repeats of the one before.
-  const next = [];
-  let last = now.name;
-  for (let i = idx + 1; i < diag.seq.length && next.length < 3; i++) {
-    if (diag.seq[i].name !== last) { next.push(diag.seq[i].name); last = diag.seq[i].name; }
-  }
-  const fade = [0.85, 0.5, 0.28];
-  $("nn").innerHTML = `
-    <div class="nowcol"><div class="lab">NOW</div><div class="swap">${card(now.name, 1.26)}</div></div>
-    <div class="vs"></div>
-    <div style="min-width:0"><div class="lab">NEXT</div>
-      <div class="cards swap">${next.length ? next.map((n, i) => card(n, 1, fade[i])).join("") : `<div class="none">End of song</div>`}</div>
-    </div>`;
 }
 
-// Tap a chord: show its card above it until the next tap.
 // ---------- Current line when paused ----------
 // The same line gets focus and diagrams: a tapped line, else the first line at the
 // top of the song, else the line at the reading point.
@@ -1193,7 +588,7 @@ function setCurrent(block) {
   diag.block2?.classList.add("cur", "cur2");
   diag.block = block;
 }
-const isLine = el => el && !el.classList.contains("sec") && !el.classList.contains("gap");
+const isLine = el => el && !el.classList.contains("sec") && !el.classList.contains("gap") && !el.classList.contains("note");
 function pausedBlock() {
   if (diag.pinned?.isConnected) return diag.pinned;
   if (window.scrollY < 40) return diag.blocks.find(b => isLine(b.el))?.el;
@@ -1212,53 +607,8 @@ function applyPaused() {
   const on = diag.focus === "always";
   sheet.classList.toggle("focus", on);
   setCurrent(on ? block : null);
-  showPausedRow(block);
 }
 
-// Paused: the line at the reading point gets its diagrams, each over its chord.
-// Shown after pausing; follows to a new line once a paused scroll comes to rest.
-const FOCUS_SCALE = 1.05; /* matches .sheet.focus > .cur in the styles */
-function showPausedRow(block = pausedBlock()) {
-  const sheet = $("sheet");
-  if (!sheet || chordEdit) return;
-  const want = diag.armed && !scroll.on && data.settings.pauseDiagrams !== false && diag.rows?.length && block;
-  const old = sheet.querySelector(".prow");
-  if (!want) { old?.remove(); diag.rowKey = null; return; }
-  // Chord rows inside the current line (a long line may wrap onto several rows).
-  const inside = diag.rows.filter(r => r.top >= block.offsetTop - 2 && r.top < block.offsetTop + block.offsetHeight);
-  if (!inside.length) { old?.remove(); diag.rowKey = null; return; }
-  // One set of cards above the line's first row: its chords in place, then any
-  // chords that only appear where the line wraps.
-  /* The focused line is drawn 5% larger from its left edge, so move the cards to match. */
-  const S = sheet.classList.contains("focus") && block.classList.contains("cur") && block.matches(".pr, .ly") ? FOCUS_SCALE : 1;
-  const cy = block.offsetTop + block.offsetHeight / 2;
-  const items = inside[0].items.map(it => ({ ...it, x: it.x * S }));
-  for (const r of inside.slice(1)) for (const it of r.items) if (!items.some(x => x.name === it.name)) items.push({ ...it, x: it.x * S });
-  const row = { top: cy + (inside[0].top - cy) * S, items };
-  if (old && diag.rowKey === row.top) return;
-  old?.remove();
-  diag.rowKey = row.top;
-  const width = sheet.clientWidth, n = row.items.length, GAP = 4;
-  const scale = Math.min(1, Math.max(0.7, (width + GAP) / (n * (CARD_W + GAP))));
-  const w = CARD_W * scale, h = CARD_H * scale;
-  // Center over each chord, push right to clear overlaps, pull back inside the edge.
-  const lefts = row.items.map(it => it.x - w / 2);
-  for (let i = 0; i < n; i++) lefts[i] = i === 0 ? Math.max(0, lefts[i]) : Math.max(lefts[i], lefts[i - 1] + w + GAP);
-  if (lefts[n - 1] + w > width) for (let i = n - 1; i >= 0; i--) lefts[i] = Math.min(lefts[i], i === n - 1 ? width - w : lefts[i + 1] - w - GAP);
-  /* over the first line the cards would cover "Chords in this song"
-     above the sheet, so there they hang below the line instead. */
-  /* Compared on screen, against the sheet's top and the chord boxes themselves. */
-  const cardsTop = block.getBoundingClientRect().top + (row.top - h - 9 - block.offsetTop);
-  const strip = $("strip")?.querySelector(".strip"), sr = strip?.offsetParent ? strip.getBoundingClientRect() : null, shr = sheet.getBoundingClientRect();
-  const stripBottom = sr && sr.left < shr.right && sr.right > shr.left && sr.bottom <= block.getBoundingClientRect().top ? sr.bottom : -Infinity; /* only when it's above the song (iPad keeps it in the side rail) */
-  const below = cardsTop < Math.max(shr.top, stripBottom + 4);
-  const el = document.createElement("div");
-  el.className = "prow" + (below ? " below" : "");
-  el.style.top = (below ? block.offsetTop + block.offsetHeight + 9 : row.top - h - 9) + "px";
-  el.innerHTML = row.items.map((it, i) =>
-    `<div class="pcard" style="left:${lefts[i].toFixed(1)}px;width:${w}px;height:${h}px">${chordSVG(it.name, scale)}<i class="dptr" style="left:${Math.min(w - 8, Math.max(8, it.x - lefts[i])).toFixed(1)}px"></i></div>`).join("");
-  sheet.appendChild(el);
-}
 let pausedTimer = 0;
 onScroll(() => {
   const sheet = $("sheet");
@@ -1336,8 +686,10 @@ function finishLoop(song, a, b) {
   loopPick = null;
   document.querySelector(".loopbanner")?.remove();
   song.loop = { a, b, build: song.loop?.build ?? false };
+  song.loop.name = loopName(song); /* for the neck's Learning list (3.21.0) */
   Tabs.save(data);
   loopRun = { pass: 0 };
+  if (!practicing(song)) setPracticing(song, true);
   paintLoop(song);
   toast("Section set. Press play to practice it", $("play"));
 }
@@ -1346,28 +698,87 @@ function loopName(song) {
   for (let k = song.loop.a; k >= 0; k--) if (lines[k]?.classList.contains("sec")) return lines[k].textContent.trim();
   return `Lines ${song.loop.a + 1}–${song.loop.b + 1}`;
 }
-function paintLoop(song) {
-  const lines = sheetLines();
+/* Practice mode (3.21.0): the Practice chip under the title turns it on (a song you're learning starts
+   with it on). It brings one Practice row to the bar: the section to loop, the speed, Build up, and
+   off. Practice time counts on the Tour Map; off, the song plays straight through. */
+const activeLoop = song => practicing(song) && song.loop ? song.loop : null;
+function setPracticing(song, on) {
+  const def = song.status === "learning";
+  song.practice = { ...(song.practice || {}) };
+  if (on === def) delete song.practice.on; else song.practice.on = on;
+  if (!Object.keys(song.practice).length) delete song.practice;
+  Tabs.save(data);
+  loopRun = { pass: 0 };
+  paintLoop(song);
+}
+const PRACTICE_SPEEDS = [1, 0.9, 0.8, 0.7, 0.6, 0.5];
+const DRUM_LEVELS = { "-1": "simpler", 0: "as written", 1: "busier" };
+export function paintLoop(song) {
+  refreshPlay(song);
+  const lines = sheetLines(), on = practicing(song), lp = activeLoop(song);
   lines.forEach(el => el.classList.remove("inloop", "loopa", "loopfirst", "looplast"));
   const row = $("looprow");
-  if (!song.loop || !lines[song.loop.b]) { if (row) row.innerHTML = ""; row?.classList.remove("on"); return; }
-  for (let k = song.loop.a; k <= song.loop.b; k++) lines[k].classList.add("inloop");
-  lines[song.loop.a].classList.add("loopfirst"); lines[song.loop.b].classList.add("looplast");
+  document.body.classList.toggle("loop-on", on);
+  if (!on) { if (row) row.innerHTML = ""; row?.classList.remove("on"); return; }
+  if (lp && lines[lp.b]) {
+    for (let k = lp.a; k <= lp.b; k++) lines[k].classList.add("inloop");
+    lines[lp.a].classList.add("loopfirst"); lines[lp.b].classList.add("looplast");
+  }
   if (!row) return;
   row.classList.add("on");
-  row.innerHTML = `${icon("loop")}<span class="lt">Practicing <b>${esc(loopName(song))}</b>${loopRun.pass ? ` · pass ${loopRun.pass + 1}` : ""}</span>
-    <button class="chip ${song.loop.build ? "on" : ""}" id="lp-build" aria-pressed="${!!song.loop.build}">Build up</button>
-    <button class="sb" id="lp-x" aria-label="Stop practicing this section">${icon("x")}</button>`;
-  $("lp-build").onclick = () => { song.loop.build = !song.loop.build; Tabs.save(data); paintLoop(song); };
-  $("lp-x").onclick = () => { delete song.loop; Tabs.save(data); loopRun = { pass: 0 }; paintLoop(song); };
+  const rate = practiceRate(song), has = lp && lines[lp.b];
+  const withRec = usesMusic(song) ? `<span class="lp-rec" aria-label="with the recording">${/^https:\/\//.test(song.listen?.art || "") ? `<img src="${esc(song.listen.art)}" alt="">` : icon("note")}</span>` : "";
+  row.innerHTML = `<span class="lp-lbl">PRACTICE</span>
+    <button class="chip lp-sec${has ? " on" : ""}" id="lp-sec">${icon("loop")}${has ? `${esc(loopName(song))}${loopRun.pass ? ` · ${loopRun.pass + 1}` : ""}` : "Pick a section"}${has ? withRec : ""}</button>
+    <button class="chip${rate < 1 ? " on" : ""}" id="lp-speed" aria-label="Practice speed ${Math.round(rate * 100)}%">${Math.round(rate * 100)}%</button>
+    ${has ? `<button class="chip ${lp.build ? "on" : ""}" id="lp-build" aria-pressed="${!!lp.build}">Build up</button>` : ""}
+    ${(() => {
+      if (!data.settings.metronome || !metroDrums() || usesMusic(song) || (song.beats || 4) !== 4) return "";
+      if (song.drums) return `<button class="chip${song.drums.level ? " on" : ""}" id="lp-drums" aria-label="Drums: ${DRUM_LEVELS[song.drums.level || 0]}">Drums: ${DRUM_LEVELS[song.drums.level || 0]}</button>`;
+      return aiKey() ? `<button class="chip" id="lp-drums-new" aria-label="Write drums for this song">${drumJobs.has(song.id) ? "Writing drums…" : "Write drums"}</button>` : "";
+    })()}
+    <button class="sb" id="lp-x" aria-label="Practice mode off">${icon("x")}</button>`;
+  $("lp-sec").onclick = () => startLoopPick(song);
+  $("lp-speed").onclick = () => {
+    const i = PRACTICE_SPEEDS.findIndex(v => Math.abs(v - rate) < 0.01), next = PRACTICE_SPEEDS[(i + 1) % PRACTICE_SPEEDS.length];
+    song.practice = { ...(song.practice || {}) };
+    if (next >= 1) delete song.practice.rate; else song.practice.rate = next;
+    Tabs.save(data);
+    if (scroll.on && usesMusic(song)) setMusicRate(recRate(song));
+    paintLoop(song);
+    toast(usesMusic(song) && next < 1 && !rateWorks() ? "Apple Music can't change the speed here. The recording stays at full speed." : `Practice at ${Math.round(next * 100)}%`, $("lp-speed"));
+  };
+  $("lp-build")?.addEventListener("click", () => { lp.build = !lp.build; Tabs.save(data); paintLoop(song); });
+  $("lp-drums-new")?.addEventListener("click", () => { const j = drumsFor(song, true); toast("Writing drums for this song…", $("lp-drums-new")); if (j) paintLoop(song); });
+  $("lp-drums")?.addEventListener("click", () => {
+    const lv = ((song.drums.level || 0) + 2) % 3 - 1; /* as written, busier, simpler */
+    if (lv) song.drums.level = lv; else delete song.drums.level;
+    metro.bar = null; Tabs.save(data); paintLoop(song);
+    toast(`Drums: ${DRUM_LEVELS[lv]}`, $("lp-drums"));
+  });
+  $("lp-x").onclick = () => { setPracticing(song, false); toast("Practice mode off. The section is kept for next time"); };
 }
 // Speed factor for the current pass.
-const loopFactor = song => song.loop?.build ? Math.min(1, 0.8 + 0.05 * loopRun.pass) : 1;
+/* How fast the recording plays: the song's own setting, slowed further on a Build up pass. */
+const recRate = song => Math.max(0.5, loopFactor(song));
+/* Where in the recording Play begins: the loop's first line when the page is away from the section, else the page's place. */
+function playFromSec(song) {
+  const lp = activeLoop(song);
+  if (lp) {
+    const lines = sheetLines(), first = lines[lp.a], last = lines[lp.b], line = innerHeight * READ_AT;
+    if (first && last && (first.getBoundingClientRect().top > line + 4 || last.getBoundingClientRect().bottom < line)) return musicSec(song, Math.max(0, scrollY + first.getBoundingClientRect().top - line));
+  }
+  return musicSec(song, scrollY);
+}
+/* a beat at the pace the song plays: its tempo, practice speed and the speed dial, as the metronome counts it */
+export const beatSecs = song => 60 / ((song.bpm || 90) * loopFactor(song) * metroPace(song));
+export const loopFactor = song => practiceRate(song) * (activeLoop(song)?.build ? Math.min(1, 0.8 + 0.05 * loopRun.pass) : 1) * (scroll.on && followOn(song) ? follow.k : 1);
 // Called each frame while playing: when the section's last line passes the reading
 // point, glide back to its first line and count a pass.
 function loopCheck(song) {
-  if (!song.loop) return false;
-  const lines = sheetLines(), first = lines[song.loop.a], last = lines[song.loop.b];
+  const lp = activeLoop(song);
+  if (!lp) return false;
+  const lines = sheetLines(), first = lines[lp.a], last = lines[lp.b];
   if (!first || !last) return false;
   const line = innerHeight * READ_AT;
   /* A section at the end of the song can't reach the reading line; give it a few seconds at the bottom instead. */
@@ -1377,8 +788,16 @@ function loopCheck(song) {
   if (last.getBoundingClientRect().bottom > line - 4 && !endDone) return false;
   loopRun.endSince = 0;
   loopRun.pass++;
+  loopHooks.pass?.(song, loopRun.pass);
   hold.active = true; releaseSoon(900);
-  window.scrollTo({ top: Math.max(0, scrollY + first.getBoundingClientRect().top - line), behavior: calm() ? "auto" : "smooth" });
+  const back = Math.max(0, scrollY + first.getBoundingClientRect().top - line);
+  /* The recording goes back with the page, at this pass's speed. */
+  if (usesMusic(song) && musicClock(song) !== null) {
+    const sec = musicSec(song, back);
+    musicSync.target = sec; musicSync.until = performance.now() + 3000; musicSync.clock = -1;
+    seekMusic(song, sec); setMusicRate(recRate(song));
+  }
+  window.scrollTo({ top: back, behavior: calm() ? "auto" : "smooth" });
   paintLoop(song);
   return true;
 }
@@ -1417,11 +836,11 @@ function bindSketchRow(song) {
 // going back. Rotating, or resizing in Split View, moves things back.
 const wideMQ = matchMedia("(min-width: 1000px)"), sideMQ = matchMedia("(min-width: 1150px)");
 function placeWide() {
-  const rail = $("rail"), strip = $("strip"), nn = $("nn");
+  const rail = $("rail"), strip = $("strip");
   document.body.classList.toggle("wide", wideMQ.matches && !!rail);
-  if (!rail || !strip || !nn) return;
-  if (wideMQ.matches) { if (strip.parentElement !== rail) rail.append(nn, strip); }
-  else if (strip.parentElement === rail) { app.querySelector(".metarow").after(strip); $("looprow").before(nn); }
+  if (!rail || !strip) return;
+  if (wideMQ.matches) { if (strip.parentElement !== rail) rail.append(strip); }
+  else if (strip.parentElement === rail) app.querySelector(".metarow").after(strip);
 }
 function paintSide(song) {
   const side = $("side");
@@ -1492,7 +911,6 @@ function buildMap() {
   map.el = null;
   const sheet = $("sheet");
   if (!sheet || route().name !== "song") return;
-  if (data.settings.songMap === false) return; /* Settings > Chord diagrams > Song map */
   const secs = [...sheet.querySelectorAll(":scope > .sec")];
   if (secs.length < 2) return;
   /* Dots sit where each section is in the song; jumping puts its label at the reading line. */
@@ -1590,7 +1008,7 @@ const prefetch = () => ["editor.js", "settings.js"].forEach(n => import(`./${n}?
 // If a module still can't load, a reload brings everything onto one release.
 const lazy = name => import(`./${name}?v=${VERSION}`).catch(err => {
   noteError(err, { quiet: true, where: name });
-  toast("Tabs was updated. Reload to use this.", null, { label: "Reload", fn: () => location.reload() });
+  toast("Louie was updated. Reload to use this.", null, { label: "Reload", fn: () => location.reload() });
   return new Promise(() => {}); /* the feature just doesn't open */
 });
 
@@ -1604,62 +1022,202 @@ function toneSheet(song) { aiTools().then(m => m.toneSheet(song)); }
 const NEW_IN_MENU = { loop: "practice", metro: "metronome", tuner: "tuner", share: "share", easy: "easier", tone: "tone" };
 const newDot = k => used(k) ? "" : `<i class="newdot" data-new="${k}" aria-label="New"></i>`;
 const menuHasNew = () => !tipsSeen().menu && Object.values(NEW_IN_MENU).some(k => !used(k));
+/* What Play starts: the Apple Music recording alone, or the band (drums or click) alone.
+   A song with a linked recording defaults to the recording; "band" is remembered per song. */
+const usesMusic = song => hasMusic(song) && song.backing !== "band";
+/* Wait for me (4.54.0): the song holds on each chord until you play it. Saved per song, on for a song you are
+   learning; not with a recording, which can't wait. */
+const waitOn = song => !!song && !usesMusic(song) && (song.waitForMe ?? song.status === "learning");
+/* Follow my tempo (4.80.0): the page and the band speed up or slow down to the chords you play. Saved per song,
+   on for a song you are learning; not with a recording, which keeps its own tempo. `follow.k` is the pace now. */
+const followOn = song => !!song && !usesMusic(song) && (song.followTempo ?? song.status === "learning");
+export const follow = { k: 1 };
+/* hold the page and the band on the chord being waited for (or let them go on) */
+function holdScroll(on, song) {
+  if (!scroll.on || !!scroll.wait === on) return;
+  scroll.wait = on;
+  if (on) stopMetronome(); else if (metroOn() && !usesMusic(song)) startMetronome(song);
+}
+function setBacking(song, mode, near, quiet) {
+  if (mode === "band") song.backing = "band"; else delete song.backing;
+  Tabs.save(data);
+  if (scroll.on) { if (usesMusic(song)) { stopMetronome(); startMusic(song); } else { pauseMusic(); startMetronome(song); } }
+  paintListenChip(song);
+  if (quiet) return;
+  toast(mode === "band" ? (beatMode() !== "off" ? `${beatName()}, no recording` : "No recording. Pick a beat in Tools if you want one") : "The recording, no beat", near);
+}
+/* 4.31.0: the cover beside the title (it was a button beside Play). The Apple Music art when a recording
+   is linked, else the song's letter on a palette colour; it and "about this song" open About this song.
+   A dot on it when the recording doesn't match the sheet. */
+let curKeyDial = null;
+const TILE_HUES = ["#3D8BFF", "#FF3D7F", "#22B573", "#FFB020", "#8B5CF6", "#14B8C4"];
+const tileOf = song => ({ hue: TILE_HUES[[...(song.title || "?")].reduce((a, c) => a + c.charCodeAt(0), 0) % TILE_HUES.length],
+  letter: esc(((song.title || "?").replace(/^(the|a)\s+/i, "").match(/[\p{L}\p{N}]/u) || ["?"])[0].toUpperCase()) });
+function coverBtn(song) {
+  const art = /^https:\/\//.test(song.listen?.art || "") ? `<img src="${esc(song.listen.art)}" alt="">` : "";
+  const n = recordingNotes(song), look = !!(n.key || n.bpm), rec = hasMusic(song), { hue, letter } = tileOf(song);
+  return `<button class="sh-cover${rec ? " rec" : ""}${usesMusic(song) ? " on" : ""}" id="about" style="--tile:${hue}" aria-label="About this song${rec ? `. Play starts ${usesMusic(song) ? "the recording" : "the band"}` : ""}${look ? ". The recording doesn't match the sheet" : ""}">${art || `<span class="sh-l">${letter}</span>`}${look ? '<i class="rc-look"></i>' : ""}</button>`;
+}
+function bindCover(song) { const b = $("about"); if (b) b.onclick = () => openAbout(song); }
+/* How the sheet differs from the measured recording (3.18.0): key, in half steps (the shortest move),
+   and tempo when it's more than 6% off and not just half or double time. */
+function recordingNotes(song) {
+  const f = song.listen?.feel;
+  if (!f || f.none || !hasMusic(song)) return {};
+  const base = song.format === "tab" ? "" : (song.key || guessKey(song.body || ""));
+  const gap = f.key && (f.keySure || 0) >= 0.5 && base ? keyGap(transposeKey(base, (song.transpose || 0) + soundOffset(song)), f.key) : 0;
+  const r = song.bpm && f.bpm ? song.bpm / f.bpm : 1;
+  const off = Math.min(Math.abs(r - 1), Math.abs(r - 2), Math.abs(r - 0.5)) > 0.06 && (f.sure || 0) >= 0.1;
+  return { key: gap || 0, bpm: off };
+}
+/* the cover and Play's second line follow the recording */
+function paintListenChip(song) {
+  const el = $("about");
+  if (!el || viewing !== song) return;
+  el.outerHTML = coverBtn(song);
+  bindCover(song);
+  refreshPlay(song);
+}
+function openAbout(song) {
+  const base = song.format === "tab" ? "" : (song.key || guessKey(song.body || ""));
+  aboutSheet(song, {
+    music: () => hasMusic(song),
+    mode: () => usesMusic(song) ? "music" : "band",
+    setMode: m => setBacking(song, m, null, true),
+    key: () => base ? transposeKey(base, song.transpose || 0) : "",
+    length: () => song.listen?.length || song.duration || 0,
+    tile: () => tileOf(song),
+    changeKey: base ? () => curKeyDial?.() : null,
+    reset: () => { delete song.syncs; Tabs.save(data); toast(song.timed?.at ? "Your fixes are cleared. The line timing stays" : "The page will start learning this song again"); },
+    changed: () => { paintListenChip(song); paintLoop(song); },
+    notes: () => recordingNotes(song),
+    matchKey: () => { const g = recordingNotes(song).key; if (!g) return; song.transpose = Math.max(-5, Math.min(6, (song.transpose || 0) + g)); Tabs.save(data); if (viewing === song) { render(); paintListenChip(song); } toast(`Moved ${g > 0 ? "up" : "down"} ${Math.abs(g)} half step${Math.abs(g) === 1 ? "" : "s"} to match the recording`); },
+    matchBpm: () => { const b = song.listen?.feel?.bpm; if (!b) return; song.bpm = b; Tabs.save(data); paintListenChip(song); toast(`Tempo ${b}, from the recording`); },
+    spots: () => { songMarks(song); return { auto: marksCache.auto.map(m => m[0]), mine: (song.syncs || []).map(m => m[0]) }; }
+  });
+}
+/* 4.49.12: the one switch for the band. In a gig Beat's drums play on their own once he has joined, so
+   "off" there also sits him out (the Band tab brings him back); on the song page it is only the metronome. */
+function setBandOn(on) { setBeat(on ? (data.settings.metroSound === "click" ? "click" : "kick") : "off"); }
+/* 4.69.0: choose the beat (Off, Bass drum, Metronome) mid-song: heard from the next beat */
+function chooseBeat(song, mode) {
+  if (mode !== "off" && usesMusic(song)) { setBeat(mode); return setBacking(song, "band", null, true); }
+  setBeat(mode);
+  if (scroll.on) mode === "off" ? stopMetronome() : startMetronome(song);
+  else if (mode !== "off") metroPreview();
+  refreshPlay?.(song);
+}
 function toggleMetronome(song, near) {
-  data.settings.metronome = !data.settings.metronome; Tabs.save(data);
-  if (scroll.on) data.settings.metronome || data.settings.bass ? startMetronome(song) : stopMetronome();
-  toast(data.settings.metronome ? `Metronome on${song.bpm ? ` · ${song.bpm} BPM` : scroll.on ? "" : ". The tempo is looked up when you play"}` : "Metronome off", near);
+  if (usesMusic(song) && !data.settings.metronome) { data.settings.metronome = true; return setBacking(song, "band", near); }
+  setBandOn(!metroOn());
+  const on = metroOn();
+  if (scroll.on) on ? startMetronome(song) : stopMetronome();
+  toast(on ? `Metronome on${song.bpm ? ` · ${song.bpm} BPM` : scroll.on ? "" : ". The tempo is looked up when you play"}` : "Metronome off", near);
 }
-function toggleBass(song, near) {
-  const on = data.settings.bass = !data.settings.bass; Tabs.save(data);
-  if (scroll.on) on || data.settings.metronome ? startMetronome(song) : stopMetronome();
-  toast(!on ? "Bass off" : song.format === "tab" ? "Bass on. It plays under songs with chords" : `Bass on${song.bpm ? ` · ${song.bpm} BPM` : scroll.on ? "" : ". The tempo is looked up when you play"}`, near);
+/* The beat sheet (4.43.0 as The band; 4.69.0 the beat): Off, Bass drum or Metronome, and how loud, without
+   stopping the song. A short sheet at the bottom with no scrim, so the reading line stays in sight; a change is
+   heard from the next beat. The same settings as Settings > Playing, for every song. */
+export function bandSheet(song) {
+  const old = document.getElementById("band-sheet");
+  if (old) { old.remove(); return; }
+  const s = data.settings, el = document.createElement("div");
+  el.className = "panel card band-sheet"; el.id = "band-sheet";
+  el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "The beat");
+  const paint = () => {
+    const vol = Math.round(metroVol() * 100), rec = usesMusic(song), m = beatMode();
+    el.innerHTML = `<div class="bs-top"><b>The beat</b><button class="ib" id="bs-x" aria-label="Close">${icon("x")}</button></div>
+      ${rec ? `<p class="bs-note">This song plays its recording, so there's no beat on top.</p><button class="btn" id="bs-band">${icon("metro")}Play with a beat instead</button>`
+      : `<div class="seg bs-beat" role="group" aria-label="Beat">${BEATS.map(([k, n]) => `<button data-beat="${k}" class="${k === m ? "on" : ""}" aria-pressed="${k === m}">${n}</button>`).join("")}</div>
+        <label class="bs-row bs-vol"><span class="bs-l">Volume</span>
+          <input type="range" class="s-vol" id="bs-vol" min="0" max="${BAND_MAX * 100}" step="5" value="${vol}" style="--fill:${Math.round(vol / BAND_MAX)}%" aria-label="Beat volume" aria-valuetext="${vol}%">
+          <output id="bs-v">${vol}%</output></label>`}`;
+    el.querySelector("#bs-x").onclick = close;
+    el.querySelector("#bs-band")?.addEventListener("click", () => { if (beatMode() === "off") setBeat("kick"); setBacking(song, "band", null, true); paint(); });
+    el.querySelectorAll("[data-beat]").forEach(b => b.onclick = () => { chooseBeat(song, b.dataset.beat); paint(); el.querySelector(`[data-beat="${b.dataset.beat}"]`)?.focus(); });
+    const v = el.querySelector("#bs-vol");
+    if (v) {
+      v.oninput = () => { s.metroVol = +v.value / 100; v.style.setProperty("--fill", Math.round(v.value / BAND_MAX) + "%"); v.setAttribute("aria-valuetext", v.value + "%"); el.querySelector("#bs-v").textContent = v.value + "%"; Tabs.save(data); };
+      v.onchange = () => { if (!scroll.on) metroPreview(); };
+    }
+  };
+  const outside = ev => { if (!el.contains(ev.target) && !ev.target.closest("#fp-band")) close(); };
+  function close() { el.remove(); document.removeEventListener("pointerdown", outside, true); removeEventListener("hashchange", close); }
+  paint();
+  document.body.appendChild(el);
+  setTimeout(() => document.addEventListener("pointerdown", outside, true));
+  addEventListener("hashchange", close);
 }
+/* The Tools sheet (4.2.0): everything for the song in one sheet that rises from the bottom, from the
+   paused song and from a paused gig. Text size and the Gig's lines at the top, then Play along and The song. */
+/* 4.66.0: one Tools sheet, the same whether a show is on or not. A paused show carries on after anything in it,
+   except what starts something else on the page: Edit, Practice a section, Play together and a new gig. */
+const GIG_ENDS = ["edit", "loop", "duet", "gig"];
 function songMenu(song, anchor, redrawSong) {
   const old = document.querySelector(".menu");
   if (old) { old.remove(); return; }
-  /* Opening the menu mid-song pauses it, so the scrolling doesn't close it. */
+  /* Opening the sheet mid-song pauses it, so the scrolling doesn't close it. */
   if (scroll.on) stopScroll();
   markSeen("menu");
   document.querySelectorAll(".more .newdot").forEach(d => d.remove());
-  const ez = song.easier;
-  const ringOn = document.body.classList.contains("ring"); /* Metronome and Now and Next live in the ring then */
-  const items = [
-    { id: "size" },
-    { id: "set", icon: "listplus", label: "Add to set" },
-    { id: "loop", icon: "loop", label: "Practice a section" },
-    !ringOn && { id: "metro", icon: "metro", label: "Metronome", hint: data.settings.metronome ? `On · ${song.bpm || 90}` : "Off" },
-    song.format !== "tab" && { id: "bass", icon: "note", label: "Bass line", hint: data.settings.bass ? "On" : "Off" },
-    { id: "listen", icon: "note", label: song.listen ? "Listening link" : "Find a recording", hint: song.listen ? song.listen.service : "" },
-    { id: "tuner", icon: "fork", label: "Tuner", hint: songTuning(song) !== "standard" ? TUNINGS[songTuning(song)].name : "" },
-    ringOn && deEligible(song) && songDeOpen && { id: "de", icon: "chat", label: "German practice", hint: song.de ? DE_LEVELS[song.deLevel || 0] : "" },
-    { id: "share", icon: "share", label: "Share song" },
-    { id: "duet", icon: "pick", label: "Play together" },
-    { id: "edit", icon: "edit", label: "Edit" },
-    song.format !== "tab" && bodyCapo(song.body) && { id: "capo", icon: "fretboard", label: song.capoOff ? "Put the capo back" : "Remove the capo", hint: song.capoOff ? `Off · was Capo ${bodyCapo(song.body)}` : `Capo ${bodyCapo(song.body)}` },
-    (aiKey() || ez) && { id: "easy", icon: "wand", label: "Make it easier", hint: ez ? (ez.on ? `On${ez.capo ? ` · Capo ${ez.capo}` : ""}` : "Off") : "" },
-    (aiKey() || song.tone) && { id: "tone", icon: "amp", label: "Spark tone", hint: song.tone ? "Saved" : "" },
-    song.ai === "chart" && !firstLyric(song.body) && { id: "words", icon: "edit", label: "Add the words" }
-  ].filter(Boolean);
+  const ez = song.easier, chords = song.format !== "tab";
+  /* 4.32.0: three tabs at the bottom, in thumb reach (Play, Practice, Song), rows instead of tiles.
+     Switches toggle in place; a row with a chevron opens its sheet. The last tab is remembered. */
+  const capo = chords ? bodyCapo(song.body) : 0;
+  const tabsOf = () => [
+    { id: "play", label: "Play", head: "HOW IT PLAYS", rows: [
+      { id: "speed", icon: "gauge", label: byLength() ? "Song length" : "Speed", sub: byLength() ? "How long one play takes" : "How fast the page moves", step: true },
+      { id: "beat", icon: "metro", label: "Beat", sub: beatMode() === "off" ? "Off" : `${beatName()} · ${song.bpm || 90} BPM`, beat: true },
+      chords && { id: "wait", icon: "mic", label: "Wait for me", sub: usesMusic(song) ? "Plays with the band or the scroll, not a recording" : "The song waits for each chord you play", on: waitOn(song), off: usesMusic(song) },
+      chords && { id: "follow", icon: "gauge", label: "Follow my tempo", sub: usesMusic(song) ? "Plays with the band or the scroll, not a recording" : scroll.on && followOn(song) && follow.k !== 1 ? `Following you: ${Math.round(follow.k * 100)}% of the song's tempo` : "The song speeds up or slows down with you", on: followOn(song), off: usesMusic(song) },
+      { id: "size", icon: "type", label: "Text size", size: true }
+    ] },
+    { id: "practice", label: "Practice", head: "LEARNING IT", rows: [
+      { id: "prac", icon: "loop", label: "Practice mode", sub: practicing(song) ? "Loop a section, slow it down" : "Off: plays straight through", on: practicing(song), prac: true },
+      { id: "loop", icon: "loop", label: "Practice a section", sub: "Pick the part to loop", go: true },
+      chords && (aiKey() || ez) && { id: "easy", icon: "wand", label: "Make it easier", sub: ez ? (ez.on ? `On${ez.capo ? ` · Capo ${ez.capo}` : ""}` : "Off") : "Simpler chords, or a capo", ...(aiKey() ? { go: true } : { on: !!ez?.on }) },
+      capo && { id: "capo", icon: "fretboard", label: "Capo", sub: song.capoOff ? `Off: the sheet says capo ${capo}` : `On: capo ${capo}`, on: !song.capoOff },
+      { id: "tuner", icon: "fork", label: "Tuner", sub: TUNINGS[songTuning(song)].name, go: true },
+      { id: "duet", icon: "pick", label: "Play together", sub: "One clap starts two phones", go: true }
+    ] },
+    { id: "song", label: "Song", head: "THE SONG", rows: [
+      { id: "edit", icon: "edit", label: "Edit", sub: "Words, chords and sections", go: true },
+      { id: "set", icon: "listplus", label: "Add to a set", sub: (() => { const x = data.sets.find(z => (z.songs || []).some(i => (i.id || i) === song.id)); return x ? `In ${x.name}` : "Gigs and practice lists"; })(), go: true },
+      { id: "share", icon: "share", label: "Share", sub: "Send the song as a link", go: true },
+      chords && (aiKey() || song.de) && (langChosen(data) ? { id: "de", icon: "chat", label: LANGS[langOf(data)].name, sub: deHint.get(song.id) || `Practice the words in ${LANGS[langOf(data)].name}`, go: true }
+        : { id: "de", icon: "chat", label: "Learn a language", sub: "German, Spanish or Russian", go: true }),
+      (aiKey() || song.tone) && { id: "tone", icon: "amp", label: "Spark tone", sub: song.tone ? "Saved" : "A tone for your amp", go: true },
+      song.ai === "chart" && !firstLyric(song.body) && { id: "words", icon: "edit", label: "Add the words", sub: "From LRCLIB", go: true }
+    ] }
+  ].filter(Boolean).map(t => ({ ...t, rows: t.rows.filter(Boolean) }));
+  let tab = tabsOf().some(t => t.id === data.settings.toolsTab) ? data.settings.toolsTab : "play";
   const m = document.createElement("div");
-  m.setAttribute("role", "menu");
-  /* One hand (phone upright): the menu rises from the bottom, and what you
-     reach for mid-song (Text size, Metronome, Tuner) sits lowest. */
+  /* 4.42.8: the sheet is a dialog (it holds tabs as well as rows); each tab's rows are the menu */
+  m.setAttribute("role", "dialog");
+  m.setAttribute("aria-label", "Tools");
   const sheet = oneHandMQ.matches;
-  if (sheet) {
-    const low = ["capo", "loop", "tuner", "bass", "metro", "size"];
-    items.sort((a, b) => low.indexOf(a.id) - low.indexOf(b.id));
-    m.className = "menu glass float msheet";
-  } else {
-    m.className = "menu glass float";
+  m.className = "menu tools tools3" + (sheet ? " msheet" : "");
+  if (!sheet) {
     const r = anchor.getBoundingClientRect();
-    m.style.top = (r.bottom + 8) + "px";
+    m.style.bottom = Math.max(12, innerHeight - r.top + 10) + "px";
     m.style.right = Math.max(12, innerWidth - r.right) + "px";
   }
+  const sw = on => `<span class="toggle${on ? " on" : ""}" aria-hidden="true"></span>`;
+  const row = it => {
+    const nd = NEW_IN_MENU[it.id] ? newDot(NEW_IN_MENU[it.id]) : "";
+    const left = `<span class="mi">${icon(it.icon)}</span><span class="ml"><span class="t3l">${it.label}${nd}</span>${it.sub ? `<small>${esc(it.sub)}</small>` : ""}</span>`;
+    if (it.step) return `<div class="mrow t3" role="group" aria-label="${it.label}">${left}<button class="sb" role="menuitem" data-step="-1" aria-label="${byLength() ? "Shorter" : "Slower"}">${icon("minus")}</button><button class="t3v" role="menuitem" data-m="speed" id="dialbtn" aria-label="${it.label}: ${esc($("sv")?.textContent || "")}. Open the dial"><span>${esc($("sv")?.textContent || "")}</span></button><button class="sb" role="menuitem" data-step="1" aria-label="${byLength() ? "Longer" : "Faster"}">${icon("plus")}</button></div>`;
+    if (it.size) return `<div class="mrow t3 size" role="group" aria-label="Text size">${left}<button class="sb" role="menuitem" data-d="-1" aria-label="Smaller text">${icon("minus")}</button><span class="v t3v">${Math.round(song.size * 100)}%</span><button class="sb" role="menuitem" data-d="1" aria-label="Larger text">${icon("plus")}</button></div>`;
+    if (it.beat) { const mo = beatMode(); return `<div class="mrow t3 beatrow" role="group" aria-label="Beat">${left}<div class="seg mini t3-beat">${BEATS.map(([k, n]) => `<button role="menuitemradio" data-beat="${k}" aria-checked="${k === mo}" class="${k === mo ? "on" : ""}">${n}</button>`).join("")}</div></div>`; }
+    if (it.prac) return `<button class="mrow t3" role="menuitemcheckbox" data-prac data-m="prac" aria-checked="${it.on}" aria-label="Practice mode">${left}${sw(it.on)}</button>`;
+    if (it.on !== undefined) return `<button class="mrow t3" role="menuitemcheckbox" data-m="${it.id}" aria-checked="${it.on}"${it.off ? " disabled" : ""}>${left}${sw(it.on)}</button>`;
+    return `<button class="mrow t3" role="menuitem" data-m="${it.id}">${left}${icon("chev", "t3c")}</button>`;
+  };
   const paint = () => {
-    m.innerHTML = (sheet ? '<div class="grab" aria-hidden="true"></div>' : "") + items.map(it => it.id === "size"
-      ? `<div class="mrow size" role="group" aria-label="Text size"><span class="mi">${icon("text")}</span><span class="ml" aria-hidden="true">Text size</span>
-          <button class="sb" role="menuitem" data-d="-1" aria-label="Smaller text">${icon("minus")}</button><span class="v">${Math.round(song.size * 100)}%</span><button class="sb" role="menuitem" data-d="1" aria-label="Larger text">${icon("plus")}</button></div>`
-      : `<button class="mrow" role="menuitem" data-m="${it.id}"><span class="mi">${icon(it.icon)}</span><span class="ml">${it.label}${NEW_IN_MENU[it.id] ? newDot(NEW_IN_MENU[it.id]) : ""}</span>${it.hint ? `<span class="mh">${esc(it.hint)}</span>` : ""}</button>`).join("");
+    const tabs = tabsOf();
+    m.innerHTML = (sheet ? '<div class="grab" aria-hidden="true"></div>' : "") + `
+      <div class="tl-head"><b>Tools</b><span class="t3-song">${esc(song.title)}</span></div>
+      ${tabs.map(t => `<div class="t3-panel" role="menu" aria-label="${t.label}" data-panel="${t.id}"${t.id === tab ? "" : " hidden"}><div class="tl-h">${t.head}</div>${t.rows.map(row).join("")}${t.id === "song" ? '<p class="t3-note">The recording and its details are under the song\'s title.</p>' : ""}</div>`).join("")}
+      <div class="seg t3-tabs" role="tablist" aria-label="Tools">${tabs.map(t => `<button role="tab" data-tab="${t.id}" class="${t.id === tab ? "on" : ""}" aria-selected="${t.id === tab}">${t.label}${t.rows.some(r => NEW_IN_MENU[r.id] && !used(NEW_IN_MENU[r.id])) ? '<i class="newdot"></i>' : ""}</button>`).join("")}</div>`;
   };
   paint();
   document.body.appendChild(m);
@@ -1669,19 +1227,19 @@ function songMenu(song, anchor, redrawSong) {
   /* Swipe the sheet down to close it. */
   if (sheet) {
     let y0 = null;
-    m.addEventListener("touchstart", ev => { y0 = ev.touches[0].clientY; }, { passive: true });
+    m.addEventListener("touchstart", ev => { y0 = m.scrollTop > 0 ? null : ev.touches[0].clientY; }, { passive: true }); /* scrolled down, a swipe scrolls the sheet */
     m.addEventListener("touchmove", ev => { if (y0 != null) m.style.transform = `translateY(${Math.max(0, ev.touches[0].clientY - y0)}px)`; }, { passive: true });
     m.addEventListener("touchend", ev => { const dy = y0 == null ? 0 : ev.changedTouches[0].clientY - y0; y0 = null; if (dy > 70) close(); else m.style.transform = ""; });
   }
   /* Keyboard: focus starts on the first item; arrows move, Escape closes. */
   m.addEventListener("keydown", ev => {
-    const its = [...m.querySelectorAll("button")], i = its.indexOf(document.activeElement);
+    const its = [...m.querySelectorAll("button")].filter(b => !b.closest("[hidden]")), i = its.indexOf(document.activeElement);
     if (ev.key === "Escape") { ev.preventDefault(); close(); anchor.focus(); }
     else if (ev.key === "ArrowDown" || ev.key === "ArrowUp") { ev.preventDefault(); its[(i + (ev.key === "ArrowDown" ? 1 : -1) + its.length) % its.length]?.focus(); }
     else return;
     ev.stopPropagation();
   });
-  m.querySelector("[data-m]")?.focus({ preventScroll: true });
+  (m.querySelector(".t3-panel:not([hidden]) [data-m]") || m.querySelector(".t3-panel:not([hidden]) button"))?.focus({ preventScroll: true });
   m.onclick = ev => {
     ev.stopPropagation();
     const d = ev.target.closest("[data-d]");
@@ -1690,42 +1248,73 @@ function songMenu(song, anchor, redrawSong) {
       Tabs.save(data); paint(); redrawSong();
       return;
     }
+    const bt = ev.target.closest("[data-beat]");
+    if (bt) { chooseBeat(song, bt.dataset.beat); paint(); m.querySelector(`[data-beat="${bt.dataset.beat}"]`)?.focus({ preventScroll: true }); return; }
+    const tb = ev.target.closest("[data-tab]");
+    if (tb) { tab = data.settings.toolsTab = tb.dataset.tab; Tabs.save(data); paint(); m.querySelector(`[data-tab="${tab}"]`)?.focus({ preventScroll: true }); return; }
+    const st = ev.target.closest("[data-step]");
+    if (st) {
+      const sp = $("speed"); if (!sp) return;
+      const dir = +st.dataset.step * (byLength() ? -1 : 1), stp = byLength() ? 5 : +sp.step;
+      sp.value = Math.min(+sp.max, Math.max(+sp.min, +sp.value + dir * stp)); sp.oninput?.();
+      paint(); return;
+    }
+    const inPlace = { metro: () => toggleMetronome(song, toolsAnchor()),
+      capo: () => { song.capoOff = !song.capoOff; if (!song.capoOff) delete song.capoOff; Tabs.save(data); redrawSong(); toast(song.capoOff ? "Capo off: the chords are in the key the song sounds in" : `Capo ${bodyCapo(song.body)} is back`); },
+      wait: () => { song.waitForMe = !waitOn(song); Tabs.save(data); toast(song.waitForMe ? "Wait for me: the song waits for each chord you play" : "Wait for me off", toolsAnchor()); },
+      follow: () => { song.followTempo = !followOn(song); if (!song.followTempo) follow.k = 1; Tabs.save(data); toast(song.followTempo ? "Follow my tempo: the song keeps your pace" : "Follow my tempo off: the song's own tempo", toolsAnchor()); },
+      easy: () => { if (aiKey()) return false; ez.on = !ez.on; Tabs.save(data); redrawSong(); } };
+    const ip = ev.target.closest("[data-m]");
+    if (ip && inPlace[ip.dataset.m] && inPlace[ip.dataset.m]() !== false) {
+      if (NEW_IN_MENU[ip.dataset.m]) markUsed(NEW_IN_MENU[ip.dataset.m]);
+      const id = ip.dataset.m; paint(); m.querySelector(`[data-m="${id}"]`)?.focus({ preventScroll: true }); return;
+    }
+    if (ev.target.closest("[data-prac]")) { if (gigHooks.on) gigHooks.leave?.(); const on = !practicing(song); setPracticing(song, on); paint(); toast(on ? "Practice mode: pick a section, slow it down, build it up" : "Practice mode off", moreBtn()); return; }
     const b = ev.target.closest("[data-m]");
     if (!b) return;
-    if (NEW_IN_MENU[b.dataset.m]) markUsed(NEW_IN_MENU[b.dataset.m]);
+    const id = b.dataset.m;
+    if (NEW_IN_MENU[id]) markUsed(NEW_IN_MENU[id]);
     close();
+    if (gigHooks.on && GIG_ENDS.includes(id)) gigHooks.leave?.(); /* the show ends quietly; you stay on the song page */
     ({ set: () => addToSet(song), edit: () => songEditor(song),
+       speed: () => songSpeed?.(),
        capo: () => { song.capoOff = !song.capoOff; if (!song.capoOff) delete song.capoOff; Tabs.save(data); redrawSong(); toast(song.capoOff ? "Capo off: the chords are in the key the song sounds in" : `Capo ${bodyCapo(song.body)} is back`); },
        easy: () => aiKey() ? easierSheet(song) : (ez.on = !ez.on, Tabs.save(data), redrawSong()),
-       tone: () => toneSheet(song), share: () => shareSong(song), duet: () => duetSheet(song), loop: () => startLoopPick(song), tuner: () => openTuner(songTuning(song)), de: () => songDeOpen?.(),
+       tone: () => toneSheet(song), share: () => shareSong(song), duet: () => duetSheet(song), gig: () => playGig(song.id), loop: () => { setPracticing(song, true); startLoopPick(song); }, tuner: () => openTuner(songTuning(song)),
        listen: () => listenSheet(song, true),
        words: () => wordsFor(song),
-       de: () => germanSheet(song, redrawSong),
-       bass: () => toggleBass(song, moreBtn()),
-       metro: () => toggleMetronome(song, moreBtn()) })[b.dataset.m]?.();
+       de: () => songDeOpen?.(),
+       metro: () => toggleMetronome(song, toolsAnchor()),
+       band: () => bandSheet(song) })[id]?.();
   };
 }
+/* 4.45.1: a toast from a switch in Tools sits just above the open sheet (it floated at the top of the screen, behind the header) */
+const toolsAnchor = () => document.querySelector(".menu.tools") || moreBtn();
+/* Tools, from the paused gig. */
+function openTools(anchor) { if (viewing) songMenu(viewing, anchor, () => redraw?.()); }
 
 // ---------- Find songs you don't have yet ----------
 // No match in the library: search the web for a chord sheet, then come back and
 // paste it (Tabs offers to as soon as you return). Or, with an API key, get a
 // chord chart from AI: chords and structure only, never lyrics.
-let pendingFind = null; /* { q, at } after sending someone out to look */
+let pendingFind = null; /* { q, at, title?, artist?, rec? } after sending someone out to look */
+/* 4.67.0: Get the chords sends you to one chart; coming back, The Road offers to paste it in at once */
+export function expectPaste(ctx) { pendingFind = { ...ctx, at: Date.now() }; }
 const FIND_SITES = [
   ["web", "Search the web", q => `https://www.google.com/search?q=${encodeURIComponent(q + " chords")}`],
   ["ug", "Ultimate Guitar", q => `https://www.ultimate-guitar.com/search.php?search_type=title&value=${encodeURIComponent(q)}`],
   ["chordify", "Chordify", q => `https://chordify.net/search/${encodeURIComponent(q)}`]
 ];
 // With matches in the library it still shows, smaller, under them ("Find more").
-function findCard(q, more = false) {
+export function findCard(q, more = false) {
   return `<div class="findcard${more ? " more" : ""}">
     <div class="fc-t">${more ? `Find “${esc(q.trim())}” elsewhere` : `“${esc(q.trim())}” isn't in your library yet`}</div>
-    ${more ? "" : `<p class="fc-s">Find a chord sheet, copy it, and come back. Tabs will offer to add what you copied.</p>`}
+    ${more ? "" : `<p class="fc-s">Find a chord sheet, copy it, and come back. Louie will offer to add what you copied.</p>`}
     <div class="fc-b">${FIND_SITES.map(([k, l]) => `<button class="chip" data-find="${k}">${icon(k === "web" ? "search" : "link")}${l}</button>`).join("")}</div>
     ${aiKey() ? `<button class="fc-ai" id="fc-ai">${icon("wand")}<span><b>Get the song</b>Chords, words and tempo in one go</span>${icon("chev", "chev")}</button>` : ""}
   </div>`;
 }
-function bindFind(list) {
+export function bindFind(list) {
   list.querySelectorAll("[data-find]").forEach(b => b.onclick = () => {
     const site = FIND_SITES.find(x => x[0] === b.dataset.find);
     pendingFind = { q: query.trim(), at: Date.now() };
@@ -1733,23 +1322,39 @@ function bindFind(list) {
   });
   $("fc-ai")?.addEventListener("click", () => getSong(query.trim()));
 }
-// Back from looking: offer to paste what was copied (reading the clipboard needs a tap).
+// Back from looking: offer to paste what was copied (reading the clipboard needs a tap, and iOS asks once more).
+// 4.67.0: a sheet in thumb reach on any page but Edit or a show; a chord sheet is added straight away, named for
+// the song you went to get, with its Apple Music recording, and the song opens with Undo. Anything else goes to
+// the paste card to check.
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible" || !pendingFind || Date.now() - pendingFind.at > 30 * 60e3) return;
-  if (route().name !== "library" || document.querySelector(".backpaste")) return;
-  const q = pendingFind.q;
-  const b = document.createElement("div");
-  b.className = "backpaste glass float";
-  b.innerHTML = `<span>Copied the chords for “${esc(q)}”?</span><button class="btn sm primary" id="bp-go">Paste</button><button class="sb" id="bp-x" aria-label="Dismiss">${icon("x")}</button>`;
-  document.body.appendChild(b);
-  $("bp-x").onclick = () => { b.remove(); pendingFind = null; };
-  $("bp-go").onclick = async () => {
+  if (document.querySelector(".backpaste") || document.body.classList.contains("cedit") || gigHooks.on) return;
+  const ctx = pendingFind, q = ctx.title || ctx.q;
+  layer.innerHTML = `<div class="scrim" id="bk-scrim"></div>
+    <div class="panel card backpaste" role="dialog" aria-labelledby="bk-t"><div class="grab" aria-hidden="true"></div>
+      <small class="bp-k">WELCOME BACK</small>
+      <h2 class="bp-t" id="bk-t">Paste the chords for “${esc(q)}”?</h2>
+      <p class="bp-s">Tap Paste, then Paste again when your phone asks.</p>
+      <button class="btn primary bp-go" id="bk-go">${icon("clip")}Paste</button>
+      <button class="btn bp-x" id="bk-x">Not now</button>
+    </div>`;
+  const close = () => { layer.innerHTML = ""; };
+  $("bk-scrim").onclick = close;
+  $("bk-x").onclick = () => { close(); pendingFind = null; };
+  $("bk-go").onclick = async () => {
     let text = "";
     try { text = await navigator.clipboard.readText(); } catch {}
-    if (text.trim().split("\n").filter(l => l.trim()).length < 2) return toast("Nothing to paste yet. Copy the chord sheet first, or press and hold the search bar and tap Paste.");
-    b.remove(); pendingFind = null;
+    if (text.trim().split("\n").filter(l => l.trim()).length < 2) return toast("Nothing to paste yet. Copy the chords on the site first, then tap Paste.", $("bk-go"));
+    close(); pendingFind = null;
     if (searching) document.querySelector("#qcancel")?.click();
-    showPasteCard(detectPaste(text));
+    const d = detectPaste(text), lines = parseSheet(d.body), chordRows = lines.filter(l => l.kind === "chords" || (l.chords && l.chords.length)).length;
+    const f = { ...d, title: ctx.title || d.title || ctx.q, artist: ctx.artist || d.artist || "" };
+    if (d.format !== "chords" || chordRows < 2) return showPasteCard(f);
+    const s = Tabs.addSong(data, { title: f.title, artist: f.artist, format: "chords", key: "", body: f.body });
+    if (ctx.rec) lazy("listen.js").then(m => { m.attachRecording(s, ctx.rec); Tabs.save(data); });
+    const secs = lines.filter(l => l.kind === "section").length, chords = sheetChords(f.body).length;
+    go("#/song/" + encodeURIComponent(s.id));
+    setTimeout(() => toast(`${s.title} added: ${secs ? `${secs} section${secs === 1 ? "" : "s"}, ` : ""}${chords} chord${chords === 1 ? "" : "s"}`, null, { label: "Undo", fn: () => { Tabs.deleteSong(data, s.id); go("#/library"); toast(`Took out ${s.title}`); } }), 400);
   };
 });
 
@@ -1757,32 +1362,36 @@ document.addEventListener("visibilitychange", () => {
 function wordsFor(song) {
   findAI().then(m => m.wordsSheet(song.body, { title: song.title, ok: "Save" }, merged => {
     const was = song.body;
-    song.body = merged; delete song.loop; Tabs.save(data); render();
-    toast("Words added. Check the chord spots by ear", null, { label: "Undo", fn: () => { song.body = was; Tabs.save(data); render(); } });
+    song.body = merged; delete song.loop; song.spots = "guess"; delete song.spotsTried; Tabs.save(data); render();
+    toast(aiKey() ? "Words added. Lining the chords up from the chord sites" : "Words added. Check the chord spots by ear", null, { label: "Undo", fn: () => { song.body = was; Tabs.save(data); render(); } });
+    m.relineSong(song); /* 4.41.0: each chord over the word the chord sites have it on */
   }));
 }
 // German practice: songs with words, when there's a key or a translation.
 // The chip under the title is its home in every layout; it shows progress
 // while a translation runs in the background (german.js keeps deJobs).
-const deJobs = new Map();
+const deJobs = new Map(), deHint = new Map();
 let songDeOpen = null; /* the open song's German: the dial, or the sheet when it needs work (in More) */
 const deEligible = song => !!firstLyric(song.body) && (!!aiKey() || !!song.de);
 function paintDeChip(song, fresh, lvl) {
+  const job = deJobs.get(song.id);
+  /* 4.20.0: German lives in Tools; its tile shows where it stands */
+  deHint.set(song.id, !deEligible(song) ? "" : job ? `${job.done} of ${job.total}` : !song.de ? "" : !fresh ? "Update" : song.de.lines?.some(l => !l) ? "Finish" : DE_LEVELS[lvl]);
   const dc = $("dechip");
   if (!dc) return;
-  const job = deJobs.get(song.id);
   dc.hidden = !deEligible(song);
   dc.classList.toggle("on", !!(lvl && fresh) || !!job);
   dc.classList.toggle("busy", !!job);
   dc.style.setProperty("--p", job ? (job.done / Math.max(1, job.total)).toFixed(2) : 0);
-  dc.innerHTML = `<b>DE</b>${job ? `${job.done} of ${job.total} lines` : !song.de ? "German" : !fresh ? "Update" : song.de.lines?.some(l => !l) ? "Finish" : DE_LEVELS[lvl]}`;
+  const L = LANGS[langOf(data)];
+  dc.innerHTML = `<b>${L.short}</b>${job ? `${job.done} of ${job.total} lines` : !song.de ? L.name : !fresh ? "Update" : song.de.lines?.some(l => !l) ? "Finish" : DE_LEVELS[lvl]}`;
 }
 // A translation's progress: the chip now; the sheet once lines land (not
 // mid-song: it waits for a pause so the scrolling doesn't jump).
 let deWaiting = 0;
 document.addEventListener("tabs:de-progress", e => {
   if (!viewing || viewing.id !== e.detail?.id || route().name !== "song") return;
-  const blocks = parseBlocks(viewing.body || ""), fresh = viewing.de && viewing.de.src === deSource(sungText(blocks));
+  const blocks = parseBlocks(viewing.body || ""), fresh = deLangOk(viewing, data) && viewing.de.src === deSource(sungText(blocks));
   paintDeChip(viewing, fresh, viewing.deLevel || 0);
   if (!e.detail.lines) return;
   if (!scroll.on) { redraw?.(); return; }
@@ -1795,233 +1404,10 @@ document.addEventListener("tabs:redraw", () => { if (viewing && route().name ===
 // German practice loads on first use (german.js).
 function germanSheet(...args) { lazy("german.js").then(m => m.germanSheet(...args)); }
 // Chord charts and "What can I play next?" load on first use (findai.js).
-const findAI = () => lazy("findai.js");
+export const findAI = () => lazy("findai.js");
 // Leave search mode (used when a song is added from a chart).
-function leaveSearch() { if (searching) { searching = false; document.body.classList.remove("searching"); query = ""; } }
 function getSong(...args) { findAI().then(m => m.getSong(...args)); }
-function nextSongs() { findAI().then(m => m.nextSongs()); }
-
-// ---------- Metronome ----------
-// While a song scrolls (on from the ring or the ••• menu), either a click or a
-// drum beat (Settings > Playing): kick on 1 (and the middle of the bar), snare
-// on the backbeats, a closed hi-hat on every eighth. It follows the song's
-// tempo, slowed with Build up, and a tempo changed in Edit takes over on the
-// next beat. A song with no tempo gets one looked up first. Hits are
-// scheduled ahead on the audio clock, so they stay even.
-const metro = { timer: 0, next: 0, beat: 0, run: 0 };
-const metroVol = () => { const v = data.settings.metroVol; return v >= 0 && v <= 1 ? v : 0.8; };
-const metroDrums = () => data.settings.metroSound !== "click";
-async function startMetronome(song) {
-  stopMetronome();
-  if (!data.settings.metronome && !data.settings.bass) return;
-  const run = ++metro.run;
-  if (!song.bpm) {
-    await tempoFor(song);
-    if (run !== metro.run || !scroll.on) return;
-    toast(song.bpm ? `Tempo found: ${song.bpm} BPM. Change it in Edit` : "No tempo for this song yet: playing at 90 BPM. Tap the tempo in Edit");
-  }
-  const audio = sound();
-  if (!audio) return;
-  metro.next = audio.currentTime + 0.05; metro.beat = 0; bass.idx = null; bass.shift = null;
-  metro.timer = setInterval(() => {
-    while (metro.next < audio.currentTime + 0.12) {
-      const spb = 60 / ((song.bpm || 90) * loopFactor(song) * metroPace(song)), beats = song.beats || 4;
-      /* Drop-out practice: every other bar is silent, so you hold the time. */
-      const quiet = data.settings.metroDrop && Math.floor(metro.beat / beats) % 2 === 1, b = metro.beat % beats;
-      const groove = grooveOf(song, data.settings);
-      const style = drumStyle(groove.beat, { bpm: song.bpm || 90, beats, body: song.body });
-      /* Bass only: the drums or click rest and the bass plays alone. */
-      const rhythm = data.settings.metronome && !(data.settings.bass && data.settings.bassOnly);
-      if (quiet || !rhythm) { /* silent bar, or no drums */ }
-      else if (metroDrums()) drumBeat(metro.next, b, beats, spb, style, groove.swing);
-      else clickAt(metro.next, b === 0);
-      bassBeat(song, metro.next, b, beats, spb, quiet, style, groove);
-      metro.next += spb; metro.beat++;
-    }
-  }, 25);
-}
-/* With the speed dial set longer or shorter than the recording, the page
-   moves slower or faster than the record, and the beat follows it: a 3:30
-   song set to 4:12 scrolls and plays 20% slower. Needs the recording's
-   length (from Get the song or a Listen link); 1x style plays the BPM. */
-const recLength = song => song.listen?.length || song.recLength || (song.durationSet ? 0 : song.duration) || 0;
-const metroPace = song => {
-  const rec = recLength(song);
-  return byLength() && rec > 0 ? Math.min(1.5, Math.max(0.5, rec / songLength(song))) : 1;
-};
-/* Looks up a missing tempo once per song per visit, and keeps what it finds. */
-const tempoJobs = new Map();
-function tempoFor(song) {
-  if (song.bpm) return Promise.resolve();
-  if (!tempoJobs.has(song.id)) tempoJobs.set(song.id, findAI().then(m => m.findTempo(song)).catch(() => null).then(t => {
-    if (!(t?.bpm > 0) || song.bpm) return;
-    song.bpm = Math.round(Math.min(260, Math.max(30, t.bpm)));
-    if (!song.beats && t.beats !== 4) song.beats = t.beats;
-    Tabs.save(data);
-  }));
-  return tempoJobs.get(song.id);
-}
-/* A song's groove (drums, swing, bass) is looked up once, in the background,
-   the first time it plays with the metronome or bass on, and when it is added.
-   A lookup that finds nothing is not repeated this visit. force asks again
-   from Edit and replaces what is there. */
-const grooveJobs = new Map();
-function grooveFor(song, force = false) {
-  if (!aiKey() || (song.groove && !force)) return Promise.resolve(null);
-  if (force || !grooveJobs.has(song.id)) grooveJobs.set(song.id, findAI().then(m => m.findGroove(song)).catch(() => null).then(g => {
-    if (!g || (song.groove && !force)) return null;
-    song.groove = g; Tabs.save(data);
-    if (!force) toast(`Groove: ${grooveText(g)}. Change it in Edit`);
-    return g;
-  }));
-  return grooveJobs.get(song.id);
-}
-function stopMetronome() { clearInterval(metro.timer); metro.timer = 0; metro.run++; }
-/* Settings plays one bar in the chosen sound, beat and volume. */
-function metroPreview() {
-  const audio = sound();
-  if (!audio) return;
-  const t = audio.currentTime + 0.05, spb = 0.55, style = drumStyle(data.settings.metroBeat === "auto" || !data.settings.metroBeat ? "rock" : data.settings.metroBeat, { beats: 4 });
-  for (let b = 0; b < 4; b++) metroDrums() ? drumBeat(t + b * spb, b, 4, spb, style) : clickAt(t + b * spb, b === 0);
-}
-/* The bass. It rides the same clock as the drums (or a silent one when the
-   metronome is off). On chord-only rows it moves a chord a bar; over lyrics it
-   goes where the page is. The patterns are in core.js. */
-const bass = { idx: null, shift: null };
-const bassVol = () => { const v = data.settings.bassVol; return v >= 0 && v <= 1 ? v : 0.7; };
-function bassBeat(song, t, b, beats, spb, quiet, drum, groove) {
-  const seq = diag.seq, sheet = $("sheet");
-  if (!data.settings.bass || !seq.length || !sheet) return;
-  /* From the top of the song, the first row is the first thing played, not
-     whatever sits at the reading line: the bass counts the scroll from there. */
-  const reading = innerHeight * READ_AT - sheet.getBoundingClientRect().top;
-  if (bass.shift == null) bass.shift = scrollY < 40 && diag.brows.length ? diag.brows[0].r0 - reading : 0;
-  bass.idx = bassWhere(bass.idx, diag.brows, reading + bass.shift, b === 0);
-  if (quiet || bass.idx == null) return;
-  const off = soundOffset(song), now = seq[bass.idx].name;
-  const next = seq.slice(bass.idx + 1).find(x => x.name !== now);
-  const swing = DRUM_SWING[groove.swing] || 0.5;
-  const style = bassStyle(groove.bass, drum, beats, groove.swing, groove.riff);
-  for (const h of bassHits(style, chordBass(now, off), next ? chordBass(next.name, off) : null, b, beats, swing, groove.riff)) bassNote(h.m, t + h.at * spb, h.len * spb, h.v);
-}
-/* Settings plays a bar of G and a bar of C in the chosen style and volume. */
-function bassPreview() {
-  const audio = sound();
-  if (!audio) return;
-  const t = audio.currentTime + 0.05, spb = 0.5, style = bassStyle(data.settings.bassStyle, "rock", 4, data.settings.metroSwing);
-  const G = chordBass("G"), C = chordBass("C"), swing = DRUM_SWING[data.settings.metroSwing] || 0.5;
-  for (let b = 0; b < 8; b++) for (const h of bassHits(style, b < 4 ? G : C, b < 4 ? C : G, b % 4, 4, swing)) bassNote(h.m, t + (b + h.at) * spb, h.len * spb, h.v);
-}
-/* The riff editor plays the riff on G, then C, so you hear it move with the chord. */
-function riffPreview(riff, swingKey = "straight") {
-  const audio = sound();
-  if (!audio || !riff) return;
-  const t = audio.currentTime + 0.05, spb = 0.4, swing = DRUM_SWING[swingKey] || 0.5, G = chordBass("G"), C = chordBass("C");
-  for (let b = 0; b < 8; b++) for (const h of bassHits("riff", b < 4 ? G : C, b < 4 ? C : G, b % 4, 4, swing, riff)) bassNote(h.m, t + (b + h.at) * spb, h.len * spb, h.v);
-}
-/* A synthesized bass guitar: a triangle for the body, a filtered saw for the
-   finger, and a sine an octave up so a phone speaker (which can't play the low
-   notes) still sounds the pitch. The filter closes as the note rings. */
-function bassNote(m, t, dur, vel = 1) {
-  const audio = sound();
-  if (!audio) return;
-  try {
-    const f = 440 * 2 ** ((m - 69) / 12), v = bassVol() * vel, end = t + Math.min(Math.max(dur, 0.12), 2.4);
-    const out = audio.createGain(), lp = audio.createBiquadFilter();
-    out.gain.setValueAtTime(0.0001, t);
-    out.gain.exponentialRampToValueAtTime(Math.max(0.0002, 0.3 * v), t + 0.008);
-    out.gain.exponentialRampToValueAtTime(Math.max(0.0002, 0.14 * v), t + Math.min(0.35, (end - t) * 0.6));
-    out.gain.exponentialRampToValueAtTime(0.0001, end);
-    lp.type = "lowpass"; lp.Q.value = 1.2;
-    lp.frequency.setValueAtTime(900, t); lp.frequency.exponentialRampToValueAtTime(260, t + 0.25);
-    lp.connect(out); out.connect(audio.destination);
-    for (const [type, mult, gain] of [["triangle", 1, 1], ["sawtooth", 1, 0.35], ["sine", 2, 0.4]]) {
-      const o = audio.createOscillator(), g = audio.createGain();
-      o.type = type; o.frequency.value = f * mult; g.gain.value = gain;
-      o.connect(g).connect(lp); o.start(t); o.stop(end + 0.02);
-    }
-  } catch {}
-}
-/* The classic click: a short high beep, higher on 1. */
-function clickAt(t, accent) {
-  const audio = sound();
-  if (!audio) return;
-  const o = audio.createOscillator(), g = audio.createGain(), v = metroVol();
-  o.frequency.value = accent ? 1320 : 880;
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(Math.max(0.0002, (accent ? 0.3 : 0.18) * v), t + 0.005);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
-  o.connect(g).connect(audio.destination);
-  o.start(t); o.stop(t + 0.09);
-}
-/* One pulse of the pattern (the patterns live in core.js). Swing moves the
-   off-beat eighth later; the chosen amount is in Settings > Playing. */
-function drumBeat(t, b, beats, spb, style, swingKey = data.settings.metroSwing) {
-  const swing = DRUM_SWING[swingKey] || 0.5;
-  for (const h of drumHits(style, b, beats, swing)) drum(h.k, t + h.at * spb, h.v);
-}
-/* White noise, made once per audio engine, for the snare and the hi-hat. */
-let noiseBuf = null;
-const noise = audio => {
-  if (noiseBuf?.sampleRate === audio.sampleRate) return noiseBuf;
-  noiseBuf = audio.createBuffer(1, audio.sampleRate, audio.sampleRate);
-  const d = noiseBuf.getChannelData(0);
-  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-  return noiseBuf;
-};
-/* Synthesized drums: nothing to download.
-   kick   a sine that drops from 150 to 50 Hz, with a short knock so a phone
-          speaker that can't play the low end still sounds it
-   snare  a short tone for the drum body under a burst of filtered noise
-   hat    a very short burst of high noise: a closed hi-hat
-   open   the same noise, longer: an open hi-hat
-   stick  a short high knock with a click of noise: a side-stick on the rim */
-function drum(kind, t, vel = 1) {
-  const audio = sound();
-  if (!audio) return;
-  try {
-    const out = audio.createGain();
-    out.gain.value = metroVol();
-    out.connect(audio.destination);
-    const env = (node, peak, len) => {
-      const g = audio.createGain();
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(peak * vel, t + 0.003);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
-      node.connect(g).connect(out);
-    };
-    const burst = (type, freq, q, peak, len) => {
-      const src = audio.createBufferSource(), f = audio.createBiquadFilter();
-      src.buffer = noise(audio); f.type = type; f.frequency.value = freq; f.Q.value = q;
-      src.connect(f); env(f, peak, len);
-      src.start(t, Math.random() * 0.5); src.stop(t + len + 0.02);
-    };
-    if (kind === "kick") {
-      const o = audio.createOscillator();
-      o.frequency.setValueAtTime(150, t);
-      o.frequency.exponentialRampToValueAtTime(50, t + 0.12);
-      env(o, 0.75, 0.32);
-      o.start(t); o.stop(t + 0.34);
-      burst("bandpass", 1800, 1.2, 0.12, 0.02);
-    } else if (kind === "snare") {
-      const o = audio.createOscillator();
-      o.type = "triangle"; o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(170, t + 0.05);
-      env(o, 0.25, 0.09);
-      o.start(t); o.stop(t + 0.1);
-      burst("highpass", 1400, 0.7, 0.35, 0.17);
-    } else if (kind === "open") {
-      burst("highpass", 7000, 0.8, 0.12, 0.22);
-    } else if (kind === "stick") {
-      const o = audio.createOscillator();
-      o.type = "triangle"; o.frequency.setValueAtTime(520, t); o.frequency.exponentialRampToValueAtTime(400, t + 0.03);
-      env(o, 0.3, 0.05);
-      o.start(t); o.stop(t + 0.06);
-      burst("bandpass", 2600, 3, 0.28, 0.035);
-    } else {
-      burst("highpass", 7500, 0.8, 0.14, 0.045);
-    }
-  } catch {}
-}
+export function nextSongs() { findAI().then(m => m.nextSongs()); }
 
 // ---------- Tuner ----------
 // Listens through the microphone and shows how far each string is from its note.
@@ -2044,58 +1430,124 @@ function renderStrip(sheet, isChords, song) {
   if (!box) return;
   const names = isChords ? [...new Set([...sheet.querySelectorAll(".c[data-ch]")].map(el => el.dataset.ch))] : [];
   const easyBtn = `<span class="n">${names.length}</span>`;
+  /* A chord you haven't learned yet is marked NEW, once you know a few (4.2.0). */
+  const known = knownChords(data), fresh = n => known.size > 0 && !known.has(n);
   box.innerHTML = names.length ? `
-    <div class="strip-h"><span>Chords in this song</span>${easyBtn}</div>
-    <div class="strip" role="list">${names.map(n =>
-      `<button class="scard" role="listitem" data-name="${esc(n)}" aria-label="${esc(n)}: show where it's played">${chordSVG(n)}</button>`).join("")}</div>` : "";
+    <div class="strip-h"><span>Chords</span>${easyBtn}</div>
+    <div class="strip" role="list" aria-label="Chords in this song, ${names.length}">${names.map(n =>
+      `<button class="scard${fresh(n) ? " new" : ""}" role="listitem" data-name="${esc(n)}" aria-label="${esc(n)} chord shape${fresh(n) ? ", new to you" : ""}"><b class="sc-n">${esc(n)}</b>${fresh(n) ? '<small class="sc-new">NEW</small>' : ""}${chordSVG(n, 1, { named: false })}</button>`).join("")}</div>` : "";
+  fitStrip(box, names.length);
+}
+
+/* The chord row (4.62.0, Graham, 2026-10-24): when every chord fits at a readable size they all show and the row
+   doesn't scroll, so nothing is hidden. With more, the tiles stop at 50 px, snap as you scroll, and the edge fades
+   while more are off screen. The label carries the count either way. */
+const TILE_MIN = 50, TILE_MAX = 76, TILE_GAP = 8;
+let stripRO = null;
+function fitStrip(box, n) {
+  stripRO?.disconnect(); stripRO = null;
+  const row = box.querySelector(".strip");
+  if (!row || !n) return;
+  const lay = () => {
+    const room = row.clientWidth - parseFloat(getComputedStyle(row).paddingLeft || 0) - parseFloat(getComputedStyle(row).paddingRight || 0);
+    if (room <= 0) return;
+    const w = Math.floor((room - (n - 1) * TILE_GAP) / n);
+    row.style.setProperty("--tile", Math.max(TILE_MIN, Math.min(TILE_MAX, w)) + "px");
+    row.classList.toggle("fits", w >= TILE_MIN);
+    cues();
+  };
+  const cues = () => {
+    const more = row.scrollWidth - row.clientWidth > 2;
+    row.classList.toggle("fade-r", more && row.scrollLeft < row.scrollWidth - row.clientWidth - 2);
+    row.classList.toggle("fade-l", more && row.scrollLeft > 2);
+  };
+  row.addEventListener("scroll", cues, { passive: true });
+  lay();
+  if (window.ResizeObserver) { stripRO = new window.ResizeObserver(lay); stripRO.observe(row); }
+}
+
+/* The song title (4.62.0): steps down from 26 to 20 px to fit; a title that still doesn't fit scrolls across as a banner,
+   one loop, a rest, up to three loops, then stays still. A tap plays it again. With reduced motion it keeps an ellipsis. */
+let ttTimer = 0;
+function fitTitle(song) {
+  clearTimeout(ttTimer);
+  const h = document.querySelector(".app.viewer .shead .song-title");
+  if (!h) return;
+  const box = h.parentElement;
+  const over = () => h.scrollWidth > box.clientWidth + 1;
+  h.style.fontSize = "";
+  if (!over()) return;
+  h.style.fontSize = "20px";
+  if (!over()) return;
+  h.title = song.title;
+  if (calm()) return; /* the ellipsis stays */
+  h.setAttribute("aria-label", song.title);
+  h.innerHTML = `<span class="tt" data-t="${esc(song.title)}">${esc(song.title)}</span>`;
+  h.classList.add("banner");
+  const tt = h.firstChild;
+  const dist = (tt.offsetWidth + 48) / 2; /* the text, the gap and its copy */
+  tt.style.setProperty("--tt-d", dist + "px");
+  tt.style.setProperty("--tt-t", Math.max(3, dist / 30).toFixed(1) + "s");
+  let loops = 0;
+  const run = () => {
+    if (!h.isConnected) return;
+    if (document.hidden) { ttTimer = setTimeout(run, 1000); return; }
+    tt.classList.remove("go"); void tt.offsetWidth; tt.classList.add("go");
+  };
+  tt.addEventListener("animationend", () => {
+    tt.classList.remove("go");
+    if (++loops < 3) ttTimer = setTimeout(run, 6000);
+  });
+  h.onclick = () => { loops = 0; clearTimeout(ttTimer); run(); };
+  ttTimer = setTimeout(run, 2000);
+}
+
+/* Go to a section: its label lands on the reading line. A recording playing goes with the page (releaseSoon).
+   The song map in a show and the bar in unscored play use this too (4.53.0). */
+function jumpToSection(el) {
+  if (!el?.isConnected) return;
+  hold.active = true; releaseSoon(900);
+  document.dispatchEvent(new Event("stage-jump")); /* the show doesn't count the chords a jump skips (4.54.0) */
+  window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + scrollY - innerHeight * READ_AT), behavior: calm() ? "auto" : "smooth" });
+  diag.pinned = null;
 }
 
 function clearSel() {
   document.querySelectorAll(".sheet .c.sel, .strip .scard.sel").forEach(el => el.classList.remove("sel"));
 }
 
+/* 4.50.0: a chord's shape shows in a card just above Play, in thumb reach and clear of the words. A tap on a
+   chord in the song or on its chip opens it; the same chord again, or a tap anywhere else, closes it. */
 function showChordPop(target) {
-  const sheet = $("sheet");
-  sheet.querySelectorAll(".dpop").forEach(el => el.remove());
+  document.querySelector(".shapecard")?.remove();
   clearSel();
   if (!target) return;
-  document.querySelectorAll(".strip .scard").forEach(c => c.classList.toggle("sel", c.dataset.name === target.dataset.ch));
-  const box = sheet.getBoundingClientRect(), r = target.getBoundingClientRect();
-  const s = 1.45, w = CARD_W * s, h = CARD_H * s;
-  const cx = r.left - box.left + Math.min(r.width, 40) / 2;
-  const left = Math.max(0, Math.min(sheet.clientWidth - w, cx - w / 2));
-  const pop = document.createElement("div");
-  pop.className = "dpop";
-  pop.style.cssText = `left:${left}px;top:${r.top - box.top - h - 10}px;width:${w}px;height:${h}px`;
-  pop.innerHTML = chordSVG(target.dataset.ch, s) + `<i class="dptr" style="left:${Math.min(w - 10, Math.max(10, cx - left))}px"></i>`;
-  sheet.appendChild(pop);
+  const name = target.dataset.ch || target.dataset.name;
+  if (!name) return;
+  document.querySelectorAll(".strip .scard").forEach(c => c.classList.toggle("sel", c.dataset.name === name));
+  const dock = document.querySelector(".app.viewer .dock .pw, .app.viewer .dock"), top = dock?.getBoundingClientRect().top;
+  const el = document.createElement("div");
+  el.className = "shapecard";
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-label", `${name} shape`);
+  el.style.bottom = (top > 0 ? innerHeight - top + 12 : 96) + "px";
+  el.innerHTML = `<div class="sc-top"><b>${esc(name)}</b><button class="ib sc-x" aria-label="Close">${icon("x")}</button></div>${chordSVG(name, 1.9)}`;
+  el.querySelector(".sc-x").onclick = () => showChordPop(null);
+  document.body.appendChild(el);
   target.classList.add("sel");
 }
-let stageTap = 0;
 document.addEventListener("click", e => {
   if (route().name !== "song" || !$("sheet") || chordEdit) return;
   if (loopPick && e.target instanceof Element) {
     const el = e.target.closest(".sheet > *");
-    if (el && !el.classList.contains("prow") && !el.classList.contains("dpop") && !el.classList.contains("gap")) { e.preventDefault(); pickLoopLine(el); }
+    if (el && !el.classList.contains("gap")) { e.preventDefault(); pickLoopLine(el); }
     return;
   }
   /* While playing, a tap anywhere on the page pauses, so there's no button to aim for. */
   /* (A target no longer in the page was a button that redrew itself, like play.) */
   if (scroll.on && e.target instanceof Element && e.target.isConnected && !e.target.closest("button, a, input, select, label, .dock, .menu, .panel, .scrim, .nextup, .chead, .loopbanner, .rc, .ringx, .dial")) {
-    /* On stage a single stray touch shouldn't stop the song: tap twice to pause. */
-    if (data.settings.stage && Date.now() - (stageTap || 0) > 1500) {
-      stageTap = Date.now();
-      document.querySelector(".tappause")?.remove();
-      const h = document.createElement("div");
-      h.className = "tappause hint";
-      h.textContent = "Tap again to pause";
-      document.body.appendChild(h);
-      setTimeout(() => h.remove(), 1500);
-      return;
-    }
-    stageTap = 0;
     document.querySelector(".tappause")?.remove();
-    markUsed(data.settings.stage ? "pauseStage" : "pause");
+    markUsed("pause");
     stopScroll();
     const g = document.createElement("div");
     g.className = "tappause";
@@ -2108,11 +1560,8 @@ document.addEventListener("click", e => {
   const sc = e.target instanceof Element && e.target.closest(".strip .scard");
   if (sc) {
     const on = !sc.classList.contains("sel");
-    showChordPop(null);
-    if (on) {
-      sc.classList.add("sel");
-      document.querySelectorAll(".sheet .c[data-ch]").forEach(c => c.classList.toggle("sel", c.dataset.ch === sc.dataset.name));
-    }
+    showChordPop(on ? sc : null);
+    if (on) document.querySelectorAll(".sheet .c[data-ch]").forEach(c => c.classList.toggle("sel", c.dataset.ch === sc.dataset.name));
     return;
   }
   /* A German word: its card (meaning, gender, why this form). */
@@ -2122,15 +1571,14 @@ document.addEventListener("click", e => {
   if (chord && !scroll.on) {
     const same = chord.classList.contains("sel");
     showChordPop(same ? null : chord);
-    if (!same) chordTapped(chord);
+    if (!same) { chordTapped(chord); if (openingOn(data)) import(`./opening.js?v=${VERSION}`).then(m => m.onChord()); }
     return;
   }
-  if (!(e.target instanceof Element && e.target.closest(".dpop"))) showChordPop(null);
+  if (!(e.target instanceof Element && e.target.closest(".shapecard"))) showChordPop(null);
   // Tap a line while paused: it becomes the current line, and play starts from it.
   const block = e.target instanceof Element && e.target.closest(".sheet > *");
-  if (block && !scroll.on && isLine(block) && !block.classList.contains("prow") && !block.classList.contains("dpop") && diag.focus === "always") {
+  if (block && !scroll.on && isLine(block) && diag.focus === "always") {
     diag.pinned = block;
-    diag.armed = true;
     applyPaused();
     markUsed("line");
   }
@@ -2147,21 +1595,37 @@ window.addEventListener("resize", () => {
 const hold = { active: false, touching: false, timer: 0 };
 function releaseSoon(ms) {
   clearTimeout(hold.timer);
-  hold.timer = setTimeout(() => { if (!hold.touching) hold.active = false; }, ms);
+  hold.timer = setTimeout(() => {
+    if (hold.touching) return;
+    /* A hand moved the page while the recording played. A small move is a correction ("this line is
+       what I hear"): the place and the recording's time are saved as a mark for the song. A big move is a
+       jump: the recording goes to that place. */
+    if (hold.active && scroll.on && viewing && usesMusic(viewing) && musicClock(viewing) !== null) {
+      const song = viewing, clock = musicClock(song), len = recSecs(song), range = Math.max(1, sheetRange());
+      if (Math.abs(scrollY - musicY(song, clock)) < innerHeight * 0.6) {
+        const before = (song.syncs || []).length;
+        song.syncs = addSync(song.syncs, scrollY / range, clock, len);
+        if (!song.syncs.length) delete song.syncs;
+        Tabs.save(data);
+        toast(before ? "Synced here" : "Synced here. The page will follow this next time. Reset in More");
+      } else {
+        const sec = musicSec(song, scrollY);
+        musicSync.target = sec; musicSync.until = performance.now() + 3000; musicSync.clock = -1;
+        seekMusic(song, sec);
+      }
+    }
+    hold.active = false;
+  }, ms);
 }
 window.addEventListener("touchstart", e => {
   if (e.target instanceof Element && e.target.closest(".dock")) return;
   hold.touching = true; hold.active = true; clearTimeout(hold.timer);
 }, { passive: true });
 window.addEventListener("touchend", () => { hold.touching = false; releaseSoon(180); }, { passive: true });
-/* Stage mode: while a song plays, a brushing hand can't scroll the page. */
-window.addEventListener("touchmove", e => {
-  if (data.settings.stage && scroll.on && !(e.target instanceof Element && e.target.closest(".dock, .panel, .menu"))) e.preventDefault();
-}, { passive: false });
 window.addEventListener("touchcancel", () => { hold.touching = false; releaseSoon(180); }, { passive: true });
 window.addEventListener("wheel", () => { hold.active = true; releaseSoon(250); }, { passive: true });
 
-// Compact header fade: scrolling up reveals it gradually, scrolling down hides it.
+// Compact header fade: scrolling up reveals it (Back and the title) within a short pull, scrolling down hides it.
 // Near the top the full header is in view, so the compact one hands back to it.
 const fab = { lastY: 0, reveal: 1 };
 function updateHeader(d) {
@@ -2171,7 +1635,7 @@ function updateHeader(d) {
   const meta = $("meta");
   const handoff = meta ? meta.offsetTop + meta.offsetHeight - 56 : 120; // full header gone above this
   if (y < 60) fab.reveal = 1;
-  else if (d < 0) fab.reveal = Math.min(1, fab.reveal - d / 140);
+  else if (d < 0) fab.reveal = Math.min(1, fab.reveal - d / 40); /* 4.42.2: a short pull down shows it */
   else if (d > 0) fab.reveal = Math.max(0, fab.reveal - d / 60);
   const past = Math.min(1, Math.max(0, (y - handoff) / 40)); // soft cross-fade at the handoff
   const op = fab.reveal * past;
@@ -2196,6 +1660,36 @@ const songLength = song => song.duration || data.settings.startLength || 210;
 const mmss = sec => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
 // Song length style: the whole song, first line to last, crosses the reading point
 // in the song's length. 1x style: a fixed rate per song.
+const sheetRange = () => { const lines = diag.blocks.filter(b => b.el.isConnected); return lines.length > 1 ? lines[lines.length - 1].y - lines[0].y : document.documentElement.scrollHeight - innerHeight; };
+/* With the recording playing, the page is tied to its clock: the whole sheet crosses the reading line in the
+   recording's length, so scroll position and time convert both ways. */
+const recSecs = song => recLength(song) || songLength(song);
+/* The sheet's lines as text, for matching to timed lyrics (chord names and translations left out). */
+function lyricLines() {
+  return sheetLines().map((el, i) => {
+    if (!el.classList.contains("ly") && !el.classList.contains("pr")) return null;
+    const c = el.cloneNode(true);
+    c.querySelectorAll(".c, .de-en").forEach(x => x.remove());
+    const text = c.textContent.replace(/\s+/g, " ").trim();
+    return text ? { i, text } : null;
+  }).filter(Boolean);
+}
+/* Where each timed line sits down the sheet (0 to 1): the place that puts it on the reading line. */
+const lineWhere = (el, range) => Math.max(0, scrollY + el.getBoundingClientRect().top - innerHeight * READ_AT) / range;
+const marksCache = { key: "", marks: [], auto: [] };
+function songMarks(song) {
+  const range = Math.max(1, sheetRange()), at = song.timed?.at || [];
+  const key = `${song.id}|${Math.round(range)}|${at.length}|${JSON.stringify(song.syncs || [])}`;
+  if (key !== marksCache.key) {
+    const lines = sheetLines();
+    const auto = at.map(([i, sec]) => lines[i] ? [lineWhere(lines[i], range), sec] : null).filter(Boolean);
+    marksCache.key = key; marksCache.auto = auto; marksCache.marks = mergeSyncs(auto, song.syncs);
+  }
+  return marksCache.marks;
+}
+const musicY = (song, sec) => syncWhere(songMarks(song), sec, recSecs(song)) * sheetRange();
+const musicSec = (song, y) => syncSeconds(songMarks(song), y / Math.max(1, sheetRange()), recSecs(song));
+const musicSync = { at: 0, clock: -1, target: -1, until: 0 };
 function pxPerSecond(song) {
   if (!byLength() && !scroll.duet) return song.speed * 0.6; /* together: both fit the song's length */
   const lines = diag.blocks.filter(b => b.el.isConnected);
@@ -2205,31 +1699,34 @@ function pxPerSecond(song) {
 
 // One bar of count-in before scrolling: a bar of beats (four unless the song says) at the song's tempo (90 if unset),
 // shown large and quiet over the reading point, in the metronome's sound.
-/* The count-in uses the metronome's sound: with drums, the drummer counting
-   off on the hi-hat; otherwise the click. */
+/* The count-in uses the beat's sound: the bass drum, or the click (also when the beat is off). */
 function click(accent) {
   const audio = sound();
   if (!audio) return;
-  if (metroDrums()) drum("hat", audio.currentTime + 0.01, accent ? 1.4 : 1);
-  else clickAt(audio.currentTime + 0.01, accent);
+  beatAt(audio.currentTime + 0.01, accent); /* 4.69.0: the count-in in the beat's sound (the click when the beat is off) */
 }
-function countIn(song) {
+/* 4.68.0: `pre` runs `lead` ms before the count ends (the recording asked for early, so it sounds on the 1) */
+function countIn(song, pre = null, lead = 0) {
   return new Promise(resolve => {
-    const beat = 60000 / ((song.bpm || 90) * loopFactor(song) * metroPace(song)); /* the same pace as the metronome */
+    const beat = 1000 * beatSecs(song);
     const el = document.createElement("div");
     el.className = "countin";
     el.style.top = (innerHeight * READ_AT - 60) + "px";
     document.body.appendChild(el);
     const beats = song.beats || 4;
     let n = beats;
+    const t0 = performance.now();
     const tick = () => {
       if (!scroll.on) { el.remove(); return resolve(false); }
       if (n === 0) { el.remove(); return resolve(true); }
       el.textContent = beats + 1 - n;
+      stageBeat(beats + 1 - n);
       el.classList.remove("pulse"); void el.offsetWidth; el.classList.add("pulse");
       click(n === beats);
+      if (n === 1 && pre) { const at = Math.max(0, beat - lead); scroll.preTimer = setTimeout(() => { if (scroll.on) pre(); }, at); }
       n--;
-      scroll.countTimer = setTimeout(tick, beat);
+      /* 4.49.12: each beat is timed from the start, so a late timer doesn't push every later beat back */
+      scroll.countTimer = setTimeout(tick, Math.max(0, t0 + (beats - n) * beat - performance.now()));
     };
     tick();
   });
@@ -2261,34 +1758,34 @@ function endMoment(song) {
    Not on stage, in Play together, or in the middle of a set. */
 function streakSoon(song) {
   const st = data.settings, day = todayKey();
-  if (st.streakMoment === false || st.stage || scroll.duet || setCtx || st.streakShown === day) return;
+  if (st.streakMoment === false || scroll.duet || setCtx || gigHooks.on || st.streakShown === day) return;
   st.streakShown = day; Tabs.save(data);
   setTimeout(() => {
     if (viewing !== song || route().name !== "song") return;
     lazy("profile.js").then(m => m.showStreak(streakMoment(playSongs(data), Date.now(), data.journal?.best)));
   }, 1400);
 }
-let playsHere = 0; /* plays since the app opened, for pacing tips */
 async function startScroll(song, opts = {}) {
+  follow.k = 1; /* each play starts at the song's own tempo */
   document.querySelector(".endnote")?.remove();
   /* Count in only when starting from the top: the song's first line is on screen. */
   const first = $("sheet")?.querySelector(":scope > .pr, :scope > .ly, :scope > .tab, :scope > .crow");
   const fr = first?.getBoundingClientRect();
   const atTop = !fr || (fr.bottom > 0 && fr.top < innerHeight);
-  scroll.on = true; scroll.last = 0; scroll.carry = 0; scroll.bottomSince = 0; scroll.logged = false; scroll.duet = !!opts.duet;
+  trail.length = 0;
+  scroll.on = true; scroll.last = 0; scroll.carry = 0; scroll.bottomSince = 0; scroll.logged = false; scroll.wait = false; scroll.duet = !!opts.duet; scroll.part = opts.part || ""; /* 4.29.0: Play together's part */
   /* A play is judged over the run: pausing and playing on adds up, another song or a credited play starts it again. */
   if (scroll.runId !== song.id || scroll.credited) { scroll.cover = 0; scroll.runMs = 0; scroll.runId = song.id; scroll.credited = false; }
   document.body.classList.add("playing");
-  playsHere++;
+  foldApi?.mode?.(); /* the bar folds into Play's corner */
   setTimeout(() => {
-    const k = data.settings.stage ? "pauseStage" : "pause";
-    if (scroll.on && viewing === song && coachTip(k)) demoPause();
+    if (scroll.on && viewing === song && coachTip("pause")) demoPause();
   }, 2500);
   wakeControls();
   showChordPop(null);
   $("sheet")?.querySelectorAll(".prow").forEach(el => el.remove());
   diag.rowKey = null;
-  if (song.loop) {
+  if (activeLoop(song)) {
     const lines = sheetLines(), first = lines[song.loop.a], last = lines[song.loop.b], line = innerHeight * READ_AT;
     if (first && last && (first.getBoundingClientRect().top > line + 4 || last.getBoundingClientRect().bottom < line)) diag.pinned = first;
     loopRun = { pass: 0 }; paintLoop(song);
@@ -2302,34 +1799,59 @@ async function startScroll(song, opts = {}) {
   diag.pinned = null; diag.scrolling = false;
   updateDiagrams();
   const btn = $("play");
-  btn.innerHTML = icon("pause");
+  btn.innerHTML = playFace(true);
   btn.setAttribute("aria-label", "Pause auto-scroll");
   try { scroll.lock = await navigator.wakeLock?.request("screen"); } catch {}
-  if (data.settings.metronome || data.settings.bass) {
+  if (metroOn()) {
     if (!song.bpm) tempoFor(song); /* look it up during the count-in */
     grooveFor(song); /* and how it feels, which joins in when it arrives */
+    if (metroOn() && metroDrums()) drumsFor(song); /* and drums written for it */
   }
+  /* 4.52.0: unscored play (practicing, a tab, Play together) is on the stage too, with nothing on top */
+  if (!gigHooks.on) stagePlay(song);
+  /* 4.55.0: the opening card fills the empty space above the first line until the song gets going */
+  const counts = (scroll.duet || data.settings.countIn !== false) && atTop;
+  if (counts && song.format !== "tab") stageOpen(song, song.beats || 4);
   /* Play together always counts in, so both phones start scrolling on the same beat. */
-  if ((scroll.duet || data.settings.countIn !== false) && atTop && !(await countIn(song))) return;
-  startMetronome(song);
+  /* 4.68.0: the recording is asked for early by its own start delay, so its first note lands as the count ends */
+  let early = false;
+  const music = () => { early = true; startMusic(song, playFromSec(song), recRate(song)); };
+  if (counts && !(await countIn(song, usesMusic(song) ? music : null, musicLead()))) { clearTimeout(scroll.preTimer); if (early) pauseMusic(); return; }
+  if (usesMusic(song)) { if (!early) music(); } else startMetronome(song);
   const tick = t => {
     if (!scroll.on) return;
+    trail.push([performance.now(), scrollY]); while (trail.length > 2 && trail[0][0] < performance.now() - 2000) trail.shift();
+    if (scroll.wait) { scroll.last = t; scroll.raf = requestAnimationFrame(tick); return; } /* Wait for me: held on a chord */
     if (scroll.last && !hold.active) {
       scroll.ms = (scroll.ms || 0) + Math.min(250, t - scroll.last); /* time on guitar, for Your playing */
       scroll.runMs = (scroll.runMs || 0) + Math.min(250, t - scroll.last);
+      if (scroll.ms - (scroll.saved || 0) > 20000) { (practicing(song) ? journalPractice : journalTime)(data, (scroll.ms - (scroll.saved || 0)) / 1000); scroll.saved = scroll.ms; Tabs.save(data); } /* every 20 s, so closing the app mid-song loses nothing */
       if (loopCheck(song)) { scroll.last = t; scroll.raf = requestAnimationFrame(tick); return; }
-      scroll.carry += (t - scroll.last) / 1000 * pxPerSecond(song) * loopFactor(song);
-      const px = Math.floor(scroll.carry);
-      if (px) { window.scrollBy(0, px); scroll.carry -= px; scroll.cover = (scroll.cover || 0) + px; nextLine(); }
+      /* The recording is the clock while it plays: the page goes where its time says, so a pause, a stall
+         or a seek in Apple Music moves the scroll with it. Otherwise the timer carries the page. */
+      let clock = usesMusic(song) ? musicClock(song) : null;
+      /* just seeked: wait for the recording to arrive before following it again */
+      if (clock !== null && musicSync.target >= 0) { if (Math.abs(clock - musicSync.target) < 2 || t > musicSync.until) musicSync.target = -1; else clock = -1; }
+      let px;
+      if (clock === -1) { px = 0; clock = 0; } else if (clock !== null) {
+        if (clock !== musicSync.clock) { musicSync.clock = clock; musicSync.at = t; } /* the clock moves in steps: fill in between */
+        const want = musicY(song, clock + (t - musicSync.at) / 1000), diff = want - scrollY;
+        px = Math.abs(diff) > innerHeight ? Math.round(diff) : Math.round(diff * 0.25);
+        scroll.carry = 0;
+      } else {
+        scroll.carry += (t - scroll.last) / 1000 * pxPerSecond(song) * loopFactor(song);
+        px = Math.floor(scroll.carry);
+      }
+      if (px) { window.scrollBy(0, px); if (clock === null) scroll.carry -= px; scroll.cover = (scroll.cover || 0) + px; nextLine(); }
       /* The end is the last line reaching the reading line. If the page runs out first, add room. */
       const end = endScroll();
-      if (!song.loop && end >= 0 && scrollY < end - 2 && innerHeight + scrollY >= document.documentElement.scrollHeight - 2) endRoom(end - scrollY);
+      if (!activeLoop(song) && end >= 0 && scrollY < end - 2 && innerHeight + scrollY >= document.documentElement.scrollHeight - 2) endRoom(end - scrollY);
       // At the end: a play counts if auto-scroll carried the page most of the way (see playCredited).
       // Then wait a few seconds (the reader may scroll back up), then stop.
-      if (!song.loop && end >= 0 && scrollY >= end - 2) {
+      if (!activeLoop(song) && end >= 0 && scrollY >= end - 2) {
         const expectedMs = (end < 40 ? songLength(song) : end / (pxPerSecond(song) * loopFactor(song))) * 1000;
         if (!scroll.logged && playCredited({ end, cover: scroll.cover, ms: scroll.runMs, expectedMs })) {
-          scroll.logged = true; scroll.credited = true; Tabs.logPlay(data, song); curPaintStat?.(); endMoment(song); streakSoon(song); if (setRun && setCtx?.id === setRun.id) setRun.played.add(song.id); if (setCtx) nextUp();
+          scroll.logged = true; scroll.credited = true; const had = chordsHad(); Tabs.logPlay(data, song); if (data.settings.place) lazy("tuneup.js").then(m => m.notePlayAir()); /* 4.72.0 */ curPaintStat?.(); endMoment(song); streakSoon(song); gigHooks.credited?.(song); celebrate(had); if (!gigHooks.on) { questToast(); bandToast(); } if (setRun && setCtx?.id === setRun.id) setRun.played.add(song.id); if (setCtx) nextUp();
         }
         /* A sheet that fits the screen has only the clock to go by, so it plays on until it counts. */
         if (scroll.logged || end >= 40) {
@@ -2356,29 +1878,41 @@ function endRoom(more) {
   room.style.height = ((parseFloat(room.style.height) || 0) + Math.ceil(more) + 4) + "px";
 }
 onLeave(() => stopScroll());
+/* 4.55.0: leaving the app (the swipe to another app) pauses the song where the swipe began. The page can't see the
+   swipe itself, only the app going away a moment later, so the page goes back to where it was just before. */
+const trail = [];
+const SWIPE_MS = 700;
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "hidden" || !scroll.on) return;
+  const at = performance.now() - SWIPE_MS, back = [...trail].reverse().find(([t]) => t <= at);
+  stopScroll();
+  if (back) window.scrollTo({ top: back[1], behavior: "auto" });
+});
 function stopScroll() {
   $("endroom")?.remove();
   const was = scroll.on;
-  scroll.on = false; scroll.duet = false;
-  if (scroll.ms > 1000) { journalTime(data, scroll.ms / 1000); Tabs.save(data); }
-  scroll.ms = 0;
+  scroll.on = false; scroll.wait = false; scroll.duet = false; scroll.part = "";
+  if (scroll.ms - (scroll.saved || 0) > 1000) { (practicing(viewing) ? journalPractice : journalTime)(data, (scroll.ms - (scroll.saved || 0)) / 1000); Tabs.save(data); }
+  scroll.ms = 0; scroll.saved = 0;
   stopMetronome();
-  clearTimeout(scroll.countTimer);
+  if (was) pauseMusic();
+  clearTimeout(scroll.countTimer); clearTimeout(scroll.preTimer);
   document.querySelectorAll(".countin").forEach(el => el.remove());
   document.body.classList.remove("playing");
+  stageStop();
+  if (was) gigHooks.stopped?.();
+  foldApi?.mode?.(); /* and unfolds when the song stops */
   wakeControls();
   cancelAnimationFrame(scroll.raf);
   scroll.lock?.release?.().catch(() => {});
   scroll.lock = null;
   const btn = $("play");
-  if (btn) { btn.innerHTML = icon("play"); btn.setAttribute("aria-label", "Start auto-scroll"); }
+  if (btn) { btn.innerHTML = playFace(false, viewing); btn.setAttribute("aria-label", playLabel(viewing || {}, false)); }
   updateDiagrams();
-  if (btn) { diag.armed = true; showPausedRow(); }
-  /* After playing: the first pause shows starting from a line; a later one, Now and Next. */
+  /* After playing: the first pause shows starting from a line. */
   if (was && btn && !chordEdit) setTimeout(() => {
     if (scroll.on || chordEdit || route().name !== "song" || layer.innerHTML || document.querySelector(".menu, .ringx, .dial")) return;
-    if (tipDue("line")) { if (coachTip("line")) demoLine(); return; }
-    if (playsHere >= 2 && !diag.nn && data.settings.diagrams !== true && coachTip("nn")) demoNN();
+    if (tipDue("line") && coachTip("line")) demoLine();
   }, 700);
 }
 
@@ -2430,7 +1964,7 @@ function render() {
     noteError(e, { quiet: true });
     layer.innerHTML = "";
     app.innerHTML = `<div class="oops"><b>This screen didn't open</b><p>Your songs are safe. Going back usually fixes it. If it keeps happening, copy the details and send them along.</p>
-      <div class="actions"><button class="btn" id="oops-copy">Copy details</button><button class="btn primary" id="oops-home">Library</button></div></div>`;
+      <div class="actions"><button class="btn" id="oops-copy">Copy details</button><button class="btn primary" id="oops-home">Songbook</button></div></div>`;
     $("oops-copy").onclick = copyDiagnostics;
     $("oops-home").onclick = () => { if (route().name === "library") location.reload(); else go("#/"); };
   }
@@ -2438,13 +1972,22 @@ function render() {
 function renderRoute() {
   const r = route();
   leaveHooks.forEach(fn => fn(r));
+  if (r.name === "road" || r.name === "library") lastHome = r.name;
+  document.body.classList.toggle("is-home", r.name === "road");
+  /* 4.0.0: the tab bar along the bottom of the main pages (not a lesson, a song or Settings) */
+  const tabbed = ["road", "tour", "charts", "band", "practice", "you", "merch", "support"].includes(r.name) && !(r.name === "practice" && r.id && r.id !== "neck"); /* 4.42.5: #/practice/neck is Rehearse, so it keeps the tab bar */
+  document.body.classList.remove("tabbed"); void tabbed; /* Louie Lite: no tab bar */
   app.classList.remove("viewer");
   layer.innerHTML = "";
   /* Old links: #/add and #/edit/<id> open the editor. */
-  if (r.name === "add") { history.replaceState(null, "", "#/"); return newSong(); }
+  if (r.name === "add") { history.replaceState(null, "", "#/library"); searchNext = true; return render(); }
   if (r.name === "edit") { openEdit = { id: r.id, view: "text" }; history.replaceState(null, "", "#/song/" + encodeURIComponent(r.id)); return renderRoute(); }
   if (r.name === "song") {
     renderViewer(r.id);
+    if (lessonOpen?.id === r.id) { const lo = lessonOpen; lessonOpen = null; sectionNext = r.id; setTimeout(() => { if (viewing?.id === r.id) applyLessonOpen(viewing, lo); }, 120); }
+    if (sectionNext === r.id) { sectionNext = null; setTimeout(() => { const s = viewing, first = s?.id === r.id && s.loop && sheetLines()[s.loop.a]; if (first && !scroll.on) window.scrollTo({ top: Math.max(0, scrollY + first.getBoundingClientRect().top - innerHeight * READ_AT), behavior: "auto" }); }, 200); }
+    if (playNext === r.id) { playNext = null; setTimeout(() => { if (viewing?.id === r.id && !scroll.on) $("play")?.click(); }, 450); }
+    if (gigNext?.id === r.id) setTimeout(openGigNow, 350);
     const want = openEdit;
     openEdit = null;
     const song = viewing?.id === r.id && want?.id === r.id ? viewing : null;
@@ -2452,50 +1995,42 @@ function renderRoute() {
   }
   else if (r.name === "settings" || r.name === "trash") settingsMod().then(m => { if (route().name !== r.name) return; (r.name === "settings" ? m.renderSettings : m.renderTrash)(); window.scrollTo(0, 0); });
   else if (r.name === "you") lazy("profile.js").then(m => { if (route().name === "you") { m.renderProfile(); window.scrollTo(0, 0); } });
+  else if (r.name === "practice") lazy("practice.js").then(m => { if (route().name === "practice") { r.id ? m.renderSession(r.id) : m.renderRehearse(); window.scrollTo(0, 0); } });
   else if (r.name === "playmap") lazy("playmap.js").then(m => { if (route().name === "playmap") { m.renderPlayMap(); window.scrollTo(0, 0); } });
   else if (r.name === "gestures") { renderGestures(); window.scrollTo(0, 0); }
   else if (r.name === "sketch") lazy("sketch.js").then(m => { if (route().name === "sketch") m.renderSketch(); });
   else if (r.name === "set") { renderSet(r.id); window.scrollTo(0, 0); }
   else if (r.name === "import") renderImport(r.id);
-  else { renderLibrary(); window.scrollTo(0, 0); } /* the library always opens at its top */
+  else if (r.name === "road") lazy("road.js").then(m => { if (route().name === "road") { m.renderRoad(); window.scrollTo(0, 0); } });
+  else if (r.name === "tour") lazy("tour.js").then(m => { if (route().name === "tour") { m.renderTour(); window.scrollTo(0, 0); } });
+  else if (r.name === "duel") lazy("duel.js").then(m => { if (route().name === "duel") { m.renderDuel(r.id); window.scrollTo(0, 0); } });
+  else if (r.name === "charts") lazy("charts.js").then(m => { if (route().name === "charts") { m.renderCharts(); window.scrollTo(0, 0); } });
+  else if (r.name === "merch") lazy("merch.js").then(m => { if (route().name === "merch") { m.renderMerch(); window.scrollTo(0, 0); } });
+  else if (r.name === "support") lazy("support.js").then(m => { if (route().name === "support") { m.renderSupport(); window.scrollTo(0, 0); } });
+  else if (r.name === "band") lazy("band.js").then(m => { if (route().name === "band") { m.renderBand(); window.scrollTo(0, 0); } });
+  else { renderLibrary(); window.scrollTo(0, 0); if (searchNext) { searchNext = false; setTimeout(() => $("q")?.focus(), 60); } } /* the library always opens at its top */
 }
 
 // Screen changes animate with the browser's view transitions where supported:
 // a short cross-fade, and the song title glides between the library row and the
 // song header. Instant when Reduce Motion is on or the browser lacks support.
-// The first time Play glides up to the arc: a glass circle grows,
-// shrinks and settles where the ring will open, then a note says to hold
-// Play. Once only, and never once you've opened the ring yourself.
-function ringHint() {
-  if (scroll.on || !document.body.classList.contains("ring") || !tipDue("ringHint") || document.querySelector(".coach, .ringx")) return;
-  setTimeout(() => {
-    const p = $("play");
-    if (!p || scroll.on || !document.body.classList.contains("ring-up") || !coachTip("ringHint")) return;
-    ringApi?.lift?.(); /* keep Play up while it plays out */
-    const say = () => { if ($("play")?.isConnected && !scroll.on) coach($("play"), "", { ms: 5200, place: "above", html: "<b>Press and hold Play for more</b><span>A ring opens with Favorite, Metronome, Key and More. Slide to one and let go.</span>" }); };
-    if (calm()) return say();
-    const r = p.getBoundingClientRect(), g = document.createElement("div");
-    g.className = "ring-hint glass"; g.setAttribute("aria-hidden", "true");
-    g.style.left = (r.left + r.width / 2) + "px"; g.style.top = (r.top + r.height / 2) + "px";
-    p.before(g); /* beside Play, so Play stays on top of the glass */
-    p.classList.add("hint-under");
-    const keep = setInterval(() => ringApi?.lift?.(), 400);
-    g.addEventListener("animationend", () => { g.remove(); p.classList.remove("hint-under"); clearInterval(keep); say(); }, { once: true });
-  }, 380); /* after the glide (0.3 s) */
-}
 const calm = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-let lastOpened = null; // id of the song whose title should glide back to its row
+export let lastOpened = null; // id of the song whose title should glide back to its row
 window.addEventListener("hashchange", () => {
   if (!document.startViewTransition || calm()) return render();
   const leaving = route().name !== "song" && viewing ? viewing.id : null;
   if (leaving) lastOpened = leaving;
-  document.startViewTransition(() => render());
+  const t = document.startViewTransition(() => render());
+  t.ready.catch(() => {}); /* 4.42.7: a quick second tap skips this cross-fade; that's fine, not an error */
+  t.finished.catch(() => {}).finally(() => { delete document.documentElement.dataset.vt; });
 });
 applyTheme();
 firstLaunch();
 data.songs.filter(s => s.isNew).forEach(settleNew); /* a song being added when the app closed */
 setTimeout(() => (window.requestIdleCallback || (f => f()))(prefetch), 3000);
 render();
+/* 4.27.0: a song from Get the song that was put aside comes back to its bar after a reload */
+try { if (sessionStorage.getItem("louielite.gs.kept.v1")) setTimeout(() => lazy("findai.js").then(m => m.restoreKept()), 600); } catch { /* none */ }
 coverLoadAll().then(() => {
   /* Forget cover photos of sets that are gone for good (not in the library or Recently deleted). */
   const keep = new Set([...data.sets.map(x => x.id), ...data.trash.filter(t => t.type === "set").map(t => t.item.id)]);
@@ -2518,4 +2053,4 @@ if ("serviceWorker" in navigator) {
 }
 
 // Shared with the feature modules that load on first use (tuner.js and others).
-export { aiLastStop, bassPreview, riffPreview, grooveFor, metroPreview, byLength, refreshSpeed, startScroll, deJobs, tunedRecently, $, data, icon, layer, esc, coach, coachTip, markUsed, tick, toast, go, busy, AI, aiKey, BPM_STORE, bpmKey, askClaude, aiError, parseJSON, openLink, appleSearchURL, leaveSearch, chordNames, chordSVG, songKey, redraw, READ_AT, applyPaused, calm, card, chordEdit, diag, map, openEdit, openTuner, paintMap, route, scroll, searching, setCurrent, showChordPop, viewing, setOpenEdit, applyTheme, render, setData, mmss, filter, keyOf, lazy, shareSet, songLength, songTuning, setFilter, cleanSheet, demoTap, readPhoto, stopScroll, takeDemo, setChordEdit, settleNew, newSong };
+export { waitOn, followOn, holdScroll, jumpToSection, openLessonSong, gigHooks, playGig, openTools, musicClock, usesMusic, chordTimes, pxPerSecond, sheetLines, tempoFor, isLine, beatTrack, playSong, openAtSection, openSearch, chipsHTML, renderList, refreshLibrary, bindShelf, setsShelf, homeHooks, aiLastStop, grooveFor, metroPreview, byLength, refreshSpeed, startScroll, deJobs, tunedRecently, $, data, icon, layer, esc, coach, coachTip, markUsed, tick, toast, go, busy, AI, aiKey, BPM_STORE, bpmKey, askClaude, aiError, parseJSON, openLink, appleSearchURL, leaveSearch, chordNames, chordSVG, songKey, redraw, READ_AT, applyPaused, calm, chordEdit, diag, map, openEdit, openTuner, paintMap, route, scroll, searching, setCurrent, showChordPop, viewing, setOpenEdit, applyTheme, render, setData, mmss, filter, keyOf, lazy, shareSet, songLength, songTuning, setFilter, cleanSheet, demoTap, readPhoto, stopScroll, takeDemo, setChordEdit, settleNew, newSong };

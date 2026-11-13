@@ -1,9 +1,10 @@
 // Tabs editor: editing a song in place (Sheet and Text views), adding a new
 // song, tap tempo and the chord picker.
-import { DRUM_BEATS, BASS_STYLES, GROOVE, RIFF_STEPS, grooveText, validRiff, TUNINGS, Tabs, chordFit, chordLine, chordModel, chordsUsed, detectTuning, guessKey, insertLines, lineOptions, looksLikeTab, notesUnder, renameSection, setChordAt, setLineText, setSungLine, sketchKey, sungLines, tapTempo, unpackNotes } from "./core.js";
+import { DRUM_BEATS, SPOTS_V, addChordLine, addChordNear, chordSlots, setChordLine, setChordNth, GROOVE, grooveText, TUNINGS, Tabs, chordFit, chordLine, chordModel, chordsUsed, detectTuning, guessKey, insertLines, lineOptions, looksLikeTab, notesUnder, renameSection, setLineText, setSungLine, sketchKey, sungLines, tapTempo, unpackNotes } from "./core.js";
 import { $, SECTION_NAMES, app, ask, esc, icon, layer, onLeave, toast } from "./ui.js";
 import { coach, coachTip, demoTap, markUsed, takeDemo, tick } from "./coach.js";
-import { READ_AT, aiError, aiKey, busy, calm, grooveFor, riffPreview, chordEdit, chordSVG, cleanSheet, data, go, readPhoto, render, setChordEdit, setOpenEdit, settleNew, stopScroll } from "./app.js";
+import { metroDrums } from "./audio.js";
+import { READ_AT, aiError, aiKey, busy, calm, lazy, grooveFor, chordEdit, chordSVG, cleanSheet, data, go, readPhoto, render, setChordEdit, setOpenEdit, settleNew, stopScroll } from "./app.js";
 
 // ---------- Edit (in place) ----------
 // Edit turns the song page itself into the editor: title and artist are typed in
@@ -34,7 +35,7 @@ function restoreSnap(song, snap) { for (const k of EDIT_FIELDS) { if (snap[k] ==
 function editChange(song, label, fn) {
   const before = snapshot(song);
   fn();
-  if (song.body !== before.body) delete song.loop;
+  if (song.body !== before.body) { delete song.loop; if (song.spots || song.ai === "chart") song.spots = "mine"; } /* 4.41.0: your own edit is never lined up again by the AI */
   Tabs.save(data);
   paintEdit(song);
   if (label) toast(label, null, { label: "Undo", fn: () => { restoreSnap(song, before); Tabs.save(data); paintEdit(song); } });
@@ -197,14 +198,12 @@ function paintDetails(song) {
   $("ed-key")?.addEventListener("change", e => editChange(song, `Key: ${e.target.value || "Auto"}`, () => { song.key = e.target.value; }));
   $("ed-tuning").onchange = e => editChange(song, `Tuning: ${TUNINGS[e.target.value].name}`, () => { if (e.target.value === "standard") delete song.tuning; else song.tuning = e.target.value; });
   for (const k of Object.keys(GROOVE)) $("ed-g-" + k)?.addEventListener("change", e => {
-    if (k === "bass" && e.target.value === "riff") return riffSheet(song); /* a riff needs its notes */
     editChange(song, `${GROOVE_LABEL[k]}: ${e.target.selectedOptions[0].textContent}`, () => {
       const g = { ...song.groove, src: "you" };
       if (e.target.value) g[k] = e.target.value; else delete g[k];
       song.groove = g;
     });
   });
-  $("ed-g-riff")?.addEventListener("click", () => riffSheet(song));
   $("ed-g-find")?.addEventListener("click", async () => {
     const b = $("ed-g-find"); b.disabled = true; b.querySelector("span").textContent = "Finding";
     const was = song.groove, g = await grooveFor(song, true);
@@ -236,13 +235,14 @@ function paintDetails(song) {
   };
   tap.onclick = e => e.preventDefault();
 }
-/* The groove chips: drums, swing and bass for this song. "Default" means
+/* The groove chips: drums and swing for this song. "Default" means
    Settings (and Auto) decide. "Found" marks what the AI suggested. */
-const GROOVE_LABEL = { beat: "Drums", swing: "Swing", bass: "Bass" };
+const GROOVE_LABEL = { beat: "Drums", swing: "Swing" };
 function grooveChips(song, isTab) {
+  if (!metroDrums()) return ""; /* 4.69.0: the drum kit sits out, so its groove chips do too (the code stays for Beat) */
   const g = song.groove || {}, found = g.src === "ai";
   const opts = {
-    beat: DRUM_BEATS.filter(([k]) => k !== "auto"), bass: [...BASS_STYLES.filter(([k]) => k !== "auto"), ["riff", "Riff"]],
+    beat: DRUM_BEATS.filter(([k]) => k !== "auto"),
     swing: [["straight", "Straight"], ["light", "Light"], ["full", "Full"]]
   };
   const chip = k => {
@@ -250,43 +250,20 @@ function grooveChips(song, isTab) {
     return `<label class="ed-chip"><span>${GROOVE_LABEL[k]}</span><b>${cur ? esc(cur[1]) : "Default"}</b>${cur && found ? '<i class="found">Found</i>' : ""}
       <select id="ed-g-${k}" aria-label="${GROOVE_LABEL[k]} for this song"><option value="">Default</option>${opts[k].map(([v, n]) => `<option value="${v}" ${v === g[k] ? "selected" : ""}>${n}</option>`).join("")}</select></label>`;
   };
-  return `${chip("beat")}${chip("swing")}${isTab ? "" : chip("bass")}${!isTab && g.bass === "riff" ? `<button class="ed-chip" id="ed-g-riff" aria-label="Edit the bass riff">${icon("note")}<span>Edit riff</span></button>` : ""}${aiKey() ? `<button class="ed-chip" id="ed-g-find" aria-label="Find how this song feels">${icon("note")}<span>${song.groove ? "Find again" : "Find"}</span></button>` : ""}`;
-}
-/* The bass riff: one bar in sixteenth notes, four steps a beat. Tap a step to
-   cycle it through rest, root, third, fifth, flat seventh and octave. The
-   buttons sit at the bottom, in thumb reach. */
-function riffSheet(song) {
-  let riff = validRiff(song.groove?.riff) ? song.groove.riff : "1" + ".".repeat(15);
-  const swing = song.groove?.swing || data.settings.metroSwing || "straight";
-  const label = c => ({ ".": "·", 7: "b7" }[c] || c);
-  const cell = k => `<button class="rf-c ${riff[k] === "." ? "" : "on"}" data-k="${k}" aria-label="Step ${k + 1}">${label(riff[k])}</button>`;
-  const close = () => { layer.innerHTML = ""; paintEdit(song); };
-  layer.innerHTML = `<div class="scrim" id="rf-scrim"></div><div class="panel card rf" role="dialog" aria-modal="true" aria-label="Bass riff">
-    <b class="ask-t">Bass riff</b>
-    <p class="ask-p">One bar, four steps a beat. Tap a step to change it: root (1), third (3), fifth (5), flat seventh (b7) or the root an octave up (8). It follows each chord.</p>
-    <div class="rf-grid"><div class="rf-row rf-top"><i></i><span>1</span><span>e</span><span>and</span><span>a</span></div>
-      ${[0, 1, 2, 3].map(b => `<div class="rf-row"><i>${b + 1}</i>${[0, 1, 2, 3].map(i => cell(b * 4 + i)).join("")}</div>`).join("")}</div>
-    <div class="actions"><button class="btn" id="rf-play">Play</button><button class="btn" id="rf-clear">Clear</button><button class="btn primary" id="rf-ok">Done</button></div></div>`;
-  $("rf-scrim").onclick = close;
-  document.querySelectorAll(".rf-c").forEach(b => b.onclick = () => {
-    const k = +b.dataset.k;
-    riff = riff.slice(0, k) + RIFF_STEPS[(RIFF_STEPS.indexOf(riff[k]) + 1) % RIFF_STEPS.length] + riff.slice(k + 1);
-    b.textContent = label(riff[k]); b.classList.toggle("on", riff[k] !== ".");
-  });
-  $("rf-play").onclick = () => riffPreview(riff, swing);
-  $("rf-clear").onclick = () => { riff = ".".repeat(16); document.querySelectorAll(".rf-c").forEach(b => { b.textContent = "·"; b.classList.remove("on"); }); };
-  $("rf-ok").onclick = () => {
-    layer.innerHTML = "";
-    if (validRiff(riff)) editChange(song, "Bass riff saved", () => { song.groove = { ...song.groove, src: "you", bass: "riff", riff }; });
-    else editChange(song, "Bass riff removed", () => { const g = { ...song.groove, src: "you" }; delete g.riff; if (g.bass === "riff") delete g.bass; song.groove = g; });
-  };
+  return `${chip("beat")}${chip("swing")}${aiKey() ? `<button class="ed-chip" id="ed-g-find" aria-label="Find how this song feels">${icon("note")}<span>${song.groove ? "Find again" : "Find"}</span></button>` : ""}`;
 }
 function paintSheet(song, sheet) {
   /* The sheet: words for chords, a pencil per line, renamable sections, + to add. */
   const model = chordModel(song.body);
   const pencil = icon("edit");
-  const parts = [`<p class="ed-hint">Tap a word for its chord. ${pencil} retypes a line.</p>`];
-  const addBtn = after => `<button class="ce-add" data-after="${after}">${icon("plus")}Line</button>`;
+  const parts = [`<p class="ed-hint">Tap a chord to change it, + to add one, a word to put a chord over it. ${pencil} retypes a line.</p>`];
+  /* 4.65.0: line the chords up from the chord sites on request, the way Get the song does */
+  if (aiKey() && song.format !== "tab" && !song.isNew && model.filter(l => l.kind === "lyric").length >= 2)
+    parts.push(`<button class="ce-add" id="ed-lineup">${icon("wand")}Line up from the chord sites</button>`);
+  const addBtn = after => `<div class="ce-addrow"><button class="ce-add" data-after="${after}">${icon("plus")}Line</button><button class="ce-add" data-chords="${after}">${icon("plus")}Chords</button></div>`;
+  /* A chord chip: n is the chord's place in the line (reading order). */
+  const chip = (i, n, c, extra = "") => `<button class="ce-ch" data-i="${i}" data-n="${n}" data-chord="${esc(c)}" ${extra} aria-label="Chord ${esc(c)}">${esc(c)}</button>`;
+  const plus = (label, extra) => `<button class="ce-ch ce-pl" ${extra} aria-label="${esc(label)}">+</button>`;
   let last = -1, inSection = false;
   model.forEach((l, k) => {
     if (l.kind === "section") {
@@ -298,34 +275,89 @@ function paintSheet(song, sheet) {
     }
     if (l.kind === "blank") { parts.push(`<div class="gap"></div>`); return; }
     last = l.i;
+    if (l.kind === "chords") {
+      /* A row of chords alone: every chord a chip, + at the end. */
+      const toks = l.text.trim().split(/\s+/).filter(Boolean);
+      parts.push(`<div class="ce-line ce-cl" data-line="${l.i}">${toks.map((t, n) => chip(l.i, n, t, `data-row="1"`)).join("")}${plus("Add a chord to this row", `data-row="1" data-i="${l.i}" data-n="${toks.length}"`)}</div>`);
+      return;
+    }
     if (l.kind !== "lyric") { parts.push(`<div class="ce-other">${esc(l.text)}</div>`); return; }
+    const sl = chordSlots(l.text, l.chords), sorted = [...l.chords].sort((a, b) => a.pos - b.pos);
     const words = [...l.text.matchAll(/\S+/g)];
-    let prevEnd = 0;
-    const html = words.map(w => {
-      const start = w.index, end = start + w[0].length;
-      /* Chords over this word, or over the gap just before it. */
-      const on = l.chords.filter(c => c.pos >= prevEnd && c.pos < end);
-      prevEnd = end;
-      const pos = on.length ? on[on.length - 1].pos : start;
-      return `<button class="ce-w ${on.length ? "has" : ""}" data-i="${l.i}" data-pos="${pos}" data-word="${esc(w[0])}"><span class="ce-c">${on.length ? esc(on.map(c => c.chord).join(" ")) : "+"}</span><span class="ce-t">${esc(w[0])}</span></button>`;
-    }).join(" ");
-    parts.push(`<div class="ce-line" data-line="${l.i}">${html}<button class="ce-pen" data-edit="${l.i}" aria-label="Retype this line">${pencil}</button></div>`);
+    const group = (word, part) => sl.list.map((c, n) => ({ ...c, n })).filter(c => c.word === word && c.part === part);
+    const chips = (list, at) => list.map(c => chip(l.i, c.n, c.chord, `data-pos="${sorted[c.n]?.pos ?? ""}" data-word="${esc(words[c.word]?.[0] || "")}" data-part="${c.part}" data-at="${at}"`)).join("");
+    /* 4.65.4: the words read as plain text, never stretched; each chord chip sits on the chord row above
+       the word it belongs to (placed by layoutChips once the words are drawn). One + per line adds a chord
+       before the words or after the line; tapping a word adds one over it. */
+    const lead = group(-1, "lead"), lastK = words.length - 1, tail = group(lastK, "after");
+    const flow = [lead.length ? `<span class="ce-gap" data-gap="lead"></span>` : ""], top = [chips(lead, "lead")];
+    words.forEach((w, k2) => {
+      const on = group(k2, "on"), aft = group(k2, "after");
+      const lastN = on.length ? on[on.length - 1].n : -1;
+      flow.push(`<button class="ce-w ${on.length ? "has" : ""}" data-i="${l.i}" data-n="${lastN}" data-k="${k2}" data-pos="${w.index}" data-word="${esc(w[0])}" aria-label="${on.length ? `Add a chord on ${esc(w[0])}` : `Chord over ${esc(w[0])}`}"><span class="ce-t">${esc(w[0])}</span></button>`);
+      if (aft.length) flow.push(`<span class="ce-gap" data-gap="${k2}"></span>`);
+      top.push(chips(on, `w${k2}`), chips(aft, `a${k2}`));
+    });
+    const plusData = `data-i="${l.i}" data-lead="${lead.length ? lead[lead.length - 1].n : -1}" data-lprev="${esc(lead.length ? lead[lead.length - 1].chord : "")}" data-tail="${tail.length ? tail[tail.length - 1].n : -2}" data-tprev="${esc(tail.length ? tail[tail.length - 1].chord : "")}" data-k="${lastK}" data-word="${esc(words[lastK]?.[0] || "")}"`;
+    parts.push(`<div class="ce-line ce-ly" data-line="${l.i}"><div class="ce-flow">${flow.join(" ")}</div>${top.join("")}${plus("Add a chord before the words or after the line", `data-plus="1" ${plusData}`)}<button class="ce-pen" data-edit="${l.i}" aria-label="Retype this line">${pencil}</button></div>`);
   });
   parts.push(addBtn(last));
   parts.push(`<div class="ed-end"><button class="ce-add" id="ed-sec">${icon("plus")}Section</button></div>
     ${song.isNew ? "" : `<button class="danger" id="ed-delete" style="display:block;margin:28px auto 0">Delete Song</button>`}`);
   sheet.classList.remove("focus");
   sheet.innerHTML = parts.join("");
+  layoutChips(sheet);
+  document.fonts?.ready?.then(() => layoutChips(sheet));
+  if (!sheet.ro && window.ResizeObserver) { let w = 0; sheet.ro = new window.ResizeObserver(() => { if (sheet.clientWidth !== w) { w = sheet.clientWidth; layoutChips(sheet); } }); sheet.ro.observe(sheet); }
 
   /* One handler for the whole sheet instead of one per word and button. */
   sheet.onclick = e => {
     if (chordEdit !== song || edView !== "sheet") return;
-    const b = e.target.closest?.(".ce-w, [data-edit], [data-sec], [data-after]");
+    const b = e.target.closest?.(".ce-w, .ce-ch, [data-edit], [data-sec], [data-after], [data-chords]");
     if (!b || !sheet.contains(b)) return;
-    if (b.classList.contains("ce-w")) {
-      sheet.querySelectorAll(".ce-w.sel").forEach(x => x.classList.remove("sel"));
-      b.classList.add("sel");
-      pickChord(song, +b.dataset.i, +b.dataset.pos, b.dataset.word, b.classList.contains("has") ? b.querySelector(".ce-c").textContent : "");
+    const mark = () => { sheet.querySelectorAll(".sel").forEach(x => x.classList.remove("sel")); b.classList.add("sel"); };
+    const w = x => `<b class="ce-word">${esc(x)}</b>`;
+    if (b.classList.contains("ce-ch") || b.classList.contains("ce-w")) {
+      const i = +b.dataset.i, n = +(b.dataset.n ?? -1), isWord = b.classList.contains("ce-w"), isPlus = b.classList.contains("ce-pl") || isWord;
+      const cur = isPlus ? "" : b.dataset.chord, word = b.dataset.word || "";
+      mark();
+      if (b.dataset.row) {
+        const toks = model.find(l => l.i === i).text.trim().split(/\s+/).filter(Boolean);
+        pickChord(song, {
+          i, pos: null, current: cur, head: cur ? `Chord ${w(cur)} in this row` : "Chord at the end of this row",
+          label: c => (c ? `${c} in a chord row` : `Removed ${cur}`),
+          set: (body, c) => setChordLine(body, i, c ? (cur ? toks.map((t, x) => (x === n ? c : t)) : [...toks, c]) : toks.filter((t, x) => x !== n))
+        });
+        return;
+      }
+      const part = b.dataset.part || "on", k = +(b.dataset.k ?? -1);
+      if (b.dataset.plus) {
+        /* the line's +: before the words (after any chords already there) or after the line */
+        const ln = +b.dataset.lead, tn = +b.dataset.tail, lp = b.dataset.lprev, tp = b.dataset.tprev;
+        pickChord(song, {
+          i, pos: null, current: "", head: "Add a chord",
+          where: [
+            { key: "lead", label: "Before the words", head: lp ? `Before the words, after ${w(lp)}` : "Chord before the words", set: (body, c) => addChordNear(body, i, ln, c) },
+            { key: "after", label: "After the line", head: tp ? `After the line, after ${w(tp)}` : "Chord after the line", set: (body, c) => (tn >= 0 ? addChordNear(body, i, tn, c) : addChordNear(body, i, -1, c, { word: k, part: "after" })) }
+          ],
+          label: c => `${c} added`
+        });
+        return;
+      }
+      const prev = isWord ? [...sheet.querySelectorAll(`.ce-line[data-line="${i}"] .ce-ch[data-at="w${k}"]`)].pop()?.dataset.chord || "" : "";
+      const head = cur
+        ? (part === "lead" ? `Chord ${w(cur)} before the words` : part === "after" ? `Chord ${w(cur)} after ${w(word)}` : `Chord ${w(cur)} over ${w(word)}`)
+        : n < 0 ? `Chord over ${w(word)}` : `Chord after ${w(prev || "the last chord")} on ${w(word)}`;
+      const pos = cur || isWord ? +b.dataset.pos : null;
+      pickChord(song, {
+        i, pos: Number.isFinite(pos) ? pos : null, current: cur, head,
+        label: c => (c ? `${c} ${cur ? "set" : "added"}` : `Removed ${cur}`),
+        set: (body, c) => {
+          if (cur) return setChordNth(body, i, n, c);
+          if (n < 0) return addChordNear(body, i, -1, c, { word: k, part: "on" });
+          return addChordNear(body, i, n, c);
+        }
+      });
     } else if (b.dataset.edit !== undefined) {
       const i = +b.dataset.edit, ln = model.find(l => l.kind === "lyric" && l.i === i);
       lineInput(b.closest(".ce-line"), ln.text, text => {
@@ -338,6 +370,9 @@ function paintSheet(song, sheet) {
         if (name === cur) return;
         editChange(song, name ? `Renamed to ${name}` : "Label removed", () => { song.body = renameSection(song.body, i, name); });
       });
+    } else if (b.dataset.chords !== undefined) {
+      const after = +b.dataset.chords;
+      pickChord(song, { i: after, pos: null, current: "", head: "A line of chords", label: c => `${c} line added`, set: (body, c) => addChordLine(body, after, [c]) });
     } else {
       const after = +b.dataset.after;
       const row = document.createElement("div");
@@ -358,6 +393,17 @@ function paintSheet(song, sheet) {
     /* Start typing the new section's first line right away. */
     sheet.querySelectorAll("[data-after]")[sheet.querySelectorAll("[data-after]").length - 1]?.click();
   };
+  $("ed-lineup")?.addEventListener("click", async () => {
+    const b = $("ed-lineup"), before = song.body;
+    b.disabled = true; b.lastChild.textContent = "Lining up, about 30 seconds";
+    try {
+      const body = await (await lazy("findai.js")).lineUpNow(song);
+      if (song.body !== before || chordEdit !== song) return; /* edited or left meanwhile: leave it */
+      if (!body || body === before) { toast(body ? "Already lined up the way the chord sites have it" : "The chord sites didn't say where the chords go"); paintEdit(song); return; }
+      editChange(song, "Lined up from the chord sites", () => { song.body = body; });
+      song.spots = "placed"; song.spotsV = SPOTS_V; delete song.spotsTried; Tabs.save(data);
+    } catch (err) { toast(aiError(err)); if (chordEdit === song) paintEdit(song); }
+  });
   $("ed-delete")?.addEventListener("click", () => deleteFromEdit(song)); /* a new song is dropped with Cancel instead */
 }
 // ---- Text view: the same page, the sheet as plain text ----
@@ -459,17 +505,15 @@ function paintText(song) {
   const sheet = $("sheet");
   textSnap ||= snapshot(song);
   const empty = song.isNew && !String(song.body || "").trim();
-  /* a new, empty song offers ways to start, under the pad; once
+  /* 4.45.0: Paste, Type and Find the chords moved to "What song?"; the pad pastes and types.
+     a new, empty song offers ways to start, under the pad; once
      there's text, the tools sit just above the bar. */
   sheet.innerHTML = `
     <div class="ed-tx"><div class="ed-tx-in"><pre class="ed-hl" id="ed-hl" aria-hidden="true">${hlText(song.body || "")}</pre>
       <textarea id="ed-body" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" aria-label="Song text" placeholder="${esc(TEXT_HINT)}">${esc(song.body || "")}</textarea></div></div>
     <div class="ed-start" id="ed-start" ${empty ? "" : "hidden"}>
-      <button class="ed-tile" id="ed-paste">${icon("clip")}<span><b>Paste</b><small>From a website or notes</small></span></button>
-      <button class="ed-tile" id="ed-type">${icon("edit")}<span><b>Type</b><small>Chords and words</small></span></button>
       <button class="ed-tile" id="ed-sing">${icon("mic")}<span><b>Sing or strum</b><small>Hold and play a line</small></span></button>
-      ${aiKey() ? `<button class="ed-tile" id="ed-scan0">${icon("camera")}<span><b>Scan a page</b><small>Photo of a songbook</small></span></button>
-      <button class="ed-tile wide" id="ed-find">${icon("wand")}<span><b>Find the chords with AI</b></span></button>` : ""}
+      ${aiKey() ? `<button class="ed-tile" id="ed-scan0">${icon("camera")}<span><b>Scan a page</b><small>Photo of a songbook</small></span></button>` : ""}
     </div>
     <input type="file" id="ed-photo" accept="image/*" hidden>
     <p class="ed-hint" id="ed-txhint">${textHint(song)}</p>
@@ -519,18 +563,6 @@ function paintText(song) {
     if (file) run($("ed-scan") || $("ed-scan0"), "Reading page", async () => ({ ...(await cleanSheet({ image: await readPhoto(file) })), label: "Read from photo" }));
   });
   $("ed-scan0")?.addEventListener("click", () => $("ed-photo").click());
-  $("ed-type")?.addEventListener("click", () => ta.focus());
-  $("ed-paste")?.addEventListener("click", async () => {
-    let t = "";
-    try { t = await navigator.clipboard.readText(); } catch {}
-    if (!t.trim()) { ta.focus(); return toast("Nothing to paste. Copy the song first, or touch and hold the page to paste"); }
-    ta.value = t; ta.oninput(); flushText(song);
-  });
-  $("ed-find")?.addEventListener("click", () => {
-    const title = $("ed-title")?.value.trim() || "";
-    if (!title) { toast("Type the song's title first"); return $("ed-title")?.focus(); }
-    import("./findai.js").then(m => m.getSong(title, { title, artist: $("ed-artist")?.value.trim() || "" }));
-  });
   tools();
   $("ed-delete")?.addEventListener("click", () => deleteFromEdit(song));
 }
@@ -540,6 +572,7 @@ function flushText(song) {
   if (!ta || ta.value === song.body) return;
   song.body = ta.value;
   delete song.loop;
+  if (song.spots || song.ai === "chart") song.spots = "mine";
   if (song.isNew && !song.formatSet) song.format = looksLikeTab(song.body) ? "tab" : "chords";
   Tabs.save(data);
   if (chordEdit === song) paintDetails(song);
@@ -590,16 +623,61 @@ function sketchHelp(song, i, pos) {
   if (h.now && !h.opts.some(o => o.label === h.now)) h.opts.unshift({ label: h.now, changes: null });
   return h;
 }
-function pickChord(song, i, pos, word, current) {
+/* 4.65.4: put each chip on the chord row above its word. A chord before the words or after a word gets a
+   gap in the text as wide as its chips; chords over a word start at the word and push right past the chip
+   before them, never off the line. */
+function layoutChips(sheet) {
+  for (const line of sheet.querySelectorAll(".ce-ly")) {
+    const all = [...line.querySelectorAll(":scope > .ce-ch:not(.ce-pl)")];
+    const width = (list, gap = 4) => list.reduce((s, c) => s + c.offsetWidth + gap, 0);
+    for (const g of line.querySelectorAll(".ce-gap")) {
+      const key = g.dataset.gap === "lead" ? "lead" : `a${g.dataset.gap}`;
+      g.style.width = width(all.filter(c => c.dataset.at === key)) + "px";
+    }
+    /* a row of words with no chord over it doesn't keep an empty chord row (the first row keeps it for the +) */
+    const flow = [...line.querySelectorAll(".ce-flow > *")];
+    flow.forEach(el => el.classList.remove("ce-nob"));
+    const elOf = c => {
+      const at = c.dataset.at;
+      return at === "lead" ? line.querySelector('[data-gap="lead"]') : at[0] === "a" ? line.querySelector(`[data-gap="${at.slice(1)}"]`) : line.querySelector(`.ce-w[data-k="${at.slice(1)}"]`);
+    };
+    const used = new Set(all.map(c => elOf(c)?.offsetTop)), first = flow[0]?.offsetTop;
+    flow.filter(el => el.offsetTop !== first && !used.has(el.offsetTop)).forEach(el => el.classList.add("ce-nob"));
+    const box = line.getBoundingClientRect(), pl = line.querySelector(":scope > .ce-pl");
+    const limit = line.clientWidth - (parseFloat(getComputedStyle(line).paddingRight) || 0);
+    const anchor = c => {
+      const r = elOf(c).getBoundingClientRect();
+      return { x: r.left - box.left, y: r.top - box.top - 50 };
+    };
+    /* chips by visual row, in reading order */
+    const rows = new Map();
+    for (const c of all) { const a = anchor(c); const r = rows.get(a.y) || []; r.push({ c, x: a.x, w: c.offsetWidth }); rows.set(a.y, r); }
+    for (const [y, r] of rows) {
+      let at = 0;
+      for (const p of r) { p.x = Math.max(p.x, at); at = p.x + p.w + 4; }
+      let end = limit;
+      for (let j = r.length - 1; j >= 0; j--) { r[j].x = Math.max(0, Math.min(r[j].x, end - r[j].w)); end = r[j].x - 4; }
+      for (const p of r) { p.c.style.left = p.x + "px"; p.c.style.top = y + "px"; }
+    }
+    if (pl) pl.style.top = Math.max(0, (line.querySelector(".ce-flow > *")?.getBoundingClientRect().top ?? box.top) - box.top - 50) + "px";
+  }
+}
+function pickChord(song, ctx) {
+  const { i, pos, current } = ctx;
   const parsed = /^([A-G])([#b]?)(.*)$/.exec(current || "") || [];
   const st = { root: parsed[1] || "", acc: parsed[2] || "", qual: QUALS.includes(parsed[3]) ? parsed[3] : "" };
   const name = () => st.root ? st.root + st.acc + st.qual : "";
   const used = chordsUsed(song.body);
-  const sk = sketchHelp(song, i, pos);
+  const sk = pos == null ? null : sketchHelp(song, i, pos);
+  /* 4.65.4: a + with a choice of where (before the words or after the line) */
+  let wi = 0;
+  if (ctx.where) ctx.set = (body, c) => ctx.where[wi].set(body, c);
   const paint = () => {
+    if (ctx.where) ctx.head = ctx.where[wi].head;
     const p = $("ce-panel");
     p.innerHTML = `
-      <div class="pc-head">${icon("pick")}<span>Chord over <b class="ce-word">${esc(word)}</b></span></div>
+      <div class="pc-head">${icon("pick")}<span>${ctx.head}</span></div>
+      ${ctx.where ? `<div class="ce-chips ce-where">${ctx.where.map((o, j) => `<button class="ce-chip ${j === wi ? "on" : ""}" data-wh="${o.key}" aria-pressed="${j === wi}">${esc(o.label)}</button>`).join("")}</div>` : ""}
       ${sk && sk.fits.length ? `<div class="label ce-lab">Fits your melody</div><div class="ce-fit">${sk.fits.map(f => `<button class="ce-fitb ${f.chord === name() ? "on" : ""}" data-u="${esc(f.chord)}" aria-label="${esc(f.chord)}: fits ${Math.round(f.fit * 100)}%${f.holds.length ? `, holds ${esc(f.holds.join(" and "))}` : ""}"><b>${esc(f.chord)}</b><span>${f.holds.length ? `Holds ${esc(f.holds.join(" · "))}` : "Passing"}</span><i><i style="width:${Math.round(f.fit * 100)}%"></i></i></button>`).join("")}</div>` : ""}
       ${sk && sk.opts.length > 1 ? `<div class="label ce-lab">Whole line, other ways</div><div class="ce-alts">${sk.opts.map((o, j) => `<button class="ce-alt ${o.label === sk.now ? "on" : ""}" data-alt="${j}">${esc(o.label)}<small>${o.label === sk.now ? "now" : ""}</small></button>`).join("")}</div>` : ""}
       ${used.length ? `<div class="label ce-lab">In this song</div><div class="ce-chips">${used.map(c => `<button class="ce-chip ${c === name() ? "on" : ""}" data-u="${esc(c)}">${esc(c)}</button>`).join("")}</div>` : ""}
@@ -612,12 +690,13 @@ function pickChord(song, i, pos, word, current) {
         <button class="btn primary" id="ce-place" ${name() ? "" : "disabled"}>${name() ? `Place ${esc(name())}` : "Pick a chord"}</button>
       </div>`;
     p.querySelectorAll("[data-u]").forEach(b => b.onclick = () => { const m = /^([A-G])([#b]?)(.*)$/.exec(b.dataset.u); st.root = m[1]; st.acc = m[2]; st.qual = m[3]; apply(b.dataset.u); });
+    p.querySelectorAll("[data-wh]").forEach(b => b.onclick = () => { wi = ctx.where.findIndex(o => o.key === b.dataset.wh); paint(); });
     p.querySelectorAll("[data-r]").forEach(b => b.onclick = () => { st.root = b.dataset.r; paint(); });
     p.querySelectorAll("[data-a]").forEach(b => b.onclick = () => { st.acc = st.acc === b.dataset.a ? "" : b.dataset.a; paint(); });
     p.querySelectorAll("[data-q]").forEach(b => b.onclick = () => { st.qual = b.dataset.q; paint(); });
     $("ce-other").onclick = () => ask({
-      title: `Chord over “${word}”`, value: name(), placeholder: "Cadd9, D/F#, Asus4…", caps: "none",
-      text: "Type any chord. Names Tabs doesn't have a diagram for are placed as text.",
+      title: ctx.head.replace(/<[^>]+>/g, ""), value: name(), placeholder: "Cadd9, D/F#, Asus4…", caps: "none",
+      text: "Type any chord. Names Louie doesn't have a diagram for are placed as text.",
       preview: c => (c && chordSVG(c)) || "", okLabel: c => (c ? `Place ${c}` : "Type a chord")
     }, apply);
     p.querySelectorAll("[data-alt]").forEach(b => b.onclick = () => {
@@ -629,10 +708,10 @@ function pickChord(song, i, pos, word, current) {
     $("ce-rm")?.addEventListener("click", () => apply(null));
     $("ce-cancel")?.addEventListener("click", close);
   };
-  const close = () => { layer.innerHTML = ""; document.querySelectorAll(".ce-w.sel").forEach(x => x.classList.remove("sel")); };
+  const close = () => { layer.innerHTML = ""; document.querySelectorAll(".ce-w.sel, .ce-ch.sel").forEach(x => x.classList.remove("sel")); };
   const apply = chord => {
     close();
-    editChange(song, chord ? `${chord} over “${word}”` : `Removed from “${word}”`, () => { song.body = setChordAt(song.body, i, pos, chord); });
+    editChange(song, ctx.label(chord), () => { song.body = ctx.set(song.body, chord); });
   };
   layer.innerHTML = `<div class="scrim" id="ce-scrim"></div><div class="panel card" id="ce-panel" role="dialog" aria-label="Choose a chord"></div>`;
   $("ce-scrim").onclick = close;

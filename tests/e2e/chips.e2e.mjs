@@ -1,0 +1,130 @@
+// 4.64.0: the editor places chords the way a chart does (chips, + beside a chord, before the words, a chord row).
+import test from "node:test";
+import assert from "node:assert/strict";
+import { base, phone, skip, LIB, useBrowser, tool, settled } from "./harness.mjs";
+
+useBrowser();
+
+const lib = body => ({ ...LIB, songs: [{ id: "c", title: "Chips", artist: "Me", key: "F", format: "chords", body, duration: 30 }] });
+const saved = page => page.evaluate(() => JSON.parse(localStorage.getItem("louielite-v1")).songs.find(s => s.id === "c").body);
+const waitBody = (page, re) => page.waitForFunction(r => new RegExp(r).test(JSON.parse(localStorage.getItem("louielite-v1")).songs.find(s => s.id === "c").body), re.source);
+const pick = async (page, root, quals) => { await page.click(`#ce-panel [data-r='${root}']`); if (quals) await page.click(`#ce-panel [data-q='${quals}']`); await page.click("#ce-place"); };
+
+test("Edit builds a chart's lead-in chords with taps, then Undo, a chord row and removing the middle chord (4.64.0)", { skip: skip() }, async t => {
+  const page = await phone(t, lib("[Verse]\nWalking down the river road"));
+  await page.goto(base + "#/song/c"); await page.waitForSelector(".metarow");
+  await tool(page, "edit"); await page.waitForSelector(".ce-line[data-line='1']");
+  /* F, then Am beside it, then G beside that, all before the words */
+  await page.click(".ce-ly[data-line='1'] > .ce-pl"); await page.waitForSelector("#ce-panel");
+  assert.match(await page.innerText(".pc-head"), /before the words/i);
+  await pick(page, "F"); await waitBody(page, /^\[Verse\]\nF\n {2,}Walking/);
+  await settled(page);
+  await page.click(".ce-ly[data-line='2'] > .ce-pl"); await page.waitForSelector("#ce-panel");
+  assert.match(await page.innerText(".pc-head"), /after F/i);
+  await pick(page, "A", "m"); await waitBody(page, /\nF Am\n/);
+  await settled(page);
+  await page.click(".ce-ly[data-line='2'] > .ce-pl"); await pick(page, "G");
+  await waitBody(page, /^\[Verse\]\nF Am G\n {6}Walking down the river road$/);
+  assert.equal(await saved(page), "[Verse]\nF Am G\n      Walking down the river road");
+  /* Undo takes the last chord back */
+  await page.click("#toast .tact");
+  await waitBody(page, /\nF Am\n/);
+  assert.doesNotMatch(await saved(page), /G/);
+  await settled(page);
+  await page.click(".ce-ly[data-line='2'] > .ce-pl"); await pick(page, "G");
+  await waitBody(page, /F Am G\n/);
+  /* a chord after the last word */
+  await settled(page);
+  await page.click(".ce-ly[data-line='2'] > .ce-pl"); await page.waitForSelector("#ce-panel");
+  await page.click("#ce-panel [data-wh='after']");
+  assert.match(await page.innerText(".pc-head"), /after the line/i);
+  await pick(page, "F");
+  await waitBody(page, /^\[Verse\]\nF Am G +F\n/);
+  const b = await saved(page);
+  assert.match(b.split("\n")[1], /^F Am G +F$/, "trailing chord sits on the chord line");
+  /* a chord-only row from the Chords button, then remove the middle chord of three */
+  await settled(page);
+  await page.click("[data-chords]"); await page.waitForSelector("#ce-panel");
+  await pick(page, "C"); await waitBody(page, /river road\nC$/);
+  await settled(page);
+  await page.click(".ce-cl .ce-pl"); await pick(page, "D"); await waitBody(page, /\nC {3}D$/);
+  await settled(page);
+  await page.click(".ce-cl .ce-pl"); await pick(page, "E"); await waitBody(page, /\nC {3}D {3}E$/);
+  await settled(page);
+  await page.click(".ce-cl .ce-ch[data-chord='D']"); await page.click("#ce-rm");
+  await waitBody(page, /\nC {3}E$/);
+  /* nothing in the editor scrolls sideways at 390 wide */
+  const over = await page.evaluate(() => ({ page: document.scrollingElement.scrollWidth - innerWidth, chips: [...document.querySelectorAll(".ce-ch")].filter(c => c.getBoundingClientRect().right > innerWidth).length }));
+  assert.deepEqual(over, { page: 0, chips: 0 }, "nothing in the editor runs off the side at 390 wide");
+  /* chips are thumb sized */
+  const small = await page.evaluate(() => [...document.querySelectorAll(".ce-ch")].filter(c => c.getBoundingClientRect().height < 43 || c.getBoundingClientRect().width < 43).length);
+  assert.equal(small, 0, "chips are at least 44 px");
+});
+
+test("Edit: several chords on one word each get a chip, and a chord can be added beside one (4.64.0)", { skip: skip() }, async t => {
+  const page = await phone(t, lib("[Verse]\nF   Am\nHome again tonight"));
+  await page.goto(base + "#/song/c"); await page.waitForSelector(".metarow");
+  await tool(page, "edit"); await page.waitForSelector(".ce-line");
+  assert.deepEqual(await page.$$eval(".ce-line .ce-ch:not(.ce-pl)", els => els.map(e => e.textContent)), ["F", "Am"]);
+  await page.click(".ce-w[data-word='Home']"); await page.waitForSelector("#ce-panel");
+  assert.match(await page.innerText(".pc-head"), /after F/i);
+  await pick(page, "G");
+  await page.waitForFunction(() => document.querySelectorAll(".ce-line .ce-ch:not(.ce-pl)").length === 3);
+  assert.deepEqual(await page.$$eval(".ce-line .ce-ch:not(.ce-pl)", els => els.map(e => e.textContent)), ["F", "G", "Am"], "a chord added after F lands beside it");
+});
+
+test("Edit: Line up from the chord sites sends the chart without the words' columns and stacks chords the UG way, with Undo (4.65.0)", { skip: skip() }, async t => {
+  const guess = "[Verse]\nF             Am\nWalked the long road home\nG        F\nNever saw it\nAm      G\nRain on the glass\nF     Am\nCold again";
+  const page = await phone(t, { ...lib(guess), songs: [{ ...lib(guess).songs[0], spots: "mine" }] });
+  const asked = [];
+  const answer = { found: true, sheet: [{ section: "Verse", stanza: 1 }], confidence: "high",
+    lines: [1, 2, 3, 4].map(n => ({ n, c: [[0, "F"], [0, "Am"], [0, "G"]] })) };
+  await page.route("https://api.anthropic.com/**", r => {
+    asked.push(r.request().postData() || "");
+    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ content: [{ type: "text", text: JSON.stringify(answer) }], stop_reason: "end_turn" }) });
+  });
+  await page.evaluate(() => localStorage.setItem("louielite.apikey.v1", "sk-test"));
+  await page.goto(base + "#/song/c"); await page.waitForSelector(".metarow");
+  await tool(page, "edit"); await page.waitForSelector("#ed-lineup");
+  await page.click("#ed-lineup");
+  await waitBody(page, /^\[Verse\]\nF Am G\n {8}Walked the long road home\nF Am G\n {8}Never saw it/);
+  const sent = JSON.parse(asked.find(a => /Chord chart/.test(a)));
+  const text = JSON.stringify(sent.messages);
+  assert.match(text, /Chord chart:\\n\[Verse\]\\nF Am G\\n/, "the chart is sections and chords only");
+  assert.doesNotMatch(text, /F {13}Am/, "not the guessed columns");
+  assert.match(JSON.stringify(sent.system), /Ultimate Guitar/);
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("louielite-v1")).songs.find(s => s.id === "c").spots), "placed");
+  await page.click("#toast .tact");
+  await waitBody(page, /^\[Verse\]\nF {13}Am\nWalked/);
+});
+
+test("Edit under an album cover: the bottom buttons are glass, not see-through (4.65.2)", { skip: skip() }, async t => {
+  const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  const l = lib("[Verse]\nAm   F\nSha la la la");
+  l.songs[0].listen = { art: "https://is1-ssl.mzstatic.com/image/x/600x600bb.jpg" };
+  const page = await phone(t, l);
+  await page.route("https://*.mzstatic.com/**", r => r.fulfill({ status: 200, contentType: "image/png", body: Buffer.from(png, "base64") }));
+  await page.evaluate(() => localStorage.setItem("louielite.apikey.v1", "sk-x"));
+  await page.goto(base + "#/song/c"); await page.reload(); await page.waitForSelector("body.covered");
+  await tool(page, "edit"); await page.waitForSelector(".cebar #ce-done");
+  await page.click("[data-v='text']"); await page.waitForSelector("#ed-clean");
+  const alphas = await page.evaluate(() => ["#ed-clean", "#ed-scan", "#ed-seg"].map(s => { const m = /rgba?\(([^)]+)\)/.exec(getComputedStyle(document.querySelector(s)).backgroundColor); const p = m[1].split(",").map(Number); return p.length > 3 ? p[3] : 1; }));
+  assert.ok(alphas.every(a => a >= 0.85), "Clean up, Scan and Edit/Preview are nearly solid: " + alphas);
+});
+
+test("Edit: chips sit on one row above their words, the words keep their spacing (4.65.4)", { skip: skip() }, async t => {
+  const page = await phone(t, lib("[Bridge]\nAm G                    F\n      Small hands in the world\n[Verse]\nF          Am\nI remember running through the wet grass"));
+  await page.goto(base + "#/song/c"); await page.waitForSelector(".metarow");
+  await tool(page, "edit"); await page.waitForSelector(".ce-ly");
+  const r = await page.evaluate(() => [...document.querySelectorAll(".ce-ly")].map(line => {
+    const chips = [...line.querySelectorAll(":scope > .ce-ch:not(.ce-pl)")].map(c => c.getBoundingClientRect());
+    const ws = [...line.querySelectorAll(".ce-w")].map(w => w.getBoundingClientRect());
+    return { tops: [...new Set(chips.map(c => Math.round(c.top)))], wordTop: Math.round(ws[0].top), overlap: chips.some((c, j) => j && c.left < chips[j - 1].right - 1 && Math.round(c.top) === Math.round(chips[j - 1].top)) };
+  }));
+  assert.equal(r[0].tops.length, 1, "the Bridge line's chips share one row: " + JSON.stringify(r[0]));
+  assert.ok(r.every(x => !x.overlap), "no chips on top of each other");
+  const gaps = await page.evaluate(() => { const ws = [...document.querySelectorAll(".ce-ly")[1].querySelectorAll(".ce-w")].map(w => w.getBoundingClientRect()); return ws.slice(1).filter((w, j) => Math.round(w.top) === Math.round(ws[j].top)).map((w, j) => w.left - ws[j].right); });
+  assert.ok(gaps.every(g => g < 12), "words are not pushed apart by chips: " + gaps);
+  const over = await page.evaluate(() => [...document.querySelectorAll(".ce-ch")].filter(c => c.getBoundingClientRect().right > innerWidth).length);
+  assert.equal(over, 0);
+});

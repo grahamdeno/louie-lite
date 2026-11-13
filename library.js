@@ -1,0 +1,681 @@
+// The Road: the Songbook (search, filters, the song list, swipes) and the paste card. Split from app.js (4.15.1); app.js re-exports what other files use.
+import { coachTip, demoSearch, dismissCoach, markUsed, searchOpened, tick, tipDue, tipsSeen, used } from "./coach.js";
+import { Tabs, artistSortName, detectPaste, gigCountdown, guessKey, indexLetter, knownChords, lastPlayed, nextSet, parseSheet, pickNudge, playCount, playsThisWeek, requestSong, searchSongs, sheetChords, sortSongs, untilLabel, weatherMood } from "./core.js";
+import { recentApple, searchApple } from "./listen.js";
+import { guitarIcon } from "./rock.js";
+import { appleBlocksSearch, fullWhen, itunes, keyColor, newSet, playSet, setCover, setKeys, setLength, setSetCtx, setSongs, whenText } from "./sets.js";
+import { renderImport } from "./share.js";
+import { ago, backupNow, needsBackup } from "./store.js";
+import { $, I, app, esc, followKeyboard, icon, layer, onLeave, toast } from "./ui.js";
+import { aiError, aiKey, busy, cleanSheet, readPhoto } from "./aihelp.js";
+import { bindFind, data, findAI, findCard, go, keyOf, lastOpened, newSong, nextSongs, openTuner, playGig, route, tunedRecently } from "./app.js";
+
+export let query = "";
+export let filter = "all";
+export const setFilter = f => { filter = f; };
+// Search mode: tapping the bar moves it to the top and folds the library away, so
+// results sit between the bar and the keyboard. (iPhone doesn't resize the page
+// for the keyboard; it pushes the page up instead, which hid results at the top.)
+export let searching = false;
+/* 4.48.0: the Road opens search with "Open your Songbook" on top; from the Songbook itself that row would go nowhere */
+let searchFrom = "", closeSearch = null;
+export const setSearchFrom = v => { searchFrom = v; };
+let keepSearch = false; /* back from a song opened from results: show the results again */
+onLeave(r => { if (r.name !== "library" && searching) { searching = false; document.body.classList.remove("searching", "sr-lock"); } });
+
+/* 4.49.1: while the search screen is locked, a drag doesn't scroll it (sheets in the layer still scroll) */
+document.addEventListener("touchmove", e => { if (document.body.classList.contains("sr-lock") && document.body.classList.contains("searching") && !e.target.closest("#layer")) e.preventDefault(); }, { passive: false });
+
+// ---------- Library ----------
+// ---- Today: the practice streak and one song for today ----
+// The quiet stat line under the title grows into a Today line: seven dots for
+// the last week (today dashed until you play), the streak, and at most one
+// nudge that opens a song. The nudge waits on a gig day (Up next has the
+// floor) and goes once you've played today. Weather comes from Open-Meteo for
+// a city chosen in Settings, fetched once a day; no location access.
+const WX = "louielite.wx.v1";
+const NUDGE_ICON = { change: "fretboard", streak: "note", rain: "rain", cold: "snow", clear: "sun", hot: "sun", learn: "note", idle: "heart" };
+export const todayKey = () => new Date().toDateString();
+function wxMood() {
+  const p = data.settings.place;
+  if (!p) return "";
+  let c = null;
+  try { c = JSON.parse(localStorage.getItem(WX) || "null"); } catch {}
+  if (c && c.day === todayKey() && c.lat === p.lat && c.lon === p.lon) return weatherMood(c.code, c.tmax);
+  fetchWeather(p);
+  return "";
+}
+let wxAsked = "";
+async function fetchWeather(p) {
+  const ask = todayKey() + p.lat + p.lon;
+  if (wxAsked === ask) return;
+  wxAsked = ask;
+  try {
+    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}&daily=weather_code,temperature_2m_max&timezone=auto&forecast_days=1`);
+    if (!r.ok) return;
+    const j = await r.json();
+    const code = j?.daily?.weather_code?.[0], tmax = j?.daily?.temperature_2m_max?.[0];
+    if (code == null) return;
+    try { localStorage.setItem(WX, JSON.stringify({ day: todayKey(), lat: p.lat, lon: p.lon, code, tmax })); } catch {}
+    const el = $("today");
+    if (el && route().name === "library" && !searching) { el.outerHTML = todayHTMLOrSpot(); bindToday(); }
+  } catch { /* offline: no weather today */ }
+}
+/* 4.26.0: one 58px "Today" strip in place of the nudge card, Up next for you and the up next set. It pages
+   sideways (swipe, or tap a dot), the streak song first when the streak is at risk. A single item has no dots. */
+function todayItems() {
+  const items = [];
+  const up = filter === "all" ? nextSet(data.sets) : null;
+  if (up && up.when) {
+    const cd = gigCountdown(up.when);
+    items.push(`<div class="tdy-i upnext-i" id="upnext" data-set="${esc(up.id)}"><button class="tdy-open" id="un-open" aria-label="Up next: ${esc(up.name)}, ${esc(fullWhen(up.when))}"><span class="tdy-ic">${icon("list")}</span><span class="tdy-t"><small>Up next · ${cd ? "Today" : esc(whenText(up.when))}</small><b>${esc(up.name)}</b></span>${cd ? `<span class="un-cd glow" id="un-cd" aria-hidden="true">${cd}</span>` : ""}</button>${setSongs(up).length ? `<button class="un-play" id="un-play" aria-label="Play ${esc(up.name)}">${icon("play")}</button>` : ""}</div>`);
+  }
+  const n = data.settings.nudge === false ? null : pickNudge({ songs: data.songs, mood: wxMood(), gigToday: data.sets.some(x => gigCountdown(x.when)) });
+  const nudge = n ? `<button class="tdy-i nudge k-${esc(n.kind || "learn")}" id="nudge" data-song="${esc(n.songId)}"><span class="ng-ic">${n.kind === "streak" ? guitarIcon(true, 30) : icon(NUDGE_ICON[n.kind] || "note")}</span><span class="tdy-t"><small>${esc(n.text)}</small><b>${esc(n.title)}</b></span></button>` : "";
+  if (nudge && n.kind === "streak") items.push(nudge);
+  if (filter === "all" && data.songs.length >= 3 && !searching) {
+    const one = data.songs.filter(x => fitOf(x).missing.length === 1).sort((a, b) => (b.status === "learning") - (a.status === "learning") || (b.opened || 0) - (a.opened || 0))[0];
+    const req = requestSong(data);
+    const again = data.songs.filter(x => { const c = playCount(x); return c >= 1 && c <= 2 && x.status !== "got" && Date.now() - (x.playLog?.last || 0) > 21 * 864e5 && x !== one && x !== req; })
+      .sort((a, b) => (b.playLog?.last || 0) - (a.playLog?.last || 0))[0];
+    if (one) items.push(`<button class="tdy-i upn-c one" data-id="${esc(one.id)}"><span class="tdy-t"><small>ONE NEW CHORD</small><b>${esc(one.title)}</b><em>Learn ${esc(fitOf(one).missing[0])} and it's yours</em></span></button>`);
+    if (req) items.push(`<button class="tdy-i upn-c req" data-gig="${esc(req.id)}"><span class="tdy-t"><small>${data.quests?.heard?.id === req.id ? "FROM YOUR LISTENING" : "REQUESTED"}</small><b>${esc(req.title)}</b><em>2x bonus fans tonight</em></span></button>`);
+    if (again) items.push(`<button class="tdy-i upn-c again" data-id="${esc(again.id)}"><span class="tdy-t"><small>WORTH ANOTHER TRY</small><b>${esc(again.title)}</b><em>You left it ${Math.round((Date.now() - again.playLog.last) / 864e5 / 7)} weeks ago</em></span></button>`);
+  }
+  if (nudge && n.kind !== "streak") items.push(nudge);
+  return items;
+}
+function todayHTML() {
+  const items = todayItems();
+  if (!items.length) return "";
+  return `<div class="today" id="today"><div class="tdy" id="tdy">${items.join("")}</div>${items.length > 1 ? `<div class="tdy-dots" id="tdy-dots">${items.map((_, k) => `<button class="tdy-dot${k ? "" : " on"}" data-k="${k}" aria-label="Show ${k + 1} of ${items.length}"><i></i></button>`).join("")}</div>` : ""}</div>`;
+}
+// An empty, hidden #today keeps a place for the line when there's nothing to
+// show yet, so a forecast that arrives after the library is drawn can still
+// fill it in (with no plays this week the weather never appeared).
+const todayHTMLOrSpot = (...a) => todayHTML(...a) || `<div id="today" hidden></div>`;
+function bindToday() {
+  $("nudge")?.addEventListener("click", e => go("#/song/" + encodeURIComponent(e.currentTarget.dataset.song)));
+  clearInterval(gigTimer);
+  const strip = $("tdy"); if (!strip) return;
+  strip.querySelectorAll(".upn-c[data-id]").forEach(b => b.onclick = () => go("#/song/" + encodeURIComponent(b.dataset.id)));
+  strip.querySelectorAll(".upn-c[data-gig]").forEach(b => b.onclick = () => playGig(b.dataset.gig));
+  const up = $("upnext");
+  if (up) {
+    const set = data.sets.find(x => x.id === up.dataset.set);
+    $("un-open").onclick = () => go("#/set/" + encodeURIComponent(set.id));
+    $("un-play")?.addEventListener("click", () => playSet(set));
+    if ($("un-cd")) gigTimer = setInterval(() => { const el = $("un-cd"), t = el && gigCountdown(set.when); if (!el) return clearInterval(gigTimer); if (t) el.textContent = t; else { clearInterval(gigTimer); refreshLibrary(); } }, 1000);
+  }
+  /* the dots follow the swipe, and a tap on a dot pages there */
+  const dots = [...app.querySelectorAll(".tdy-dot")];
+  if (!dots.length) return;
+  strip.addEventListener("scroll", () => { const k = Math.round(strip.scrollLeft / strip.clientWidth); dots.forEach((d, i) => d.classList.toggle("on", i === k)); }, { passive: true });
+  dots.forEach(d => d.onclick = () => strip.scrollTo({ left: +d.dataset.k * strip.clientWidth, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
+}
+/* The filter chips, on the Library page and in Tonight's drawer. */
+export function chipsHTML() {
+  if (!data.songs.length) return "";
+  const hasFav = data.songs.some(s => s.favorite), hasTab = data.songs.some(s => s.format === "tab"), hasLearn = data.songs.some(s => s.status === "learning");
+  const can = canPlayCount();
+  if ((filter === "fav" && !hasFav) || (filter === "tab" && !hasTab) || (filter === "learn" && !hasLearn) || (filter === "can" && !can)) filter = "all";
+  /* 4.20.1: one row that always fits. Sets is a button in the header and Tabs is a choice in the sort menu. */
+  const chip = (f, label, aria = "") => `<button class="chip ${filter === f ? "on" : ""}" data-f="${f}"${aria ? ` aria-label="${aria}"` : ""}>${label}</button>`;
+  return `<div class="chips" id="chips">${chip("all", "All")}${can ? chip("can", `Can play<small>${can}</small>`) : ""}${hasLearn ? chip("learn", "Learning") : ""}${hasFav ? chip("fav", icon("heart"), "Favorites") : ""}</div>`;
+}
+/* Tonight's drawer holds the same Library; it registers how to repaint itself here. */
+export const homeHooks = { refresh: null, openDrawer: false }; /* openDrawer: Tonight opens with the Library up (3.24.2) */
+export const refreshLibrary = () => route().name === "road" ? homeHooks.refresh?.() : renderLibrary();
+
+export function renderLibrary() {
+  chipsHTML(); /* settles a filter that no longer has songs */
+  const tunerBtn = cls => `<button class="${cls}" id="tunerbtn" aria-label="${tunedRecently() ? "Tuner" : "Tuner. Not tuned in the last few hours"}">${icon("fork")}${tunedRecently() ? "" : '<i class="dotmark"></i>'}</button>`;
+  app.innerHTML = `
+    <div class="head">
+      <div class="head-l"><button class="sh-btn" id="libback" aria-label="Back to the Road">${icon("back")}</button><h1 class="title script">Songbook</h1></div>
+      <div class="row-btns">
+        <button class="btn sets-btn${filter === "sets" ? " on" : ""}" id="setsbtn" aria-label="Sets">${icon("list")}Sets</button>
+        ${tunerBtn("ib chunky-tune")}
+      </div>
+    </div>
+    ${todayHTMLOrSpot()}
+    ${chipsHTML()}
+    ${needsBackup() ? `<div class="bk glass" id="bk">
+      <span class="tile">${icon("cloud")}</span>
+      <div class="bk-t"><b>Back up your library</b><span>${data.settings.lastBackup ? `Last backup ${ago(data.settings.lastBackup)}` : "Not backed up yet"}. Save it to iCloud Drive.</span></div>
+      <div class="bk-b"><button class="btn sm" id="bk-later">Later</button><button class="btn sm primary" id="bk-go">Back up</button></div>
+    </div>` : ""}
+    <div id="list"></div>
+    <div class="dock-fade"></div>
+    <div class="dock kb">
+      <label class="cmd glass float">
+        ${icon("search")}
+        <input id="q" type="text" inputmode="search" enterkeyhint="go" placeholder="Search or add a song" value="${esc(query)}" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Search or add a song">
+        <button class="clear" id="clear" aria-label="Clear search" ${query ? "" : "hidden"}>${icon("x")}</button>
+        <button class="cmd-add" id="add" aria-label="Add a song">${icon("plus")}</button>
+      </label>
+      <button class="qcancel" id="qcancel">Cancel</button>
+    </div>`;
+  bindToday();
+  $("libback").onclick = () => { if (filter === "sets") { filter = "all"; renderLibrary(); } else go("#/"); };
+  $("setsbtn").onclick = () => { filter = filter === "sets" ? "all" : "sets"; renderLibrary(); };
+  $("tunerbtn").onclick = () => openTuner("standard", () => route().name === "library" && renderLibrary());
+  $("bk-later")?.addEventListener("click", () => { data.settings.backupSnooze = Date.now() + 2 * 86400000; Tabs.save(data); $("bk").remove(); });
+  $("bk-go")?.addEventListener("click", async () => { if (await backupNow()) { $("bk")?.remove(); toast("Backed up"); } });
+  app.querySelectorAll("[data-f]").forEach(b => b.onclick = () => { filter = b.dataset.f; renderLibrary(); });
+  const q = $("q");
+  const enterSearch = () => {
+    if (searching) return;
+    searching = true;
+    document.body.classList.add("searching");
+    window.scrollTo(0, 0);
+    renderList();
+    searchOpened();
+  };
+  $("add").onclick = e => { e.preventDefault(); enterSearch(); q.focus({ preventScroll: true }); }; /* 4.48.0: + in the bar opens the same screen */
+  const exitSearch = () => {
+    searching = false; searchFrom = ""; document.body.classList.remove("sr-lock");
+    query = ""; q.value = ""; $("clear").hidden = true;
+    document.body.classList.remove("searching");
+    q.blur();
+    dismissCoach(true);
+    renderLibrary();
+  };
+  /* Move the bar before the keyboard opens, so iPhone has nothing to push up. */
+  q.addEventListener("pointerdown", e => {
+    if (searching) return;
+    e.preventDefault();
+    enterSearch();
+    q.focus({ preventScroll: true });
+  });
+  q.addEventListener("focus", () => { enterSearch(); window.scrollTo(0, 0); });
+  /* Closing the keyboard (its checkmark doesn't tap the page) also closes a search tip. */
+  q.addEventListener("blur", () => dismissCoach());
+  /* 4.49.3: closing the keyboard keeps the search screen; Cancel and Open your Songbook leave it */
+  closeSearch = exitSearch;
+  /* 4.49.3: Cancel goes back where you came from: the Road, or the Songbook */
+  $("qcancel").onclick = e => { e.preventDefault(); const back = searchFrom === "road"; exitSearch(); if (back) go("#/"); };
+  if (keepSearch && query.trim()) searching = true;
+  keepSearch = false;
+  if (searching) document.body.classList.add("searching");
+  /* Search a beat after typing pauses, not on every key. */
+  let typing = 0;
+  q.oninput = () => { query = q.value; $("clear").hidden = !query; clearTimeout(typing); typing = setTimeout(renderList, query.length > 2 ? 90 : 0); };
+  q.onkeydown = e => {
+    if (e.key !== "Enter") return;
+    clearTimeout(typing); renderList();
+    const first = app.querySelector("#list .row");
+    if (first) first.click();
+  };
+  q.addEventListener("paste", e => {
+    const text = e.clipboardData?.getData("text") || "";
+    /* A pasted share link opens the same "Shared with you" sheet as tapping it. */
+    const link = text.match(/#\/import\/([zj][A-Za-z0-9_-]+)/);
+    if (link) { e.preventDefault(); q.blur(); return renderImport(link[1]); }
+    if (text.trim().split("\n").filter(l => l.trim()).length < 2) return;
+    e.preventDefault();
+    q.blur();
+    showPasteCard(detectPaste(text));
+  });
+  $("clear").onclick = e => { e.preventDefault(); query = ""; q.value = ""; $("clear").hidden = true; renderList(); q.focus(); };
+  renderList();
+  followKeyboard();
+  /* 4.22.0: while searching, the list ends above the keyboard (and iOS's form bar) */
+  const padList = () => { const l = $("list"); if (l && searching) l.style.paddingBottom = Math.max(0, innerHeight - (visualViewport?.height || innerHeight) - (visualViewport?.offsetTop || 0)) + 70 + "px"; else if (l) l.style.paddingBottom = ""; };
+  padList();
+  if (visualViewport) { visualViewport.onresize = padList; }
+  /* After the first song: invite a tap on search, which does more than find. */
+  if ((used("chord") || tipsSeen().play) && tipDue("searchInvite") && !searching) setTimeout(() => {
+    if (route().name !== "library" || layer.innerHTML || searching || document.activeElement === q || !coachTip("searchInvite")) return;
+    demoSearch();
+  }, 900);
+}
+
+// ---- Up next and the sets shelf (library, All view) ----
+export function setsShelf() {
+  if (!data.sets.length) return "";
+  const up = nextSet(data.sets);
+  const rest = data.sets.filter(x => x !== up)
+    .sort((a, b) => (a.when && b.when ? Date.parse(a.when) - Date.parse(b.when) : a.when ? -1 : b.when ? 1 : 0));
+  const len = x => { const n = setSongs(x).length; return `${n} song${n === 1 ? "" : "s"}${n ? ` · ${Math.round(setLength(x) / 60)} min` : ""}`; };
+  return `
+    ${up ? `<div class="upnext" id="upnext" role="button" tabindex="0" aria-label="Up next: ${esc(up.name)}, ${esc(fullWhen(up.when))}" style="--tint:${keyColor(setKeys(up)[0], up.name, 0.22)}">
+      <div class="un-cv">${setCover(up, { small: true, notext: true })}</div>
+      <div class="un-t"><div class="lab">Up next · ${gigCountdown(up.when) ? "Today" : esc(whenText(up.when))}</div><b>${esc(up.name)}</b>
+        ${gigCountdown(up.when) ? `<div class="un-cd glow" id="un-cd" aria-hidden="true">${gigCountdown(up.when)}</div>` : ""}
+        <span>${gigCountdown(up.when) ? `until ${esc(whenText(up.when, false))} · ${len(up)}` : `${len(up)} · ${esc(untilLabel(up.when))}`}${up.where ? ` · ${esc(up.where)}` : ""}</span></div>
+      ${setSongs(up).length ? `<button class="un-play" id="un-play" aria-label="Play ${esc(up.name)}">${icon("play")}</button>` : ""}
+    </div>` : ""}
+    <div class="label lrow shelf-h"><span>Your sets</span><button class="linkbtn sh-all" id="sh-all">See all</button></div>
+    <div class="shelf" id="shelf">
+      ${rest.map(x => `<button class="sh-it" data-sh="${esc(x.id)}" aria-label="${esc(x.name)}"><div class="sh-cv">${setCover(x, { fs: 14, small: true })}</div><div class="sh-t">${esc(x.name)}</div><div class="sh-s">${x.when ? esc(whenText(x.when)) : len(x)}</div></button>`).join("")}
+      <button class="sh-it sh-new" id="sh-new" aria-label="New set"><div class="sh-cv">${icon("plus")}</div><div class="sh-t">New set</div></button>
+    </div>`;
+}
+let gigTimer = 0;
+onLeave(() => clearInterval(gigTimer));
+export function bindShelf() {
+  const up = nextSet(data.sets);
+  /* Gig day: the countdown ticks every second while the library is open. */
+  clearInterval(gigTimer);
+  if ($("un-cd")) gigTimer = setInterval(() => { const el = $("un-cd"), t = el && gigCountdown(up.when); if (!el) return clearInterval(gigTimer); if (t) el.textContent = t; else { clearInterval(gigTimer); refreshLibrary(); } }, 1000);
+  $("upnext")?.addEventListener("click", e => { if (!e.target.closest("#un-play")) go("#/set/" + encodeURIComponent(up.id)); });
+  $("un-play")?.addEventListener("click", () => playSet(up));
+  $("sh-all")?.addEventListener("click", () => { filter = "sets"; refreshLibrary(); });
+  $("sh-new")?.addEventListener("click", () => newSet());
+  app.querySelectorAll("[data-sh]").forEach(b => b.onclick = () => go("#/set/" + encodeURIComponent(b.dataset.sh)));
+}
+
+export const STATUS = { learning: "Learning", got: "Got it" };
+const SORTS = { title: "A–Z", artist: "Artist", recent: "Recently played", most: "Most played" };
+// A lyric that matched the search, with the matching words marked.
+function lyricHit(line, q) {
+  const i = line.toLowerCase().indexOf(q.trim().toLowerCase());
+  if (i < 0) return `“${esc(line)}”`;
+  const n = q.trim().length;
+  let from = Math.max(0, i - 24);
+  if (from) { const sp = line.indexOf(" ", from); from = sp >= 0 && sp < i ? sp + 1 : from; } /* start on a whole word */
+  return `“${from ? "…" : ""}${esc(line.slice(from, i))}<mark>${esc(line.slice(i, i + n))}</mark>${esc(line.slice(i + n))}”`;
+}
+function songRow(s, hit) {
+  const wk = playsThisWeek(s), sort = data.settings.sort, n = playCount(s);
+  const when = sort === "recent" && lastPlayed(s) ? ago(new Date(lastPlayed(s)).toISOString()) : "";
+  const stat = sort === "most" && n ? `${n} play${n === 1 ? "" : "s"}` : when ? `Played ${when}` : wk && `Played ${wk}× this week`;
+  const sub = hit ? `<span class="hit">${hit}</span>`
+    : [esc(s.artist || "Unknown artist"), s.status !== "learning" && STATUS[s.status] && `<span class="st ${s.status}">${STATUS[s.status]}</span>`, stat].filter(Boolean).join(" · ");
+  return `<button class="row" data-id="${esc(s.id)}"${s.id === lastOpened ? ' style="view-transition-name: song-title"' : ""}>
+    <div class="txt"><div class="t">${esc(s.title)}</div><div class="a">${sub}</div></div>
+    ${s.favorite ? `<svg class="heart" viewBox="0 0 24 24" aria-label="Favorite" role="img">${I.heart}</svg>` : ""}
+    ${(() => { const f = fitOf(s); return s.status === "learning" ? `<span class="fit learn">LEARNING</span>` : f.can ? `<span class="fit can">CAN PLAY</span>` : f.missing.length === 1 ? `<span class="fit one">+ ${esc(f.missing[0])}</span>` : ""; })()}
+    <span class="k">${esc(keyOf(s))}</span>
+  </button>`;
+}
+/* The Songbook (4.9.0): which songs use only chords you know, and which need just one more. */
+let fitCache = { at: 0, known: null, map: new Map() };
+function fitOf(s) {
+  if (Date.now() - fitCache.at > 3000) fitCache = { at: Date.now(), known: knownChords(data), map: new Map() };
+  if (s.format === "tab") return { can: false, missing: [] };
+  const hit = fitCache.map.get(s);
+  if (hit && hit.body === s.body) return hit;
+  const ch = sheetChords(s.body), known = fitCache.known;
+  const missing = known.size ? ch.filter(c => !known.has(c)) : ch;
+  const out = { body: s.body, can: known.size > 0 && ch.length > 0 && !missing.length, missing: known.size ? missing : [] };
+  fitCache.map.set(s, out);
+  return out;
+}
+const canPlayCount = () => data.songs.filter(s => fitOf(s).can).length;
+const sortBy = sort => {
+  const tabs = data.songs.some(s => s.format === "tab"), tabsOnly = filter === "tab" && tabs;
+  const opts = Object.entries(SORTS).map(([k, v]) => `<option value="${k}" ${k === sort && !tabsOnly ? "selected" : ""}>${v}</option>`).join("") + (tabs ? `<option value="tabs" ${tabsOnly ? "selected" : ""}>Tabs only</option>` : "");
+  return `<label class="sortby">${esc(tabsOnly ? "Tabs only" : SORTS[sort])}${icon("chev", "chev")}<select id="sort" aria-label="Sort songs">${opts}</select></label>`;
+};
+// A–Z index on the right edge of a long list: touch or drag to jump to a letter.
+function bindIndex(list, sorted, sort) {
+  document.querySelector(".azx")?.remove();
+  document.body.classList.remove("has-azx");
+  if (!["title", "artist"].includes(sort) || sorted.length < 25 || searching) return;
+  const firsts = new Map();
+  list.querySelectorAll(".list [data-id]").forEach(row => {
+    const song = sorted.find(x => x.id === row.dataset.id);
+    const L = song ? indexLetter(sort === "artist" ? artistSortName(song) || "#" : song.title) : "#";
+    if (!firsts.has(L)) firsts.set(L, row);
+  });
+  const letters = [..."#ABCDEFGHIJKLMNOPQRSTUVWXYZ"].filter(L => firsts.has(L));
+  if (letters.length < 4) return;
+  const x = document.createElement("div");
+  x.className = "azx";
+  x.setAttribute("aria-label", "Jump to letter");
+  x.innerHTML = letters.map(L => `<button data-l="${L}" tabindex="-1" aria-label="${L === "#" ? "Numbers" : L}">${L}</button>`).join("") + `<b class="azx-pop" hidden></b>`;
+  document.body.appendChild(x);
+  document.body.classList.add("has-azx");
+  const pop = x.querySelector(".azx-pop");
+  let cur = "";
+  const jump = (clientY, final) => {
+    const btns = [...x.querySelectorAll("[data-l]")];
+    const hit = btns.reduce((a, b) => Math.abs(b.getBoundingClientRect().top + b.offsetHeight / 2 - clientY) < Math.abs(a.getBoundingClientRect().top + a.offsetHeight / 2 - clientY) ? b : a);
+    const L = hit.dataset.l;
+    if (L !== cur) {
+      cur = L; tick();
+      const row = firsts.get(L);
+      window.scrollTo({ top: row.getBoundingClientRect().top + scrollY - 120 });
+      pop.textContent = L; pop.hidden = false;
+      pop.style.top = (hit.getBoundingClientRect().top + hit.offsetHeight / 2 - x.getBoundingClientRect().top) + "px";
+    }
+    if (final) setTimeout(() => { pop.hidden = true; cur = ""; }, 500);
+  };
+  x.addEventListener("pointerdown", e => { e.preventDefault(); x.setPointerCapture?.(e.pointerId); x.classList.add("on"); jump(e.clientY); markUsed("index"); });
+  x.addEventListener("pointermove", e => { if (x.classList.contains("on")) jump(e.clientY); });
+  const end = e => { if (!x.classList.contains("on")) return; x.classList.remove("on"); jump(e.clientY, true); };
+  x.addEventListener("pointerup", end); x.addEventListener("pointercancel", end);
+}
+onLeave(() => { document.querySelector(".azx")?.remove(); document.body.classList.remove("has-azx"); });
+
+// ---- Adding a song from the search screen (4.47.0) ----
+/* The ways in that aren't "type its name": Paste, Scan (AI key), Sing it, Ideas (AI key), and a plain Write my own. */
+const TOOL = {
+  paste: '<rect x="5" y="4" width="14" height="17" rx="3"/><path d="M9 3h6v3H9zM9 11h6M9 15h4"/>',
+  scan: '<path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M4 12h16"/>',
+  sing: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+  ideas: '<path d="M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4z"/>' };
+const toolBtn = (id, k, label) => `<button class="sr-tool" id="${id}"><svg viewBox="0 0 24 24" aria-hidden="true">${TOOL[k]}</svg>${label}</button>`;
+/* 4.49.1: Apple Music sits at the top of the search screen, where it's seen */
+const amRow = () => data.settings.appleMusic ? `<button class="sr-am" id="sr-am"><span class="sr-amic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg></span><span class="sr-amt"><b>From Apple Music</b><small>What you've listened to lately</small></span>${icon("chev", "chev")}</button>` : "";
+const addTools = () => {
+  const ai = !!aiKey();
+  return `<div class="label">Not in your Songbook yet?</div>
+    <div class="sr-tools">${toolBtn("sr-paste", "paste", "Paste")}${ai ? toolBtn("sr-scan", "scan", "Scan") : ""}${toolBtn("sr-sing", "sing", "Sing it")}${ai && data.songs.length ? toolBtn("nextidea", "ideas", "Ideas") : ""}</div>
+    <button class="sr-write" id="sr-write">${icon("edit")}Write one from scratch</button>
+    <input type="file" id="sr-photo" accept="image/*" hidden>`;
+};
+const pasteClip = async () => {
+  let text = "";
+  try { text = await navigator.clipboard.readText(); } catch { return toast("Long-press the bar and choose Paste"); }
+  if (!text.trim()) return toast("Nothing to paste yet. Copy a chord sheet first.");
+  const link = text.match(/#\/import\/([zj][A-Za-z0-9_-]+)/);
+  if (link) { $("q")?.blur(); return renderImport(link[1]); }
+  if (text.trim().split("\n").filter(l => l.trim()).length < 2) { query = text.trim(); const qi = $("q"); if (qi) qi.value = query; $("clear").hidden = false; return renderList(); }
+  $("q")?.blur();
+  showPasteCard(detectPaste(text));
+};
+function bindAddTools(list) {
+  $("sr-paste")?.addEventListener("click", pasteClip);
+  $("nextidea")?.addEventListener("click", () => nextSongs());
+  $("sr-sing")?.addEventListener("click", () => go("#/sketch"));
+  $("sr-write")?.addEventListener("click", () => { const t = query.trim(); query = ""; newSong(t ? { title: t } : {}, "text"); });
+  $("sr-scan")?.addEventListener("click", () => $("sr-photo").click());
+  $("sr-photo")?.addEventListener("change", async e => {
+    const file = e.target.files[0]; e.target.value = "";
+    if (!file) return;
+    const b = $("sr-scan"), was = b.innerHTML; b.disabled = true; b.innerHTML = busy("Reading");
+    try {
+      const r = await cleanSheet({ image: await readPhoto(file) });
+      newSong({ title: r.title || "", artist: r.artist || "", ...(r.key ? { key: r.key } : {}), ...(r.format ? { format: r.format } : {}), body: r.body }, "text");
+    } catch (err) { toast(aiError(err)); b.disabled = false; b.innerHTML = was; }
+  });
+}
+/* 4.49.0: Recently on Apple Music, in a sheet: songs you don't have first, each with one button that says what it does */
+const amKey = (t, a) => `${String(t || "").toLowerCase().replace(/\s*[([].*?[)\]]/g, "").trim()}|${String(a || "").toLowerCase().trim()}`;
+const inSongbook = r => data.songs.find(x => amKey(x.title, x.artist) === amKey(r.title, r.artist));
+function appleSheet(rows) {
+  const act = "Get the chords"; /* 4.67.0: the best-rated chart for your level, as in search */
+  const sorted = [...rows].sort((a, b) => !!inSongbook(a) - !!inSongbook(b));
+  layer.innerHTML = `<div class="scrim" id="am-scrim"></div>
+    <div class="panel card am-sheet" role="dialog" aria-label="Recently on Apple Music"><div class="grab" aria-hidden="true"></div>
+      <h2 class="am-h">Recently on Apple Music</h2>
+      <div class="sr-clist">${sorted.map(r => { const mine = inSongbook(r), n = rows.indexOf(r);
+        return `<div class="sr-crow"><span class="sr-ctx"><b>${esc(r.title)}</b><small>${esc(r.artist)}</small></span>${mine
+          ? `<button class="sr-act ghost" data-amopen="${esc(mine.id)}">In your Songbook</button>`
+          : `<button class="sr-act" data-amr="${n}" aria-label="${act}: ${esc(r.title)}, ${esc(r.artist)}">${act}</button>`}</div>`; }).join("")}</div>
+      <button class="btn am-done" id="am-done">Done</button>
+    </div>`;
+  const close = () => { layer.innerHTML = ""; };
+  $("am-scrim").onclick = close; $("am-done").onclick = close;
+  layer.querySelectorAll("[data-amopen]").forEach(b => b.onclick = () => { close(); go("#/song/" + encodeURIComponent(b.dataset.amopen)); });
+  layer.querySelectorAll("[data-amr]").forEach(b => b.onclick = () => {
+    const r = rows[+b.dataset.amr];
+    close(); query = "";
+    findAI().then(m => m.chartLinkSheet({ title: r.title, artist: r.artist, rec: r.rec }));
+  });
+}
+/* Typing: recordings from Apple's public catalog under your own matches, so a song you don't have is one tap away. */
+let catSeq = 0, catTimer = 0, catCache = { q: "", rows: [] };
+function paintCatalog(term, rows, looking) {
+  const box = $("sr-cat");
+  if (!box) return;
+  /* 4.67.0: Get the chords on every row: the best-rated chart for your level (Louie picks it with an AI key), copy, come back, paste */
+  const ai = !!aiKey(), act = "Get the chords";
+  const row = (attr, t, a) => `<div class="sr-crow"><span class="sr-ctx"><b>${esc(t)}</b><small>${esc(a)}</small></span><button class="sr-act" ${attr} aria-label="${act}: ${esc(t)}${a ? ", " + esc(a) : ""}">${act}</button></div>`;
+  const list = [...rows.map((r, i) => row(`data-cat="${i}"`, r.title, `${r.artist}${r.year ? " · " + r.year : ""}`)),
+    ...(ai ? [row('id="fc-ai"', `“${term}”`, rows.length ? "Not listed? Louie looks it up" : "Louie finds the chords, words and tempo")] : [])];
+  box.innerHTML = `${list.length ? `<div class="label">Not in your Songbook</div><div class="sr-clist">${list.join("")}</div>` : ""}
+    ${looking ? `<p class="sr-note">${busy("Looking")}</p>` : ""}
+    <p class="sr-web">Or look on <button data-find="ug">Ultimate Guitar</button> · <button data-find="chordify">Chordify</button></p>
+    <button class="sr-writeq" id="sr-writeq">${icon("edit")}<span>Write “${esc(term)}” myself</span></button>`;
+  box.querySelectorAll("[data-cat]").forEach(b => b.onclick = () => {
+    const r = rows[+b.dataset.cat];
+    query = ""; /* the search is done: coming back shows the Songbook, not the old words */
+    findAI().then(m => m.chartLinkSheet({ title: r.title, artist: r.artist, rec: r.rec }));
+  });
+  bindFind(box);
+  $("sr-writeq").onclick = () => { query = ""; newSong({ title: term }, "text"); };
+}
+function catalogSearch(term) {
+  clearTimeout(catTimer);
+  const me = ++catSeq, online = navigator.onLine !== false;
+  if (term.length < 2 || !online) return paintCatalog(term, [], false);
+  if (catCache.q === term) return paintCatalog(term, catCache.rows, false);
+  paintCatalog(term, [], true);
+  /* 4.49.8: on an iPhone Apple's own search is closed to a web page, so it goes through Apple Music (MusicKit), or is skipped */
+  const ask = () => appleBlocksSearch() ? searchApple(term).then(r => ({ results: r || [] })) : itunes("search", { term, media: "music", entity: "song", limit: 5 });
+  catTimer = setTimeout(() => ask().then(j => {
+    if (me !== catSeq || query.trim() !== term) return;
+    const seen = new Set();
+    const rows = (j?.results || []).map(x => ({ title: String(x.trackName || "").slice(0, 100), artist: String(x.artistName || "").slice(0, 100), year: String(x.releaseDate || "").slice(0, 4),
+      rec: /^https:\/\/(music|itunes)\.apple\.com\//.test(x.trackViewUrl || "") ? { url: x.trackViewUrl, title: x.trackName, artist: x.artistName, art: x.artworkUrl100 || "", length: Math.round((x.trackTimeMillis || 0) / 1000) } : null }))
+      .filter(r => { const k = (r.title + "|" + r.artist).toLowerCase(); if (!r.title || seen.has(k)) return false; seen.add(k); return true; }).slice(0, 4);
+    catCache = { q: term, rows };
+    paintCatalog(term, rows, false);
+  }).catch(() => { if (me === catSeq) paintCatalog(term, [], false); }), 250);
+}
+export function renderList() {
+  document.body.classList.toggle("sr-lock", searching && !query.trim()); /* 4.49.1: the search screen holds still until you type */
+  const list = $("list"), drawer = route().name === "road";
+  document.querySelector(".azx")?.remove(); document.body.classList.remove("has-azx");
+  if (!data.songs.length) {
+    list.innerHTML = `<div class="empty">No songs yet.<br>Add your first one: search for it by name below,<br>or use one of these.</div>${addTools()}`;
+    bindAddTools(list);
+    return;
+  }
+  const q = query.trim().toLowerCase();
+  if (filter === "sets" && !searching) {
+    const sets = data.sets.filter(x => !q || x.name.toLowerCase().includes(q));
+    list.innerHTML = `
+      <div class="label">Sets</div>
+      ${!data.sets.length ? `<p class="empty-hint">A set is a list of songs in playing order, for a gig or a practice session. Play it and each song leads into the next.</p>` : ""}
+      <div class="list glass">
+        ${sets.map(x => { const n = setSongs(x).length; return `<button class="row" data-set="${esc(x.id)}">
+          <div class="row-cv">${setCover(x, { small: true, notext: true })}</div>
+          <div class="txt"><div class="t">${esc(x.name)}</div><div class="a">${x.when ? `${esc(fullWhen(x.when))} · ` : ""}${n} song${n === 1 ? "" : "s"}${n ? ` · about ${Math.round(setLength(x) / 60)} min` : ""}</div></div>
+          ${icon("chev", "chev")}</button>`; }).join("")}
+        <button class="row newset" id="newset"><div class="txt"><div class="t">${icon("plus")} New set</div></div></button>
+      </div>`;
+    list.querySelectorAll("[data-set]").forEach(el => el.onclick = () => go("#/set/" + encodeURIComponent(el.dataset.set)));
+    $("newset").onclick = () => newSet();
+    return;
+  }
+  if (searching && !q) {
+    /* Before typing: Apple Music, the Songbook (from the Road) and the ways to add. 4.49.2: no recent songs; the Songbook has those */
+    const count = data.songs.length, can = data.songs.filter(x => fitOf(x).can).length;
+    list.innerHTML = `${amRow()}${searchFrom === "road" ? `<button class="sr-browse" id="sr-browse"><span class="sr-bic">${icon("list")}</span><span><b>Open your Songbook</b><small>${count} song${count === 1 ? "" : "s"}${can ? ` · ${can} you can play` : ""}</small></span>${icon("chev", "chev")}</button>` : ""}
+      ${addTools()}`;
+    $("sr-browse")?.addEventListener("click", () => closeSearch?.());
+    bindAddTools(list);
+    /* 4.49.0: Apple Music is one row with the ways to add; its count fills in once the list arrives */
+    if (data.settings.appleMusic) recentApple().then(rows => {
+      const b = $("sr-am");
+      if (!b?.isConnected) return;
+      if (!rows.length) { b.hidden = true; return; }
+      const fresh = rows.filter(r => !inSongbook(r)).length;
+      b.querySelector("small").textContent = fresh ? `${fresh} song${fresh === 1 ? "" : "s"} you've listened to lately` : "What you've listened to lately";
+      b.onclick = () => appleSheet(rows);
+    });
+    return;
+  }
+  const pool = searching ? data.songs : data.songs.filter(s =>
+    (filter !== "fav" || s.favorite) && (filter !== "tab" || s.format === "tab") && (filter !== "learn" || s.status === "learning") && (filter !== "can" || fitOf(s).can));
+  /* Searching: title and artist matches first, then songs whose lyrics have the words. */
+  const found = q ? searchSongs(pool, q) : null;
+  const sort = SORTS[data.settings.sort] ? data.settings.sort : "title";
+  const recent = !q && filter === "all" && sort !== "recent" && data.songs.length >= 4 && !data.sets.length
+    ? data.songs.filter(s => s.opened).sort((a, b) => b.opened - a.opened).slice(0, 2) : [];
+  const sorted = found ? found.map(x => x.song) : sortSongs(pool, sort);
+  const hits = new Map((found || []).filter(x => x.line).map(x => [x.song.id, lyricHit(x.line, q)]));
+
+  list.innerHTML = `
+    ${recent.length ? `<div class="label">Recent</div><div class="recent">${recent.map(s => `
+      <button class="rc glass" data-id="${esc(s.id)}">
+        <div class="t">${esc(s.title)}</div>
+        <div class="a">${esc(s.artist || "Unknown artist")}</div>
+      </button>`).join("")}</div>` : ""}
+    ${q ? "" : `<div class="lib-count lrow"><span id="lib-n">${sorted.length} song${sorted.length === 1 ? "" : "s"}</span>${sortBy(sort)}</div>`}
+    ${sorted.length ? `${q ? '<div class="label">In your Songbook</div>' : ""}<div class="list glass">${sorted.map(s => songRow(s, hits.get(s.id))).join("")}</div>${q ? '<div id="sr-cat"></div>' : ""}` : q ? '<div id="sr-cat"></div>' : findCard(query)}`;
+  if (q) catalogSearch(query.trim());
+  $("sort")?.addEventListener("change", e => {
+    if (e.target.value === "tabs") filter = "tab";
+    else { data.settings.sort = e.target.value; if (filter === "tab") filter = "all"; Tabs.save(data); }
+    renderLibrary();
+  });
+  bindRows(list);
+  bindFind(list);
+  if (!drawer) bindIndex(list, sorted, q ? "" : sort);
+}
+// swipe a song in the list. Left shows Delete (a long swipe deletes
+// at once; Undo brings it back, and it stays in Recently deleted for 30
+// days). Right toggles Favorite. Only on the plain list, never the cards.
+let swOpen = null;
+function closeSwipe() { if (!swOpen) return; const r = swOpen; swOpen = null; r.style.transform = ""; r.parentNode.querySelectorAll(".sw-act").forEach(a => a.style.width = ""); setTimeout(() => r.parentNode?.classList.remove("swiping"), 200); }
+function swipeDelete(id) {
+  const song = data.songs.find(x => x.id === id);
+  if (!song) return;
+  swOpen = null;
+  const entry = Tabs.deleteSong(data, id);
+  refreshLibrary();
+  toast(`Deleted "${song.title}"`, null, { label: "Undo", fn: () => { Tabs.restore(data, entry); refreshLibrary(); toast("Restored"); } });
+}
+function bindSwipe(list) {
+  list.querySelectorAll(".list .row[data-id]").forEach(row => {
+    const wrap = document.createElement("div");
+    wrap.className = "sw";
+    row.before(wrap);
+    wrap.innerHTML = `<button class="sw-act sw-fav" tabindex="-1" aria-hidden="true">${icon("heart")}</button><button class="sw-act sw-del" tabindex="-1" aria-label="Delete">${icon("trash")}</button>`;
+    wrap.appendChild(row);
+    const del = wrap.querySelector(".sw-del"), fav = wrap.querySelector(".sw-fav");
+    del.onclick = e => { e.stopPropagation(); swipeDelete(row.dataset.id); };
+    let x0 = 0, y0 = 0, dx = 0, on = false, dead = false, base = 0;
+    const paint = d => {
+      row.style.transform = d ? `translateX(${d}px)` : "";
+      del.style.width = Math.max(0, -d) + "px"; fav.style.width = Math.max(0, d) + "px";
+      del.classList.toggle("go", -d > row.offsetWidth * 0.6); fav.classList.toggle("go", d > 72);
+    };
+    row.addEventListener("pointerdown", e => { if (e.pointerType === "mouse" && e.button) return; x0 = e.clientX; y0 = e.clientY; dx = 0; on = false; dead = false; base = swOpen === row ? -84 : 0; if (swOpen && swOpen !== row) closeSwipe(); });
+    row.addEventListener("pointermove", e => {
+      if (dead || (!x0 && !y0)) return;
+      const mx = e.clientX - x0, my = e.clientY - y0;
+      if (!on) { if (Math.abs(my) > 10 && Math.abs(my) > Math.abs(mx)) { dead = true; return; } if (Math.abs(mx) < 12) return; on = true; wrap.classList.add("swiping"); try { row.setPointerCapture(e.pointerId); } catch {} }
+      dx = base + mx; paint(dx);
+    });
+    const end = () => {
+      if (!on) { x0 = y0 = 0; return; }
+      on = false; x0 = y0 = 0; row.dataset.swiped = "1"; setTimeout(() => delete row.dataset.swiped, 400);
+      if (-dx > row.offsetWidth * 0.6) { paint(-row.offsetWidth); setTimeout(() => swipeDelete(row.dataset.id), 160); return; }
+      if (dx > 72) {
+        const song = data.songs.find(x => x.id === row.dataset.id);
+        if (song) { song.favorite = !song.favorite; Tabs.save(data); tick(); toast(song.favorite ? "Added to Favorites" : "Removed from Favorites"); }
+        paint(0); setTimeout(refreshLibrary, 220); return;
+      }
+      if (-dx > 50) { paint(-84); swOpen = row; return; }
+      paint(0); if (swOpen === row) swOpen = null; setTimeout(() => wrap.classList.remove("swiping"), 200);
+    };
+    row.addEventListener("pointerup", end);
+    row.addEventListener("pointercancel", end);
+  });
+  /* The first time, one row slides a little to show the trash, then settles. */
+  const first = list.querySelector(".list .sw .row");
+  if (first && !searching && data.songs.length > 2 && coachTip("swipe")) {
+    const w = first.parentNode, d = w.querySelector(".sw-del");
+    setTimeout(() => { w.classList.add("swiping", "hint"); first.style.transform = "translateX(-72px)"; d.style.width = "72px";
+      setTimeout(() => { first.style.transform = ""; d.style.width = ""; setTimeout(() => w.classList.remove("swiping", "hint"), 400); }, 1100); }, 900);
+  }
+}
+document.addEventListener("pointerdown", e => { if (swOpen && !e.target.closest(".sw")) closeSwipe(); }, true);
+function bindRows(list) {
+  bindSwipe(list);
+  list.querySelectorAll("[data-id]").forEach(el => el.onclick = () => {
+    if (el.dataset.swiped) { delete el.dataset.swiped; return; }
+    setSetCtx(null);
+    if (searching) { keepSearch = !!query.trim(); searching = false; document.body.classList.remove("searching", "sr-lock"); }
+    // Name this row's title so it glides into the song header.
+    list.querySelectorAll("[data-id], .t").forEach(t => t.style.viewTransitionName = "");
+    el.querySelector(".t").style.viewTransitionName = "song-title";
+    go("#/song/" + encodeURIComponent(el.dataset.id));
+  });
+}
+
+// ---------- Paste card ----------
+export function showPasteCard(original) {
+  markUsed("paste");
+  let cleaned = null, useCleaned = false, working = false;
+  const cur = () => (useCleaned && cleaned) || original;
+  layer.innerHTML = `
+    <div class="scrim" id="scrim"></div>
+    <div class="panel card kb" role="dialog" aria-label="Save pasted song">
+      <div class="pc-head">${icon("clip")}<span id="p-what"></span><span style="flex:1"></span>
+        <div class="seg mini" id="p-ver" hidden><button data-v="0">Original</button><button data-v="1">Cleaned</button></div>
+      </div>
+      <div class="preview" id="p-prev"></div>
+      <div class="tags" id="p-tags"></div>
+      <div class="ai-note" id="p-note" hidden></div>
+      <div class="fields glass">
+        <label class="fld"><span class="lab">Title</span><input id="p-title" value="${esc(original.title)}" placeholder="Song title" autocomplete="off"></label>
+        <label class="fld"><span class="lab">Artist</span><input id="p-artist" value="${esc(original.artist)}" placeholder="Optional" autocomplete="off"></label>
+      </div>
+      <div class="actions">
+        <button class="btn" id="p-edit">Review</button>
+        ${aiKey() ? `<button class="btn" id="p-clean">${icon("wand")}Clean up</button>` : ""}
+        <button class="btn primary" id="p-save">Save to Songbook</button>
+      </div>
+    </div>`;
+  const show = () => {
+    const d = cur();
+    $("p-what").textContent = `${d.format === "tab" ? "Tab" : "Chord sheet"} ${useCleaned ? "cleaned up" : "detected"}`;
+    $("p-prev").innerHTML = parseSheet(d.body).slice(0, 6).map(l =>
+      l.kind === "chords" ? `<span class="ch">${esc(l.text)}</span>` : l.kind === "section" ? `[${esc(l.text)}]` : esc(l.text)).join("\n");
+    const key = d.key || (d.format === "chords" ? guessKey(d.body) : "");
+    const tags = [d.format === "tab" ? "Tab" : "Chords", key && `Key ${key}`, d.sections && `${d.sections} section${d.sections === 1 ? "" : "s"}`].filter(Boolean);
+    $("p-tags").innerHTML = tags.map(t => `<span class="tag">${esc(t)}</span>`).join("");
+    $("p-ver").hidden = !cleaned;
+    layer.querySelectorAll("#p-ver button").forEach(b => b.classList.toggle("on", (b.dataset.v === "1") === useCleaned));
+  };
+  show();
+  const close = () => { layer.innerHTML = ""; };
+  $("scrim").onclick = () => { if (!working) close(); };
+  layer.querySelectorAll("#p-ver button").forEach(b => b.onclick = () => { useCleaned = b.dataset.v === "1"; show(); });
+  $("p-clean")?.addEventListener("click", async () => {
+    if (working) return;
+    if (cleaned) { useCleaned = true; show(); return; }
+    working = true;
+    const btn = $("p-clean");
+    btn.disabled = true; btn.innerHTML = busy("Cleaning");
+    $("p-note").hidden = true;
+    try {
+      cleaned = await cleanSheet({ text: original.body });
+      useCleaned = true;
+      // Fill in what the cleanup found, without overwriting anything typed.
+      if (!$("p-title").value.trim() && cleaned.title) $("p-title").value = cleaned.title;
+      if (!$("p-artist").value.trim() && cleaned.artist) $("p-artist").value = cleaned.artist;
+      show();
+      btn.innerHTML = `${icon("check")}Cleaned`;
+    } catch (e) {
+      $("p-note").textContent = aiError(e); $("p-note").hidden = false;
+      btn.disabled = false; btn.innerHTML = `${icon("wand")}Clean up`;
+    }
+    working = false;
+  });
+  const fields = () => {
+    const d = cur();
+    return { title: $("p-title").value.trim(), artist: $("p-artist").value.trim(), format: d.format, key: useCleaned ? (d.key || "") : "", body: d.body };
+  };
+  $("p-save").onclick = () => {
+    if (working) return;
+    const f = fields();
+    if (!f.title) { $("p-title").focus(); toast("Add a title first"); return; }
+    const s = Tabs.addSong(data, f);
+    close(); query = "";
+    go("#/song/" + encodeURIComponent(s.id));
+  };
+  $("p-edit").onclick = () => { if (working) return; const f = fields(); close(); newSong(f); };
+  if (!original.title) setTimeout(() => $("p-title")?.focus(), 250);
+  followKeyboard();
+}
+
+export function leaveSearch() { if (searching) { searching = false; document.body.classList.remove("searching", "sr-lock"); query = ""; } }
