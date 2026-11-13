@@ -10,7 +10,7 @@ const STEP = { songs: [{ title: "Breakwater", artist: "Pier Nine", chords: ["G",
 
 test("Play next: switch to A step up, the AI is asked for harder songs, and the choice is kept", { skip: skip() }, async t => {
   const page = await phone(t);
-  await page.evaluate(() => localStorage.setItem("louiev1.apikey.v1", "sk-ant-test"));
+  await page.evaluate(() => localStorage.setItem("louielite.apikey.v1", "sk-ant-test"));
   const systems = [];
   await page.route(/api\.anthropic\.com/, r => {
     const sys = JSON.stringify(JSON.parse(r.request().postData()).system);
@@ -31,7 +31,7 @@ test("Play next: switch to A step up, the AI is asked for harder songs, and the 
   assert.equal(await page.locator(".nx-ch span.new").count(), 2, "both new chords are marked");
 
   await page.click("#nx-x"); await page.waitForTimeout(200);
-  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).settings.nextLevel, "step");
+  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).settings.nextLevel, "step");
   await page.click("#nextidea"); await page.waitForTimeout(500);
   assert.match(systems[2], /real step up/, "the choice is remembered");
 });
@@ -39,7 +39,7 @@ test("Play next: switch to A step up, the AI is asked for harder songs, and the 
 // replies with a stray brace before the JSON, one bad reply, or two.
 async function openWith(t, replies, extra = {}) {
   const page = await phone(t, { ...LIB, settings: { ...LIB.settings, ...extra } });
-  await page.evaluate(() => localStorage.setItem("louiev1.apikey.v1", "sk-ant-test"));
+  await page.evaluate(() => localStorage.setItem("louielite.apikey.v1", "sk-ant-test"));
   const calls = { n: 0 };
   await page.route(/api\.anthropic\.com/, r => {
     const text = replies[Math.min(calls.n++, replies.length - 1)];
@@ -80,7 +80,7 @@ test("Play next: two unreadable replies show a clear message, Try again in the f
 
 test("Play next: songs already shown are sent along so the list moves on (2.13.1)", { skip: skip() }, async t => {
   const page = await phone(t);
-  await page.evaluate(() => { localStorage.setItem("louiev1.apikey.v1", "sk-ant-test"); localStorage.removeItem("louiev1.nextseen.v1"); });
+  await page.evaluate(() => { localStorage.setItem("louielite.apikey.v1", "sk-ant-test"); localStorage.removeItem("louielite.nextseen.v1"); });
   const asks = [];
   await page.route(/api\.anthropic\.com/, r => {
     asks.push(JSON.parse(r.request().postData()).messages[0].content);
@@ -98,7 +98,7 @@ test("Play next: songs already shown are sent along so the list moves on (2.13.1
 
 test("Play next: the reply is streamed, so a long wait keeps the connection alive (2.16.2)", { skip: skip() }, async t => {
   const page = await phone(t);
-  await page.evaluate(() => localStorage.setItem("louiev1.apikey.v1", "sk-ant-test"));
+  await page.evaluate(() => localStorage.setItem("louielite.apikey.v1", "sk-ant-test"));
   let streamed = false;
   await page.route(/api\.anthropic\.com/, r => {
     streamed = JSON.parse(r.request().postData()).stream === true;
@@ -115,7 +115,7 @@ test("Play next: the reply is streamed, so a long wait keeps the connection aliv
 
 test("Play next: an empty reply says why it ended, and the AI gets room to think (2.16.6)", { skip: skip() }, async t => {
   const page = await phone(t);
-  await page.evaluate(() => localStorage.setItem("louiev1.apikey.v1", "sk-ant-test"));
+  await page.evaluate(() => localStorage.setItem("louielite.apikey.v1", "sk-ant-test"));
   const max = [];
   await page.route(/api\.anthropic\.com/, r => {
     max.push(JSON.parse(r.request().postData()).max_tokens);

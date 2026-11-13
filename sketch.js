@@ -484,10 +484,10 @@ async function finish() {
   setTimeout(() => toast(`Chords from your melody${name ? `, in ${pretty(name)}` : ""}. Tap any chord to change it.`), 700);
 }
 
-// ---- Recordings kept on this phone (IndexedDB "louiev1-sketch"), one per sung line ----
+// ---- Recordings kept on this phone (IndexedDB "louielite-sketch"), one per sung line ----
 // Not in backups (they're large); a song deleted for good loses its recording.
 const clipDB = () => new Promise((ok, bad) => {
-  const r = indexedDB.open("louiev1-sketch", 1);
+  const r = indexedDB.open("louielite-sketch", 1);
   r.onupgradeneeded = () => r.result.createObjectStore("clips");
   r.onsuccess = () => ok(r.result); r.onerror = () => bad(r.error);
 });

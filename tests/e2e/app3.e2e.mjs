@@ -202,7 +202,7 @@ test("2.6.5 speed dial: a wobble doesn't change it; Undo restores; nothing selec
   assert.match(await page.innerText("#toast"), /Length .*Undo/s);
   await page.click("#toast .tact"); await page.waitForTimeout(300);
   assert.equal((await page.innerText("#dialbtn")).trim(), before, "Undo puts it back");
-  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).songs.find(s => s.id === "a").duration, 200);
+  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).songs.find(s => s.id === "a").duration, 200);
 });
 
 test("Add the words: paste lyrics on a chord chart and the chords go over them", { skip: skip() }, async t => {
@@ -215,11 +215,11 @@ test("Add the words: paste lyrics on a chord chart and the chords go over them",
   await page.waitForTimeout(400);
   assert.match(await page.textContent("#ws-prev"), /\[Verse\]\nG\s+D\nfirst line of the verse here/);
   await page.click("#ws-ok"); await page.waitForTimeout(500);
-  const body = JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).songs.find(s => s.id === "c").body;
+  const body = JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).songs.find(s => s.id === "c").body;
   assert.match(body, /\[Chorus\]\nC\s+G\nthis is the chorus line/);
   assert.match(await page.textContent("#sheet"), /first line of.*chorus line/, "the song page shows the words");
   await page.click("#toast .tact"); await page.waitForTimeout(300);
-  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).songs.find(s => s.id === "c").body, chart, "Undo");
+  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).songs.find(s => s.id === "c").body, chart, "Undo");
 });
 
 test("typing in Text on a phone opens writing mode; the editor fills the top and the bar rides above", { skip: skip() }, async t => {
@@ -259,7 +259,7 @@ test("tuner 2.16.1: an octave slip on the low E still reads E, and the audio is 
   const errors = [];
   page.on("pageerror", e => errors.push(String(e)));
   await page.goto(base); await page.waitForTimeout(400);
-  await page.evaluate(d => localStorage.setItem("louiev1-v1", JSON.stringify(d)), { ...LIB, settings: { ...LIB.settings, tipsSeen: { ...LIB.settings.tipsSeen, tuner: true }, micExplained: true } });
+  await page.evaluate(d => localStorage.setItem("louielite-v1", JSON.stringify(d)), { ...LIB, settings: { ...LIB.settings, tipsSeen: { ...LIB.settings.tipsSeen, tuner: true }, micExplained: true } });
   await page.reload(); await page.waitForTimeout(300);
   await page.click("#tunerbtn"); await page.waitForTimeout(600);
   const read = () => page.evaluate(() => ({ note: document.getElementById("tn-n").textContent, say: document.getElementById("tn-say").textContent }));
@@ -346,7 +346,7 @@ test("the bass plays the root of each chord, at the sounding pitch, with the met
   assert.ok(!capoed.includes(98), "the shape's own G is not played");
   await page.evaluate(i => { location.hash = "#/song/" + i; }, "bs1"); await page.waitForSelector("#more");
   await page.click("#more"); await page.click(".menu [data-m='bass']");
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem("louiev1-v1")).settings.bass === false);
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem("louielite-v1")).settings.bass === false);
   assert.match(await page.innerText("#toast"), /Bass off/);
   assert.deepEqual(errors, []);
 });
@@ -376,24 +376,24 @@ test("a song's groove is found once, used for the song, and changed in Edit", { 
     asks++;
     r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ content: [{ type: "text", text: '{"beat": "half", "swing": "light", "bass": "walk"}' }], stop_reason: "end_turn" }) });
   });
-  await page.evaluate(() => localStorage.setItem("louiev1.apikey.v1", "sk-test"));
-  const groove = () => page.evaluate(() => JSON.parse(localStorage.getItem("louiev1-v1")).songs.find(x => x.id === "gv").groove);
+  await page.evaluate(() => localStorage.setItem("louielite.apikey.v1", "sk-test"));
+  const groove = () => page.evaluate(() => JSON.parse(localStorage.getItem("louielite-v1")).songs.find(x => x.id === "gv").groove);
   await page.evaluate(() => { location.hash = "#/song/gv"; }); await page.waitForSelector("#play");
   await page.click("#play");
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem("louiev1-v1")).songs.find(x => x.id === "gv").groove, null, { timeout: 5000 });
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem("louielite-v1")).songs.find(x => x.id === "gv").groove, null, { timeout: 5000 });
   assert.deepEqual(await groove(), { src: "ai", beat: "half", swing: "light", bass: "walk" });
   assert.match(await page.innerText("#toast"), /Groove: Half time, light swing, walking bass/);
   await page.click("#play"); await page.click("#play"); await page.click("#play");
   assert.equal(asks, 1, "asked once; a song with a groove is not looked up again");
   await page.click("#more"); await page.click(".menu [data-m='edit']"); await page.waitForSelector("#ed-g-beat");
   assert.match(await page.innerText(".ed-chips"), /Drums\s*Half time\s*Found/);
-  const saved = src => page.waitForFunction(w => JSON.parse(localStorage.getItem("louiev1-v1")).songs.find(x => x.id === "gv").groove?.src === w, src);
+  const saved = src => page.waitForFunction(w => JSON.parse(localStorage.getItem("louielite-v1")).songs.find(x => x.id === "gv").groove?.src === w, src);
   await page.selectOption("#ed-g-beat", "rock"); await saved("you");
   assert.deepEqual(await groove(), { src: "you", beat: "rock", swing: "light", bass: "walk" });
   await page.selectOption("#ed-g-swing", ""); await page.waitForSelector("#ed-g-bass");
   await page.selectOption("#ed-g-bass", ""); await page.waitForSelector("#ed-g-beat");
   await page.selectOption("#ed-g-beat", "");
-  await page.waitForFunction(() => Object.keys(JSON.parse(localStorage.getItem("louiev1-v1")).songs.find(x => x.id === "gv").groove).length === 1);
+  await page.waitForFunction(() => Object.keys(JSON.parse(localStorage.getItem("louielite-v1")).songs.find(x => x.id === "gv").groove).length === 1);
   assert.deepEqual(await groove(), { src: "you" }, "all defaults: kept, and not looked up again");
   assert.match(await page.innerText(".ed-chips"), /Drums\s*Default/);
   assert.ok(await page.$("#ed-g-find"), "Find again is there with a key");
@@ -408,7 +408,7 @@ test("a bass riff: drawn in Edit, kept on the song, and played on each chord", {
     C.prototype.createOscillator = function () { const n = o.call(this); window.__osc.push(n); return n; };
   });
   const errors = []; page.on("pageerror", e => errors.push(String(e)));
-  const groove = () => page.evaluate(() => JSON.parse(localStorage.getItem("louiev1-v1")).songs.find(x => x.id === "rf1").groove);
+  const groove = () => page.evaluate(() => JSON.parse(localStorage.getItem("louielite-v1")).songs.find(x => x.id === "rf1").groove);
   await page.evaluate(() => { location.hash = "#/song/rf1"; }); await page.waitForSelector("#play");
   await page.click("#more"); await page.click(".menu [data-m='edit']"); await page.waitForSelector("#ed-g-bass");
   await page.selectOption("#ed-g-bass", "riff"); await page.waitForSelector(".rf-c");
@@ -417,7 +417,7 @@ test("a bass riff: drawn in Edit, kept on the song, and played on each chord", {
   for (let i = 0; i < 3; i++) await page.click(".rf-c[data-k='8']"); /* rest, root, third, fifth */
   assert.equal(await page.innerText(".rf-c[data-k='8']"), "5");
   await page.click("#rf-play"); await page.click("#rf-ok");
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem("louiev1-v1")).songs.find(x => x.id === "rf1").groove?.riff);
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem("louielite-v1")).songs.find(x => x.id === "rf1").groove?.riff);
   assert.deepEqual(await groove(), { src: "you", bass: "riff", riff: "1.......5......." });
   assert.ok(await page.$("#ed-g-riff"), "Edit riff is there");
   await page.click("#ed-g-riff"); await page.waitForSelector(".rf-c");
@@ -435,13 +435,13 @@ test("a bass riff: drawn in Edit, kept on the song, and played on each chord", {
 test("Settings: the metronome's switch, volume and sound; a song with no tempo gets one", { skip: skip() }, async t => {
   const page = await phone(t, { ...LIB, settings: { ...LIB.settings, countIn: false, controls: "bar" } });
   await page.route("https://api.anthropic.com/**", r => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ content: [{ type: "text", text: '{"bpm": 120, "beats": 4}' }], stop_reason: "end_turn" }) }));
-  await page.evaluate(() => localStorage.setItem("louiev1.apikey.v1", "sk-test"));
+  await page.evaluate(() => localStorage.setItem("louielite.apikey.v1", "sk-test"));
   await page.evaluate(() => { location.hash = "#/settings/playing"; }); await page.waitForSelector("#s-metro");
   await page.click("#s-metro");
   await page.$eval("#s-metvol", el => { el.value = 40; el.dispatchEvent(new Event("input")); el.dispatchEvent(new Event("change")); });
   await page.click("#s-metsound [data-m='click']");
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem("louiev1-v1")).settings.metroSound === "click");
-  const s = await page.evaluate(() => JSON.parse(localStorage.getItem("louiev1-v1")).settings);
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem("louielite-v1")).settings.metroSound === "click");
+  const s = await page.evaluate(() => JSON.parse(localStorage.getItem("louielite-v1")).settings);
   assert.equal(s.metronome, true); assert.equal(s.metroVol, 0.4); assert.equal(s.metroSound, "click");
   assert.equal(await page.getAttribute("#s-metsound [data-m='click']", "aria-pressed"), "true");
   assert.equal(await page.$("#s-metbeat"), null, "the drum beat and swing only show with Drums");
@@ -451,15 +451,15 @@ test("Settings: the metronome's switch, volume and sound; a song with no tempo g
   assert.equal(await page.getAttribute("#s-bass", "aria-checked"), "true");
   await page.selectOption("#s-bassstyle", "walk"); await page.click("#s-bassonly");
   await page.click("#s-metsound [data-m='click']");
-  await page.waitForFunction(() => { const x = JSON.parse(localStorage.getItem("louiev1-v1")).settings; return x.metroDrop === true && x.bassOnly === true && x.metroSound === "click"; });
-  const s2 = await page.evaluate(() => JSON.parse(localStorage.getItem("louiev1-v1")).settings);
+  await page.waitForFunction(() => { const x = JSON.parse(localStorage.getItem("louielite-v1")).settings; return x.metroDrop === true && x.bassOnly === true && x.metroSound === "click"; });
+  const s2 = await page.evaluate(() => JSON.parse(localStorage.getItem("louielite-v1")).settings);
   assert.equal(s2.bass, true); assert.equal(s2.bassStyle, "walk"); assert.equal(s2.bassOnly, true);
   assert.equal(s2.metroBeat, "half"); assert.equal(s2.metroSwing, "light"); assert.equal(s2.metroSound, "click");
-  const id = await page.evaluate(() => JSON.parse(localStorage.getItem("louiev1-v1")).songs.find(x => !x.bpm)?.id);
+  const id = await page.evaluate(() => JSON.parse(localStorage.getItem("louielite-v1")).songs.find(x => !x.bpm)?.id);
   assert.ok(id, "a test song without a tempo");
   await page.evaluate(i => { location.hash = "#/song/" + encodeURIComponent(i); }, id); await page.waitForSelector("#play");
   await page.click("#play");
-  await page.waitForFunction(i => JSON.parse(localStorage.getItem("louiev1-v1")).songs.find(x => x.id === i).bpm === 120, id, { timeout: 5000 });
+  await page.waitForFunction(i => JSON.parse(localStorage.getItem("louielite-v1")).songs.find(x => x.id === i).bpm === 120, id, { timeout: 5000 });
   assert.match(await page.innerText("#toast"), /Tempo found: 120 BPM/);
 });
 
@@ -473,7 +473,7 @@ test("Remove the capo: a chart's capo comes off and the chords move to the key i
   const after = await chords();
   assert.match(await page.innerText("#sheet"), /No capo \(Capo 2 taken off\)/);
   assert.ok(before.includes("G") && after.includes("A") && after.includes("F#m"), `G D Em C becomes A E F#m D (${before} → ${after})`);
-  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).songs.find(s => s.id === "cp").capoOff, true);
+  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).songs.find(s => s.id === "cp").capoOff, true);
   await page.click("#more"); await page.click(".menu [data-m='capo']"); await page.waitForTimeout(300);
   assert.deepEqual(await chords(), before, "and back");
 });
@@ -487,10 +487,10 @@ test("Play map: off until chosen, asks for the position only after Continue, kee
   await page.evaluate(() => { location.hash = "#/playmap"; });
   await page.waitForSelector("#pm-go");
   assert.equal(await page.evaluate(() => window.__asked), 0, "nothing asked before Continue");
-  assert.equal(await page.evaluate(() => localStorage.getItem("louiev1.spot.v1")), null);
+  assert.equal(await page.evaluate(() => localStorage.getItem("louielite.spot.v1")), null);
   await page.click("#pm-none");
   await page.waitForSelector(".pm-map");
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem("louiev1-v1")).settings.playMap === true);
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem("louielite-v1")).settings.playMap === true);
   assert.equal(await page.evaluate(() => window.__asked), 0, "Without a location never asks");
   assert.ok(await page.locator(".pm-cell").count() >= 1);
   assert.equal(await page.locator(".pm-tile").count(), 0, "no spot, no map pictures");
@@ -504,10 +504,10 @@ test("Play map: off until chosen, asks for the position only after Continue, kee
   assert.ok(await page.locator(".pm-real .pm-cell").count() >= 1, "the territory is laid over the map");
   const z0 = tiles[0].match(/\/(\d+)\/\d+\/\d+\.png$/)[1];
   await page.click("#pm-in"); await page.waitForFunction(z => [...document.querySelectorAll(".pm-tile")].some(i => i.src.includes(`/${+z + 1}/`)), z0);
-  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("louiev1.spot.v1"))), { lat: 40.71, lon: -74.01 });
-  assert.equal(await page.evaluate(() => localStorage.getItem("louiev1-v1").includes("40.71")), false, "not in the library");
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("louielite.spot.v1"))), { lat: 40.71, lon: -74.01 });
+  assert.equal(await page.evaluate(() => localStorage.getItem("louielite-v1").includes("40.71")), false, "not in the library");
   await page.click("#pm-forget"); await page.waitForSelector("#pm-spot");
-  assert.equal(await page.evaluate(() => localStorage.getItem("louiev1.spot.v1")), null);
+  assert.equal(await page.evaluate(() => localStorage.getItem("louielite.spot.v1")), null);
 });
 
 test("A run that stops early is not a play", { skip: skip() }, async t => {
@@ -515,5 +515,5 @@ test("A run that stops early is not a play", { skip: skip() }, async t => {
   await page.click(".list .row"); await page.waitForSelector("#play");
   await page.click("#play"); await page.waitForTimeout(1500); await page.click("#play");
   await page.waitForFunction(() => document.getElementById("play")?.getAttribute("aria-label") === "Start auto-scroll");
-  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("louiev1-v1")).songs.every(s => !s.playLog?.total)), true);
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("louielite-v1")).songs.every(s => !s.playLog?.total)), true);
 });

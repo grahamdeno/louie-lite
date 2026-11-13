@@ -354,7 +354,7 @@ const setTint = (set, a = 0.5) => set.cover?.type === "photo" && set.cover.tint 
 // and are loaded into memory at start so covers draw without waiting.
 const coverCache = {};
 const coverDB = () => new Promise((ok, bad) => {
-  const r = indexedDB.open("louiev1-covers", 1);
+  const r = indexedDB.open("louielite-covers", 1);
   r.onupgradeneeded = () => r.result.createObjectStore("covers");
   r.onsuccess = () => ok(r.result); r.onerror = () => bad(r.error);
 });

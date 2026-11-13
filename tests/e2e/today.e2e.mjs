@@ -18,7 +18,7 @@ test("Today: streak dots, and on a rainy day a slow song that opens with a tap",
   const page = await phone(t, lib());
   let asked = 0;
   await page.route(/api\.open-meteo\.com/, r => { asked++; r.fulfill({ status: 200, contentType: "application/json", headers: cors, body: JSON.stringify({ daily: { weather_code: [61], temperature_2m_max: [16] } }) }); });
-  await page.evaluate(() => localStorage.removeItem("louiev1.wx.v1"));
+  await page.evaluate(() => localStorage.removeItem("louielite.wx.v1"));
   await page.reload(); await page.waitForTimeout(800);
   const text = await page.innerText("#today");
   assert.match(text, /2-day streak · 2 plays this week/);
@@ -36,7 +36,7 @@ test("Today: a forecast that arrives late still shows when the week has no plays
   const quiet = { ...lib(), songs: LIB.songs.slice(0, 2).map(s => ({ ...s, favorite: false, status: undefined, playLog: log(15) })) };
   const page = await phone(t, quiet);
   await page.route(/api\.open-meteo\.com/, async r => { await new Promise(res => setTimeout(res, 300)); r.fulfill({ status: 200, contentType: "application/json", headers: cors, body: JSON.stringify({ daily: { weather_code: [61], temperature_2m_max: [16] } }) }); });
-  await page.evaluate(() => localStorage.removeItem("louiev1.wx.v1"));
+  await page.evaluate(() => localStorage.removeItem("louielite.wx.v1"));
   await page.reload(); await page.waitForTimeout(1000);
   assert.match(await page.innerText("#nudge"), /Rainy day, perfect for a slow song/);
 });
@@ -61,9 +61,9 @@ test("Settings: find a city for the weather, and remove it", { skip: skip() }, a
   await page.click("#s-cityfind"); await page.waitForTimeout(300);
   assert.equal(await page.locator("[data-city]").count(), 2);
   await page.click("[data-city='0']"); await page.waitForTimeout(200);
-  const place = JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).settings.place;
+  const place = JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).settings.place;
   assert.deepEqual(place, { name: "Wilmington, North Carolina, US", lat: 34.23, lon: -77.94 });
   assert.match(await page.innerText(".set-group:has(#s-nudge)"), /Weather on/);
   await page.click("#s-cityremove"); await page.waitForTimeout(200);
-  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).settings.place, undefined);
+  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).settings.place, undefined);
 });

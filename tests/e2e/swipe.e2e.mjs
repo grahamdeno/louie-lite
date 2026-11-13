@@ -11,7 +11,7 @@ async function drag(page, sel, dx) {
   await page.mouse.move(x, y); await page.mouse.down();
   await page.mouse.move(x + dx, y + 2, { steps: 10 }); await page.mouse.up(); await page.waitForTimeout(450);
 }
-const ids = page => page.evaluate(() => JSON.parse(localStorage.getItem("louiev1-v1")).songs.map(s => s.id));
+const ids = page => page.evaluate(() => JSON.parse(localStorage.getItem("louielite-v1")).songs.map(s => s.id));
 
 test("Swipe left: a short swipe shows Delete; a long one deletes, with Undo", { skip: skip() }, async t => {
   const page = await phone(t, lib());
@@ -26,13 +26,13 @@ test("Swipe left: a short swipe shows Delete; a long one deletes, with Undo", { 
   assert.ok((await ids(page)).includes("c"), "Undo brings it back");
   await drag(page, row, -330);
   assert.ok(!(await ids(page)).includes("c"), "a long swipe deletes at once");
-  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).trash[0].item.id, "c", "in Recently deleted");
+  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).trash[0].item.id, "c", "in Recently deleted");
 });
 
 test("Swipe right toggles Favorite; a scroll or a tap still works as before", { skip: skip() }, async t => {
   const page = await phone(t, lib());
   await drag(page, ".list .row[data-id='c']", 120);
-  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).songs.find(s => s.id === "c").favorite, true);
+  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).songs.find(s => s.id === "c").favorite, true);
   await page.click(".list .row[data-id='c']"); await page.waitForTimeout(300);
   assert.match(await page.evaluate(() => location.hash), /#\/song\/c/, "a tap opens the song");
 });

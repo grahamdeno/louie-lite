@@ -1,8 +1,8 @@
-# Louie V1
+# Louie Lite
 
 A personal chord sheet and guitar tab app for the phone. It works offline, keeps everything on the device, and needs no account.
 
-Live at `https://grahamdeno.github.io/louie-v1/` (GitHub Pages from `main`). Add it to the home screen to use it as an app.
+Live at `https://grahamdeno.github.io/louie-lite/` (GitHub Pages from `main`). Add it to the home screen to use it as an app.
 
 ## What it does
 
@@ -174,4 +174,4 @@ Problems: the last 20 errors are kept on the phone, and the first in a session s
 
 MIT
 
-Copied from grahamdeno/tabs at v2.49.2 (commit 8bc2319), the black amp look before The Road. Storage, database and cache names use a `louiev1` prefix so this app and Louie never share data on grahamdeno.github.io.
+Copied from grahamdeno/tabs at v2.49.2 (commit 8bc2319), the black amp look before The Road. Storage, database and cache names use a `louielite` prefix so this app and Louie never share data on grahamdeno.github.io.

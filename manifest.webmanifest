@@ -1,6 +1,6 @@
 {
-  "name": "Louie V1",
-  "short_name": "Louie V1",
+  "name": "Louie",
+  "short_name": "Louie",
   "description": "Personal chord sheets and tabs. Offline, local only.",
   "start_url": "./",
   "scope": "./",

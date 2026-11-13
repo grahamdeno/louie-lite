@@ -19,14 +19,14 @@ test("Play's first glide up shows the hold hint once", { skip: skip() }, async t
   assert.equal(await page.locator(".ring-hint").count(), 0, "the circle is gone");
   assert.match(await page.innerText(".coach"), /Press and hold Play for more/);
   if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT + "/hint-3.png" });
-  const seen = JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).settings.tipsSeen.ringHint;
+  const seen = JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).settings.tipsSeen.ringHint;
   assert.equal(seen, true, "once only");
 });
 
 test("no hold hint once you've opened the ring yourself", { skip: skip() }, async t => {
   const page = await phone(t, { ...LIB, settings: { ...LIB.settings, controls: "ring", follow: "corner", used: { ringHint: true } } }, { isMobile: true });
   await page.goto(base + "#/song/a"); await page.waitForTimeout(500);
-  await page.evaluate(() => { const d = JSON.parse(localStorage.getItem("louiev1-v1")); d.settings.follow = "touch"; localStorage.setItem("louiev1-v1", JSON.stringify(d)); });
+  await page.evaluate(() => { const d = JSON.parse(localStorage.getItem("louielite-v1")); d.settings.follow = "touch"; localStorage.setItem("louielite-v1", JSON.stringify(d)); });
   await page.reload(); await page.waitForTimeout(500);
   await page.mouse.click(120, 420); await page.waitForTimeout(1200);
   assert.equal(await page.locator(".ring-hint").count(), 0);

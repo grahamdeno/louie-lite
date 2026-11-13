@@ -70,7 +70,7 @@ export async function phone(t, lib = LIB, { fixedTime, ...opts } = {}) {
   page.on("console", m => { if (/Content Security Policy/i.test(m.text())) errors.push(m.text()); });
   await page.goto(base);
   await page.waitForTimeout(300);
-  await page.evaluate(d => localStorage.setItem("louiev1-v1", JSON.stringify(d)), lib);
+  await page.evaluate(d => localStorage.setItem("louielite-v1", JSON.stringify(d)), lib);
   await page.reload();
   await page.waitForFunction(() => document.getElementById("app")?.childElementCount > 0); /* drawn, rather than a fixed wait */
   t.after(async () => { assert.deepEqual(errors, [], "page errors"); await ctx.close(); });

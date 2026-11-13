@@ -333,7 +333,7 @@ const NEXT_LEVEL = {
   step: `- A real step up (2.13.1): every song must clearly stretch them past the hardest songs they have. Each brings at least two of these: two or three chords they don't play, including a full barre chord (F, Bm, B, C#m, F#m) or a seventh or extended chord; fast or frequent chord changes; a riff, lead line or single-note intro; fingerpicking or a syncopated or muted strum. Learnable in a week or two of practice. No beginner songs.
 - "why": under 12 words, plain, no praise, naming what makes it harder (for example "Barre chords F and Bm, plus a picked intro").`
 };
-const SEEN = "louiev1.nextseen.v1";
+const SEEN = "louielite.nextseen.v1";
 function nextSeen(add = []) {
   let list = [];
   try { list = JSON.parse(localStorage.getItem(SEEN) || "[]"); } catch {}

@@ -106,7 +106,7 @@ test("theme: Automatic follows the phone; Dark and Light override it", { skip: s
   await page.click("#s-theme [data-t='auto']");
   assert.equal(await theme(), "dark");
   await page.waitForTimeout(300);
-  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("louiev1-v1")).settings.theme), "auto");
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("louielite-v1")).settings.theme), "auto");
 });
 
 test("security policy allows Apple art, the Anthropic API, song search, LRCLIB, GetSongBPM and Open-Meteo, and nothing else", { skip: skip() }, async t => {
@@ -149,7 +149,7 @@ test("restoring a backup brings back songs and set cover photos, and skips broke
   await page.locator("#file").setInputFiles({ name: "tabs-backup.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(backup)) });
   await page.waitForTimeout(500);
   assert.match(await page.locator("#toast").textContent(), /Imported 1 song\. Skipped 1/);
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("louiev1-v1")));
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("louielite-v1")));
   assert.deepEqual(saved.songs.map(s => s.title), ["Backup Song"]);
   assert.equal(saved.covers, undefined, "photos stay out of the main save");
   await page.goto(base + "#/set/s9");
@@ -159,7 +159,7 @@ test("restoring a backup brings back songs and set cover photos, and skips broke
 
 test("Add opens a blank song in the editor; Save keeps it, Cancel removes it", { skip: skip() }, async t => {
   const page = await phone(t);
-  const titles = () => page.evaluate(() => JSON.parse(localStorage.getItem("louiev1-v1")).songs.map(s => s.title + (s.isNew ? "*" : "")));
+  const titles = () => page.evaluate(() => JSON.parse(localStorage.getItem("louielite-v1")).songs.map(s => s.title + (s.isNew ? "*" : "")));
   await page.click("#add");
   await page.waitForTimeout(600);
   assert.equal(await page.locator("#ce-done").textContent(), "Save");
@@ -193,13 +193,13 @@ test("Add opens a blank song in the editor; Save keeps it, Cancel removes it", {
   assert.match(await page.innerText("#toast"), /Song discarded/);
   await page.click("#toast .tact"); await page.waitForTimeout(600);
   assert.match(await page.inputValue("#ed-body"), /^e\|---0/);
-  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).songs.length, 4);
+  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).songs.length, 4);
 });
 
 test("questions are asked in the app: rename a section, any chord, delete for good", { skip: skip() }, async t => {
   const page = await phone(t);
   page.on("dialog", d => { d.dismiss(); throw new Error("native dialog: " + d.message()); });
-  const body = async () => JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).songs.find(s => s.id === "a").body;
+  const body = async () => JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).songs.find(s => s.id === "a").body;
   await page.goto(base + "#/song/a"); await page.waitForTimeout(400);
   await page.click("#more"); await page.click(".menu [data-m='edit']"); await page.waitForTimeout(500);
   await page.click("[data-sec] >> nth=0"); await page.waitForTimeout(200);
@@ -213,7 +213,7 @@ test("questions are asked in the app: rename a section, any chord, delete for go
   await page.press("#ask-in", "Enter"); await page.waitForTimeout(400);
   assert.match(await body(), /Cadd9/);
   // Delete for good asks in a sheet; Keep it keeps it.
-  await page.evaluate(() => { const d = JSON.parse(localStorage.getItem("louiev1-v1")); delete d._savedAt; d.trash = [{ type: "song", item: { id: "z", title: "Old Song", body: "G" }, deletedAt: new Date().toISOString() }]; localStorage.setItem("louiev1-v1", JSON.stringify(d)); });
+  await page.evaluate(() => { const d = JSON.parse(localStorage.getItem("louielite-v1")); delete d._savedAt; d.trash = [{ type: "song", item: { id: "z", title: "Old Song", body: "G" }, deletedAt: new Date().toISOString() }]; localStorage.setItem("louielite-v1", JSON.stringify(d)); });
   await page.goto(base + "#/"); await page.reload(); await page.waitForTimeout(300);
   await page.goto(base + "#/trash"); await page.waitForTimeout(300);
   await page.click("[data-forget]"); await page.waitForTimeout(200);
@@ -244,7 +244,7 @@ test("an Apple Music link sets the song's length; tapping sets the tempo", { ski
   const box = await page.locator("#ed-tap").boundingBox();
   for (let i = 0; i < 5; i++) { await page.mouse.click(box.x + 10, box.y + 10); await page.waitForTimeout(500); }
   await page.waitForTimeout(1800);
-  const bpm = await page.evaluate(() => JSON.parse(localStorage.getItem("louiev1-v1")).songs.find(s => s.id === "b").bpm);
+  const bpm = await page.evaluate(() => JSON.parse(localStorage.getItem("louielite-v1")).songs.find(s => s.id === "b").bpm);
   assert.ok(bpm >= 105 && bpm <= 122, `about 120 BPM, got ${bpm}`);
 });
 
@@ -261,7 +261,7 @@ test("first song: try a chord, then Play; tips never block and show once", { ski
   assert.equal(await cap(), "That's how it's played");
   await page.waitForTimeout(2200);
   assert.equal(await cap(), "Press play when you're ready");
-  const s = await page.evaluate(() => JSON.parse(localStorage.getItem("louiev1-v1")).settings);
+  const s = await page.evaluate(() => JSON.parse(localStorage.getItem("louielite-v1")).settings);
   assert.ok(s.used.chord && s.tipsSeen.chord && s.tipsSeen.play);
   // Second visit: nothing.
   await page.goto(base + "#/");
@@ -284,7 +284,7 @@ test("tuner: guided acoustic walks the strings, the meter shows how far off, chr
   page.on("pageerror", e => errors.push(String(e)));
   await page.goto(base);
   await page.waitForTimeout(400); /* let the first-launch save land before replacing the library */
-  await page.evaluate(d => localStorage.setItem("louiev1-v1", JSON.stringify(d)), { ...LIB, settings: { ...LIB.settings, tipsSeen: { ...LIB.settings.tipsSeen, tuner: true }, micExplained: true } });
+  await page.evaluate(d => localStorage.setItem("louielite-v1", JSON.stringify(d)), { ...LIB, settings: { ...LIB.settings, tipsSeen: { ...LIB.settings.tipsSeen, tuner: true }, micExplained: true } });
   await page.reload();
   await page.waitForTimeout(300);
   await page.click("#tunerbtn");
@@ -317,7 +317,7 @@ test("tuner: guided acoustic walks the strings, the meter shows how far off, chr
   const r = await read();
   assert.equal(r.note, "F♯");
   assert.equal(r.say, "A little flat");
-  const s = await page.evaluate(() => JSON.parse(localStorage.getItem("louiev1-v1")).settings);
+  const s = await page.evaluate(() => JSON.parse(localStorage.getItem("louielite-v1")).settings);
   assert.equal(s.tunerMode, "chromatic");
   assert.ok(s.lastTuned > 0);
   await page.click("#tn-done");
@@ -353,7 +353,7 @@ test("tuner: says why it needs the microphone before the phone asks", { skip: sk
   await page.click("#tn-allow");
   assert.equal(await page.locator(".tn-mic").count(), 0);
   await page.waitForTimeout(300);
-  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("louiev1-v1")).settings.micExplained), true);
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("louielite-v1")).settings.micExplained), true);
 });
 
 test("after an update, an open app still loads its parts from its own release", { skip: skip() }, async t => {
@@ -366,7 +366,7 @@ test("after an update, an open app still loads its parts from its own release", 
   await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 10000 });
   // An older release, still in its cache, whose tuner imports its own heads.js.
   const got = await page.evaluate(async () => {
-    const c = await caches.open("louiev1-v0.0.1");
+    const c = await caches.open("louielite-v0.0.1");
     const js = b => new Response(b, { headers: { "content-type": "text/javascript" } });
     await c.put(new Request("./tuner.js"), js('import { WHICH } from "./heads.js"; export const which = () => "old tuner, " + WHICH;'));
     await c.put(new Request("./heads.js"), js('export const WHICH = "old heads";'));
@@ -381,8 +381,8 @@ test("after an update, an open app still loads its parts from its own release", 
 
 test("a problem is kept, and Copy diagnostics reports it without song words or the key", { skip: skip() }, async t => {
   const page = await phone(t, LIB, { permissions: ["clipboard-read", "clipboard-write"] });
-  await page.evaluate(() => localStorage.setItem("louiev1.apikey.v1", "sk-ant-secret"));
-  await page.evaluate(() => { localStorage.setItem("louiev1.errors.v1", JSON.stringify([{ at: "2026-10-01T00:00:00Z", v: "1.0.0", where: "#/", msg: "Earlier problem", stack: "" }])); });
+  await page.evaluate(() => localStorage.setItem("louielite.apikey.v1", "sk-ant-secret"));
+  await page.evaluate(() => { localStorage.setItem("louielite.errors.v1", JSON.stringify([{ at: "2026-10-01T00:00:00Z", v: "1.0.0", where: "#/", msg: "Earlier problem", stack: "" }])); });
   await page.reload(); await page.waitForTimeout(300);
   await page.goto(base + "#/settings/help"); await page.waitForTimeout(300);
   assert.match(await page.innerText("#s-diag"), /1 problem/);
@@ -399,17 +399,17 @@ test("the library lives in the phone's database; its copy brings it back if the 
   const page = await phone(t);
   await page.waitForTimeout(400);
   const inDB = () => page.evaluate(() => new Promise(ok => {
-    const r = indexedDB.open("louiev1-library", 1);
+    const r = indexedDB.open("louielite-library", 1);
     r.onsuccess = () => { const g = r.result.transaction("copy").objectStore("copy").get("lib"); g.onsuccess = () => ok(g.result ? JSON.parse(g.result.json).songs.length : -1); };
   }));
   assert.equal(await inDB(), 2, "the test library moved into the database");
   // A change saves to both.
   await page.goto(base + "#/song/b"); await page.waitForTimeout(300);
   await page.click(".fav:visible"); await page.waitForTimeout(400);
-  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louiev1-v1"))).songs.find(s => s.id === "b").favorite, true);
+  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("louielite-v1"))).songs.find(s => s.id === "b").favorite, true);
   // The database copy is unreadable: the localStorage copy brings the library back.
   await page.evaluate(() => new Promise(ok => {
-    const r = indexedDB.open("louiev1-library", 1);
+    const r = indexedDB.open("louielite-library", 1);
     r.onsuccess = () => { const tx = r.result.transaction("copy", "readwrite"); tx.objectStore("copy").put({ json: "{broken", at: new Date(Date.now() + 1e6).toISOString() }, "lib"); tx.oncomplete = ok; };
   }));
   await page.goto(base + "#/"); await page.reload(); await page.waitForTimeout(900);
@@ -417,7 +417,7 @@ test("the library lives in the phone's database; its copy brings it back if the 
   assert.match(await page.innerText("#toast"), /restored from its safety copy/);
   assert.equal(await inDB(), 2, "and the database is whole again");
   // With the copy gone, the database alone has everything.
-  await page.evaluate(() => localStorage.removeItem("louiev1-v1"));
+  await page.evaluate(() => localStorage.removeItem("louielite-v1"));
   await page.reload(); await page.waitForTimeout(600);
   assert.equal(await page.locator("#list .row").count(), 2);
 });
