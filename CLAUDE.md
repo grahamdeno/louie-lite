@@ -2,7 +2,7 @@
 
 ## Playbook
 
-This repo follows Graham's product playbook: **grahamdeno/playbook, version 1.2.0**. Read it before product work:
+This repo follows Graham's product playbook: **grahamdeno/playbook, version 1.3.0**. Read it before product work:
 process.md (stages, gates, the three go-aheads), roles.md, rules.md, items.md, and the standard for the stage you're
 in. If the playbook isn't attached to this session, attach it (add_repo grahamdeno/playbook); don't work from memory.
 The roadmap (docs/roadmap.md) and the Sonnet log (docs/sonnet-log.md) arrive with the full playbook move.
@@ -28,7 +28,7 @@ Anything below changes something live. Check this list before every merge, push 
 | Any merge or push to `main` | Vercel deploys louie-lite.tangomike.app and the `api/` server (AI proxy, device tokens, Apple Music token) | Ship |
 | Push to any other branch | Vercel builds a preview behind Graham's Vercel login (not live) | None |
 | Changing Vercel environment values (Anthropic key, device secret, Upstash, MusicKit) | Changes what the live server uses | Graham's go; Grok does it |
-| Running `screens.yml` or `vendor-bp.yml` | Commits to the branch it runs on; both refuse to run on `main` | Merge go for the branch it commits to |
+| Running `screens.yml` or `vendor-bp.yml`, or a push to a `strum-*` branch that edits `vendor-bp.yml` | Commits to the branch it runs on; both refuse to run on `main` | Merge go for the branch it commits to |
 | `bump-version.yml` | Off: runs only by hand, never on `main`, and commits to the branch it runs on | Merge go for that branch |
 
 Everything not listed here uploads and deploys nothing. If you find a trigger that isn't listed, stop and add it.
